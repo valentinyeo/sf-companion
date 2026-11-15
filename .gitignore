@@ -28,3 +28,6 @@ env.d.ts
 
 # Factory numbers are exported on the host; the site builds without them
 apps/web/content/feed/factory.json
+
+# Local Alchemy deploy state
+.alchemy/
