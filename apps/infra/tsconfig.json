@@ -1,6 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "allowedUnstableApis": ["@effect/vitest"]
+      }
+    ],
     "allowImportingTsExtensions": true,
     "module": "Preserve",
     "moduleResolution": "Bundler",
