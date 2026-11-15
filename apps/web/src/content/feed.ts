@@ -8,7 +8,7 @@ export const PlanKey = Schema.Literals([
   "vercel",
 ]);
 
-export type PlanKey = typeof PlanKey.Type;
+export type PlanKeyValue = typeof PlanKey.Type;
 
 export const WindowKey = Schema.Literals([
   "1h",
@@ -20,9 +20,9 @@ export const WindowKey = Schema.Literals([
   "30d",
 ]);
 
-export type WindowKey = typeof WindowKey.Type;
+export type WindowKeyValue = typeof WindowKey.Type;
 
-export const windowKeys: ReadonlyArray<WindowKey> = [
+export const windowKeys: readonly WindowKeyValue[] = [
   "1h",
   "3h",
   "6h",
@@ -38,7 +38,7 @@ const UsageMode = Schema.Literals(["percent", "credit", "none"]);
 
 const Tone = Schema.Literals(["plain", "warm", "hot"]);
 
-export type Tone = typeof Tone.Type;
+export type ToneValue = typeof Tone.Type;
 
 const CreditSubLabel = Schema.Literals(["credit", "month full"]);
 
@@ -93,9 +93,9 @@ const UsageCard = Schema.Struct({
   windows: Schema.Array(WindowReading),
 });
 
-export type UsageCard = typeof UsageCard.Type;
+export type UsageCardValue = typeof UsageCard.Type;
 
-export type WindowReading = typeof WindowReading.Type;
+export type WindowReadingValue = typeof WindowReading.Type;
 
 const BurnCell = Schema.Struct({
   gbp: Schema.NullOr(Schema.Number),
@@ -104,7 +104,7 @@ const BurnCell = Schema.Struct({
   todayUsd: Schema.NullOr(Schema.Number),
 });
 
-export type BurnCell = typeof BurnCell.Type;
+export type BurnCellValue = typeof BurnCell.Type;
 
 const BurnByPlan = Schema.Struct({
   claude: Schema.optional(BurnCell),
@@ -124,7 +124,7 @@ const BurnByWindow = Schema.Struct({
   "30d": Schema.optional(BurnByPlan),
 });
 
-export type BurnByWindow = typeof BurnByWindow.Type;
+export type BurnByWindowValue = typeof BurnByWindow.Type;
 
 const tileFields = {
   display: Schema.NonEmptyString,
@@ -136,13 +136,13 @@ const tileFields = {
 
 const BigTile = Schema.Struct({ id: BigTileId, ...tileFields });
 
-export type BigTile = typeof BigTile.Type;
+export type BigTileValue = typeof BigTile.Type;
 
 const MoreTile = Schema.Struct({ id: MoreTileId, ...tileFields });
 
-export type MoreTile = typeof MoreTile.Type;
+export type MoreTileValue = typeof MoreTile.Type;
 
-export type KpiState = typeof KpiState.Type;
+export type KpiStateValue = typeof KpiState.Type;
 
 const KpiWindow = Schema.Struct({
   big: Schema.Array(BigTile),
@@ -152,7 +152,7 @@ const KpiWindow = Schema.Struct({
   to: Schema.Number,
 });
 
-export type KpiWindow = typeof KpiWindow.Type;
+export type KpiWindowValue = typeof KpiWindow.Type;
 
 const KpiWindows = Schema.Struct({
   "1h": Schema.optional(KpiWindow),
@@ -164,7 +164,7 @@ const KpiWindows = Schema.Struct({
   "30d": Schema.optional(KpiWindow),
 });
 
-export type KpiWindows = typeof KpiWindows.Type;
+export type KpiWindowsValue = typeof KpiWindows.Type;
 
 const HourBucket = Schema.Struct({
   runs: Schema.Number,
@@ -172,14 +172,14 @@ const HourBucket = Schema.Struct({
   violations: Schema.Number,
 });
 
-export type HourBucket = typeof HourBucket.Type;
+export type HourBucketValue = typeof HourBucket.Type;
 
 const Violations = Schema.Struct({
   hourly: Schema.Array(HourBucket),
   top: Schema.Number,
 });
 
-export type Violations = typeof Violations.Type;
+export type ViolationsValue = typeof Violations.Type;
 
 export const FactoryFeed = Schema.Struct({
   generatedAt: Schema.String,
@@ -193,7 +193,7 @@ export const FactoryFeed = Schema.Struct({
   }),
 });
 
-export type FactoryFeed = typeof FactoryFeed.Type;
+export type FactoryFeedValue = typeof FactoryFeed.Type;
 
 export class FeedError extends Schema.TaggedError<
   FeedError,
@@ -207,7 +207,7 @@ export const decodeFeed = Effect.fn("content.decodeFeed")(function* decodeFeed(
   path: string,
   raw: string
 ) {
-  return yield* Schema.decodeEffect(
-    Schema.fromJsonString(FactoryFeed)
-  )(raw).pipe(Effect.mapError((cause) => new FeedError({ cause, path })));
+  return yield* Schema.decodeEffect(Schema.fromJsonString(FactoryFeed))(
+    raw
+  ).pipe(Effect.mapError((cause) => new FeedError({ cause, path })));
 });

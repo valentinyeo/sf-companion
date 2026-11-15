@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import {
   expect as expectElement,
   given,
@@ -26,7 +26,7 @@ const fixtureFile = {
 
 describe("entry pages", () => {
   it.effect("renders a decoded entry on both of its pages", () =>
-    Effect.gen(function* () {
+    Effect.gen(function* renderDecodedEntry() {
       const entry = yield* decodeEntry(
         "exploration",
         fixturePath,
@@ -34,6 +34,7 @@ describe("entry pages", () => {
       );
 
       const list = SiteRoute.List({ section: "explorations" });
+
       const detail = SiteRoute.Entry({
         section: "explorations",
         slug: entry.slug,
@@ -41,13 +42,13 @@ describe("entry pages", () => {
 
       scene(
         { update, view },
-        given(initialModel({ route: list }, [entry], null)),
+        given(initialModel({ route: list }, [entry], Option.none())),
         expectElement(role("link", { name: entry.title })).toExist()
       );
 
       scene(
         { update, view },
-        given(initialModel({ route: detail }, [entry], null)),
+        given(initialModel({ route: detail }, [entry], Option.none())),
         expectElement(role("heading", { name: entry.title })).toExist(),
         expectElement(text(entry.body)).toExist()
       );
@@ -55,7 +56,7 @@ describe("entry pages", () => {
   );
 
   it.effect("rejects an entry whose kind is unknown", () =>
-    Effect.gen(function* () {
+    Effect.gen(function* rejectUnknownKind() {
       const failure = yield* Effect.flip(
         decodeEntry(
           "exploration",

@@ -48,7 +48,7 @@ const renderRoute = Effect.fn("site.renderRoute")(function* renderRoute(
     {
       Flags,
       init: (flags: PageFlags) => ({
-        model: initialModel(flags, entries, factoryFeed),
+        model: initialModel(flags, entries, Option.fromNullOr(factoryFeed)),
       }),
       view,
     },

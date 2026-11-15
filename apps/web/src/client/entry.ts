@@ -1,11 +1,12 @@
+import { Option } from "effect";
 import { Runtime } from "foldkit";
 
 import { entries } from "../content/entries.js";
 import { factoryFeed } from "../content/factory.js";
 import { view } from "../features/page.js";
+import { Message } from "./app/message.js";
 import { Flags, initialModel, Model } from "./app/model.js";
 import type { PageFlags } from "./app/model.js";
-import { Message } from "./app/message.js";
 import { update } from "./app/update.js";
 
 import "./rat.css";
@@ -17,7 +18,7 @@ const application = Runtime.makeApplication({
   container: document.querySelector("#root"),
   devTools: import.meta.env.DEV ? { Message } : false,
   init: (flags: PageFlags) => ({
-    model: initialModel(flags, entries, factoryFeed),
+    model: initialModel(flags, entries, Option.fromNullOr(factoryFeed)),
   }),
   update,
   view,

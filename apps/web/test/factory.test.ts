@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import {
   click,
   expect as expectElement,
@@ -107,13 +107,13 @@ const fixtureFeed = {
 
 describe("factory page", () => {
   it.effect("shows the fixture plan card and KPI tile", () =>
-    Effect.gen(function* () {
+    Effect.gen(function* showFixturePlan() {
       const feed = yield* decodeFeed(fixturePath, JSON.stringify(fixtureFeed));
       const route = SiteRoute.Factory();
 
       scene(
         { update, view },
-        given(initialModel({ route }, [], feed)),
+        given(initialModel({ route }, [], Option.some(feed))),
         expectElement(text("Fixture Plan")).toExist(),
         expectElement(text("£0.44")).toExist(),
         expectElement(text("Numbers from 2026-11-15 00:41 UTC")).toExist(),
@@ -124,7 +124,7 @@ describe("factory page", () => {
   );
 
   it.effect("rejects a feed with an unknown state", () =>
-    Effect.gen(function* () {
+    Effect.gen(function* rejectUnknownState() {
       const broken = {
         ...fixtureFeed,
         kpis: {
@@ -147,12 +147,12 @@ describe("factory page", () => {
   );
 
   it.effect("shows one line when the feed is missing", () =>
-    Effect.gen(function* () {
+    Effect.sync(() => {
       const route = SiteRoute.Factory();
 
       scene(
         { update, view },
-        given(initialModel({ route }, [], null)),
+        given(initialModel({ route }, [], Option.none())),
         expectElement(text("No factory numbers yet.")).toExist()
       );
     })

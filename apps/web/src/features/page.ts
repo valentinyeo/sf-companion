@@ -1,14 +1,14 @@
 import { Button } from "@foldkit/ui";
+import * as stylex from "@stylexjs/stylex";
 import { Array, Option } from "effect";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
-import * as stylex from "@stylexjs/stylex";
 
 import { Message } from "../client/app/message.js";
 import type { AppMessage } from "../client/app/message.js";
 import { CopyState } from "../client/app/model.js";
 import type { AppModel } from "../client/app/model.js";
 import { entriesOf, findEntry } from "../content/entry.js";
-import type { Entry, EntryKind } from "../content/entry.js";
+import type { EntryValue, EntryKind } from "../content/entry.js";
 import { factoryView } from "./factory.js";
 import { readerStyles } from "./reader.stylex.js";
 import {
@@ -20,7 +20,7 @@ import {
   listPath,
   SiteRoute,
 } from "./route.js";
-import type { SiteRoute as SiteRouteValue } from "./route.js";
+import type { SiteRouteValue } from "./route.js";
 
 const SITE_NAME = "Software Factory Companion";
 
@@ -33,7 +33,7 @@ const emptyLine = (kind: EntryKind) =>
 const backLabel = (kind: EntryKind) =>
   `Back to ${sectionName(kind).toLowerCase()}`;
 
-const className = (...styles: ReadonlyArray<stylex.StyleXStyles>) =>
+const className = (...styles: readonly stylex.StyleXStyles[]) =>
   stylex.props(...styles).className ?? "";
 
 const copyLabel = CopyState.match({
@@ -56,34 +56,50 @@ const sectionLinks = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
 ];
 
 const siteHeader = (h: HtmlBuilder<AppMessage>): Html =>
-  h.header([h.Class(className(readerStyles.bounded, readerStyles.header))], [
-    h.nav([h.AriaLabel("Primary navigation"), h.Class("site-nav")], [
-      h.a([h.Class("brand"), h.Href(homeRouter())], [
-        h.strong([], [SITE_NAME]),
-      ]),
-      h.div([h.Class("site-links")], [h.ul([], sectionLinks(h))]),
-    ]),
-  ]);
+  h.header(
+    [h.Class(className(readerStyles.bounded, readerStyles.header))],
+    [
+      h.nav(
+        [h.AriaLabel("Primary navigation"), h.Class("site-nav")],
+        [
+          h.a(
+            [h.Class("brand"), h.Href(homeRouter())],
+            [h.strong([], [SITE_NAME])]
+          ),
+          h.div([h.Class("site-links")], [h.ul([], sectionLinks(h))]),
+        ]
+      ),
+    ]
+  );
 
 const siteFooter = (h: HtmlBuilder<AppMessage>): Html =>
-  h.footer([h.Class(className(readerStyles.bounded))], [
-    h.hr([]),
-    h.p([], ["Built with Foldkit, Effect, Alchemy, and StyleX."]),
-  ]);
+  h.footer(
+    [h.Class(className(readerStyles.bounded))],
+    [h.hr([]), h.p([], ["Built with Foldkit, Effect, Alchemy, and StyleX."])]
+  );
 
 const homeBranches = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
-  h.li([], [
-    h.a([h.Href(listPath("exploration"))], ["Explorations"]),
-    h.p([], ["Open questions, experiments, and working notes."]),
-  ]),
-  h.li([], [
-    h.a([h.Href(listPath("report"))], ["Reports"]),
-    h.p([], ["Finished findings and write-ups."]),
-  ]),
-  h.li([], [
-    h.a([h.Href(factoryRouter())], ["Factory"]),
-    h.p([], ["Usage and KPIs from the factory's own numbers."]),
-  ]),
+  h.li(
+    [],
+    [
+      h.a([h.Href(listPath("exploration"))], ["Explorations"]),
+      h.p([], ["Open questions, experiments, and working notes."]),
+    ]
+  ),
+  h.li(
+    [],
+    [
+      h.a([h.Href(listPath("report"))], ["Reports"]),
+      h.p([], ["Finished findings and write-ups."]),
+    ]
+  ),
+  h.li(
+    [],
+    [
+      h.a([h.Href(factoryRouter())], ["Factory"]),
+      h.p([], ["Usage and KPIs from the factory's own numbers."]),
+    ]
+  ),
 ];
 
 const homeView = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
@@ -92,12 +108,15 @@ const homeView = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
   h.ul([], homeBranches(h)),
 ];
 
-const entryRow = (entry: Entry, h: HtmlBuilder<AppMessage>): Html =>
-  h.li([h.Key(entry.slug)], [
-    h.a([h.Href(entryPath(entry.kind, entry.slug))], [entry.title]),
-    h.p([], [entry.summary]),
-    h.time([h.Datetime(entry.date)], [entry.date]),
-  ]);
+const entryRow = (entry: EntryValue, h: HtmlBuilder<AppMessage>): Html =>
+  h.li(
+    [h.Key(entry.slug)],
+    [
+      h.a([h.Href(entryPath(entry.kind, entry.slug))], [entry.title]),
+      h.p([], [entry.summary]),
+      h.time([h.Datetime(entry.date)], [entry.date]),
+    ]
+  );
 
 const listView = (
   kind: EntryKind,
@@ -111,7 +130,10 @@ const listView = (
     Array.match(present, {
       onEmpty: () => h.p([], [emptyLine(kind)]),
       onNonEmpty: (listed) =>
-        h.ul([], listed.map((entry) => entryRow(entry, h))),
+        h.ul(
+          [],
+          listed.map((entry) => entryRow(entry, h))
+        ),
     }),
   ];
 };
@@ -141,18 +163,21 @@ const entryView = (
   return Option.match(findEntry(model.entries, kind, route.slug), {
     onNone: () => missingView(h),
     onSome: (entry) => [
-      h.article([], [
-        h.h1([], [entry.title]),
-        h.p([], [entry.summary]),
-        h.time([h.Datetime(entry.date)], [entry.date]),
-        ...paragraphs(entry.body).map((paragraph) => h.p([], [paragraph])),
-        copyLink(
-          model,
-          entryRouter({ section: route.section, slug: route.slug }),
-          h
-        ),
-        h.p([], [h.a([h.Href(listPath(kind))], [backLabel(kind)])]),
-      ]),
+      h.article(
+        [],
+        [
+          h.h1([], [entry.title]),
+          h.p([], [entry.summary]),
+          h.time([h.Datetime(entry.date)], [entry.date]),
+          ...paragraphs(entry.body).map((paragraph) => h.p([], [paragraph])),
+          copyLink(
+            model,
+            entryRouter({ section: route.section, slug: route.slug }),
+            h
+          ),
+          h.p([], [h.a([h.Href(listPath(kind))], [backLabel(kind)])]),
+        ]
+      ),
     ],
   });
 };
@@ -192,10 +217,9 @@ export const view = (
   model: AppModel,
   h: HtmlBuilder<AppMessage>
 ): Document => ({
-  body: h.div([h.Class(className(readerStyles.shell))], [
-    siteHeader(h),
-    h.main([], bodyOf(model.route, model, h)),
-    siteFooter(h),
-  ]),
+  body: h.div(
+    [h.Class(className(readerStyles.shell))],
+    [siteHeader(h), h.main([], bodyOf(model.route, model, h)), siteFooter(h)]
+  ),
   title: titleOf(model.route, model),
 });

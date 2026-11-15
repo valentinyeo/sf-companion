@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
 import { decodeEntry } from "./entry.js";
-import type { Entry, EntryKind } from "./entry.js";
+import type { EntryValue, EntryKind } from "./entry.js";
 
 const explorationFiles = import.meta.glob("../../content/explorations/*.json", {
   eager: true,
@@ -22,7 +22,7 @@ const loadFolder = (kind: EntryKind, files: Readonly<Record<string, string>>) =>
     )
   );
 
-export const entries: ReadonlyArray<Entry> = [
+export const entries: readonly EntryValue[] = [
   ...loadFolder("exploration", explorationFiles),
   ...loadFolder("report", reportFiles),
 ];

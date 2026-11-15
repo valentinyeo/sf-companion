@@ -10,7 +10,6 @@ import type {
   Variable,
 } from "@oxlint/plugins";
 
-
 type RuleContext = Context;
 
 type NodeOfType<Type extends ESTree.Node["type"]> = Extract<

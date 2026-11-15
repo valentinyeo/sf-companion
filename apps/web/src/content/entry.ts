@@ -1,4 +1,5 @@
-import { Array, Effect, Option, Schema } from "effect";
+import type { Option } from "effect";
+import { Array, Effect, Schema } from "effect";
 
 export const Kind = Schema.Literals(["exploration", "report"]);
 
@@ -15,7 +16,7 @@ export const Entry = Schema.Struct({
   title: Schema.NonEmptyString,
 });
 
-export type Entry = typeof Entry.Type;
+export type EntryValue = typeof Entry.Type;
 
 export class ContentError extends Schema.TaggedError<
   ContentError,
@@ -38,9 +39,9 @@ const slugFromPath = (path: string) =>
 
 export const decodeEntry = Effect.fn("content.decodeEntry")(
   function* decodeEntry(kind: EntryKind, path: string, raw: string) {
-    const file = yield* Schema.decodeEffect(
-      Schema.fromJsonString(EntryFile)
-    )(raw).pipe(Effect.mapError((cause) => new ContentError({ cause, path })));
+    const file = yield* Schema.decodeEffect(Schema.fromJsonString(EntryFile))(
+      raw
+    ).pipe(Effect.mapError((cause) => new ContentError({ cause, path })));
 
     if (file.kind !== kind) {
       return yield* new ContentError({
@@ -54,9 +55,9 @@ export const decodeEntry = Effect.fn("content.decodeEntry")(
 );
 
 export const entriesOf = (
-  entries: ReadonlyArray<Entry>,
+  entries: readonly EntryValue[],
   kind: EntryKind
-): ReadonlyArray<Entry> =>
+): readonly EntryValue[] =>
   entries
     .filter((entry) => entry.kind === kind)
     .toSorted(
@@ -66,10 +67,10 @@ export const entriesOf = (
     );
 
 export const findEntry = (
-  entries: ReadonlyArray<Entry>,
+  entries: readonly EntryValue[],
   kind: EntryKind,
   slug: string
-): Option.Option<Entry> =>
+): Option.Option<EntryValue> =>
   Array.findFirst(
     entries,
     (entry) => entry.kind === kind && entry.slug === slug

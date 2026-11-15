@@ -15,7 +15,7 @@ export const SiteRoute = Route.defineRouteUnion({
   NotFound: { path: Schema.String },
 });
 
-export type SiteRoute = typeof SiteRoute.Type;
+export type SiteRouteValue = typeof SiteRoute.Type;
 
 const sectionSegment = Route.schemaSegment("section", Section);
 
