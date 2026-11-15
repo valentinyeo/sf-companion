@@ -167,7 +167,7 @@ const paceLine = (card: UsageCard, h: Ui): Html | null => {
   }
 
   return h.p([h.Class(classes(factoryStyles.small))], [
-    `${signed(card.paceDelta)} vs pace `,
+    `${signed(card.paceDelta)} vs pace · `,
     cue(card.tone === "plain" ? "ok" : card.tone, toneWord(card.tone), h),
   ]);
 };
@@ -191,22 +191,6 @@ const windowsDetails = (
         ]),
       ]);
 
-const reviewerPill = (card: UsageCard, h: Ui): Html | null =>
-  card.reviewer.show
-    ? h.span(
-        [
-          h.Class(
-            classes(
-              factoryStyles.pill,
-              card.reviewer.known ? null : factoryStyles.pillUnknown
-            )
-          ),
-          h.Title(card.reviewer.tip),
-        ],
-        [card.reviewer.known ? "Code review" : "Code review ?"]
-      )
-    : null;
-
 const usageCard = (
   card: UsageCard,
   burn: BurnByWindow,
@@ -217,13 +201,13 @@ const usageCard = (
   const summary = bigNumber(card);
   const pace = paceLine(card, h);
   const details = windowsDetails(card.windows, h);
-  const pill = reviewerPill(card, h);
 
   return h.li([h.Key(card.plan), h.Class(classes(factoryStyles.card))], [
     h.div([h.Class(classes(factoryStyles.cardTop))], [
       h.h3([h.Class(classes(factoryStyles.cardName))], [card.name]),
-      ...(pill === null ? [] : [pill]),
-      ...(reset === "" ? [] : [h.p([h.Class(classes(factoryStyles.reset))], [reset])]),
+      ...(reset === ""
+        ? []
+        : [h.p([h.Class(classes(factoryStyles.reset))], [reset])]),
     ]),
     h.p(
       [h.Class(classes(factoryStyles.bigValue, toneStyle(card.tone)))],
@@ -293,6 +277,7 @@ const bigTileRow = (tile: BigTile, h: Ui): Html =>
       : [h.p([h.Class(classes(factoryStyles.small))], [tile.sub])]),
     h.p([h.Class(classes(factoryStyles.meta))], [
       ...(tile.target === null ? [] : [`target ${tile.target}`]),
+      ...(tile.target === null || tile.state === null ? [] : ["·"]),
       ...(tile.state === null
         ? []
         : [cue(tileStateWord(tile.state), tileStateLabel(tile.state), h)]),

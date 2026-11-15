@@ -81,30 +81,13 @@ export const factoryStyles = stylex.create({
     textAlign: "center",
   },
   cue: {
-    borderColor: surface.line,
-    borderRadius: surface.radius,
-    borderStyle: "solid",
-    borderWidth: 1,
     fontSize: reader.fontTiny,
-    paddingInline: "0.5ch",
     whiteSpace: "nowrap",
   },
-  cueBad: {
-    borderColor: state.bad,
-    color: state.bad,
-  },
-  cueHot: {
-    borderColor: state.hot,
-    color: state.hot,
-  },
-  cueOk: {
-    borderColor: state.ok,
-    color: state.ok,
-  },
-  cueWarm: {
-    borderColor: state.warm,
-    color: state.warm,
-  },
+  cueBad: { color: state.bad },
+  cueHot: { color: state.hot },
+  cueOk: { color: state.ok },
+  cueWarm: { color: state.warm },
   details: {
     fontSize: reader.fontSmall,
   },
@@ -161,15 +144,6 @@ export const factoryStyles = stylex.create({
     backgroundColor: surface.wash,
     fontWeight: "bold",
   },
-  pill: {
-    borderColor: surface.line,
-    borderRadius: surface.radius,
-    borderStyle: "solid",
-    borderWidth: 1,
-    fontSize: reader.fontTiny,
-    paddingInline: "0.5ch",
-  },
-  pillUnknown: { color: surface.muted },
   reset: {
     color: surface.muted,
     fontSize: reader.fontSmall,
