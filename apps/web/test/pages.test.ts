@@ -1,6 +1,12 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { expect as expectElement, given, role, scene, text } from "foldkit/scene";
+import {
+  expect as expectElement,
+  given,
+  role,
+  scene,
+  text,
+} from "foldkit/scene";
 
 import { initialModel } from "../src/client/app/model.js";
 import { update } from "../src/client/app/update.js";
@@ -18,7 +24,7 @@ const fixtureFile = {
 };
 
 describe("entry pages", () => {
-  it.effect("renders a decoded entry on its list page and its detail page", () =>
+  it.effect("renders a decoded entry on both of its pages", () =>
     Effect.gen(function* () {
       const entry = yield* decodeEntry(
         "exploration",
