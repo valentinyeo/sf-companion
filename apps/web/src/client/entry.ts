@@ -3,6 +3,7 @@ import { Runtime } from "foldkit";
 import { entries } from "../content/entries.js";
 import { view } from "../features/page.js";
 import { Flags, initialModel, Model } from "./app/model.js";
+import type { PageFlags } from "./app/model.js";
 import { Message } from "./app/message.js";
 import { update } from "./app/update.js";
 
@@ -13,7 +14,7 @@ const application = Runtime.makeApplication({
   Model,
   container: document.querySelector("#root"),
   devTools: import.meta.env.DEV ? { Message } : false,
-  init: (flags) => ({ model: initialModel(flags, entries) }),
+  init: (flags: PageFlags) => ({ model: initialModel(flags, entries) }),
   update,
   view,
 });
