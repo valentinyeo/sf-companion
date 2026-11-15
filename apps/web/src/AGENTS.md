@@ -18,7 +18,8 @@ Rules for browser code under `apps/web/src/client/` and `apps/web/src/features/`
 | `src/content/entry.ts` | The `Entry` Schema, the `ContentError` failure, decoding, list and lookup helpers |
 | `src/content/entries.ts` | Reads every entry file once and decodes it at load |
 | `src/features/route.ts` | The page route union and its Routers; URLs come from calling a Router as a printer |
-| `src/features/page.ts` and `page.stylex.ts` | The page view and its StyleX styles |
+| `src/features/page.ts` | The page view; it composes the template's `reader.stylex.ts` and base sheet |
+| `src/client/rat.css` | The template's base sheet: monospace type, 80ch measure, grid, focus ring |
 | `src/client/app/` | Model, Messages, named Commands, and `update` |
 | `src/client/entry.ts` | Browser runtime boot and hydration |
 | `src/entry.server.ts` | Server rendering, `prerenderPaths`, and 404 handling |
@@ -32,7 +33,7 @@ One JSON file per entry lives in `apps/web/content/explorations/` or `apps/web/c
 
 ## Visual rules
 
-StyleX only. Corners are 2px or 4px. Hot pink marks the focus ring and nothing else. No Tailwind, UI kits, or chart libraries.
+StyleX for authored styles, over the template's untouched base sheet in `src/client/rat.css`. The base sheet and `tokens.stylex.ts` own every colour, font, size, spacing, and radius. Hot pink marks the focus ring and nothing else. No Tailwind, UI kits, or chart libraries.
 
 ## Tests
 

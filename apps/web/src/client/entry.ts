@@ -7,7 +7,8 @@ import type { PageFlags } from "./app/model.js";
 import { Message } from "./app/message.js";
 import { update } from "./app/update.js";
 
-import "./site.css";
+import "./rat.css";
+import "./reader.css";
 
 const application = Runtime.makeApplication({
   Flags,
