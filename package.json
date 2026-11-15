@@ -33,7 +33,6 @@
     "vendor:agent-sources": "./scripts/vendor-agent-sources.sh"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.5.2",
     "@effect/tsgo": "0.69.0",
     "@foldkit/oxlint-plugin": "0.15.4",
     "@oxlint/plugins": "1.93.0",
