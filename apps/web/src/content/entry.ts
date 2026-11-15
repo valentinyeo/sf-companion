@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Array, Effect, Option, Schema } from "effect";
 
 export const Kind = Schema.Literals(["exploration", "report"]);
 
@@ -52,3 +52,25 @@ export const decodeEntry = Effect.fn("content.decodeEntry")(
     return { ...file, slug: slugFromPath(path) };
   }
 );
+
+export const entriesOf = (
+  entries: ReadonlyArray<Entry>,
+  kind: EntryKind
+): ReadonlyArray<Entry> =>
+  entries
+    .filter((entry) => entry.kind === kind)
+    .toSorted(
+      (left, right) =>
+        right.date.localeCompare(left.date) ||
+        left.title.localeCompare(right.title)
+    );
+
+export const findEntry = (
+  entries: ReadonlyArray<Entry>,
+  kind: EntryKind,
+  slug: string
+): Option.Option<Entry> =>
+  Array.findFirst(
+    entries,
+    (entry) => entry.kind === kind && entry.slug === slug
+  );

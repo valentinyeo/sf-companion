@@ -1,0 +1,31 @@
+@layer rat-base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    background: #ffffff;
+    color: #111111;
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0;
+    font-family:
+      ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+
+  a {
+    color: inherit;
+    text-decoration-color: #b5b5b5;
+    text-underline-offset: 0.2em;
+  }
+
+  :focus-visible {
+    outline: 2px solid #ff1493;
+    outline-offset: 3px;
+  }
+}

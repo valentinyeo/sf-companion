@@ -1,0 +1,32 @@
+{
+  "name": "@sf-companion/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "portless sf-companion vite dev",
+    "typecheck": "effect-tsrs diagnostics --project tsconfig.json --strict --type-check",
+    "typecheck:tsc": "tsc --noEmit -p tsconfig.json",
+    "typecheck:fast": "tsrs --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build": "vite build",
+    "check": "pnpm run typecheck"
+  },
+  "dependencies": {
+    "@alchemy.run/cloudflare": "2.0.0-beta.87",
+    "@foldkit/ui": "0.170.0",
+    "@stylexjs/stylex": "0.19.2",
+    "alchemy": "2.0.0-beta.87",
+    "effect": "4.1.4",
+    "foldkit": "0.170.0"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.1.4",
+    "@foldkit/vite-plugin": "0.29.0",
+    "@stylexjs/unplugin": "0.19.2",
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}
