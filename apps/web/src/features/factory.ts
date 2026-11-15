@@ -132,9 +132,9 @@ const resetLine = (card: UsageCard): string => {
 const burnLine = (
   card: UsageCard,
   burn: BurnByWindow,
-  window: WindowKey
+  windowKey: WindowKey
 ): string => {
-  const cell = burn[window]?.[card.plan];
+  const cell = burn[windowKey]?.[card.plan];
 
   if (cell === undefined) {
     return "–";
@@ -159,7 +159,7 @@ const burnLine = (
       ? ""
       : ` · $${cell.todayUsd.toFixed(2)} today`;
 
-  return `${body === "" ? "" : `${body} `}in ${window}${runners}${today}`;
+  return `${body === "" ? "" : `${body} `}in ${windowKey}${runners}${today}`;
 };
 
 const paceLine = (card: UsageCard, h: Ui): Html | null => {
@@ -195,7 +195,7 @@ const windowsDetails = (
 const usageCard = (
   card: UsageCard,
   burn: BurnByWindow,
-  window: WindowKey,
+  windowKey: WindowKey,
   h: Ui
 ): Html => {
   const reset = resetLine(card);
@@ -216,7 +216,7 @@ const usageCard = (
     ),
     ...(pace === null ? [] : [pace]),
     h.p([h.Class(classes(factoryStyles.small))], [
-      burnLine(card, burn, window),
+      burnLine(card, burn, windowKey),
     ]),
     ...(details === null ? [] : [details]),
     h.p([h.Class(classes(factoryStyles.small))], [card.runnersText]),
@@ -225,7 +225,7 @@ const usageCard = (
 
 const usageSection = (
   feed: FactoryFeed,
-  window: WindowKey,
+  windowKey: WindowKey,
   h: Ui
 ): Html =>
   h.section([h.Class(classes(factoryStyles.section))], [
@@ -235,7 +235,7 @@ const usageSection = (
       : [
           h.ul([h.Class(classes(factoryStyles.cards))], [
             ...feed.usage.cards.map((card) =>
-              usageCard(card, feed.usage.burn, window, h)
+              usageCard(card, feed.usage.burn, windowKey, h)
             ),
           ]),
         ]),
@@ -297,10 +297,18 @@ const barLevels: ReadonlyArray<stylex.StyleXStyles> = [
   factoryStyles.barLevel8,
 ];
 
-const barLevel = (violations: number, top: number): number =>
+const barLevel = (violations: number, maxPerHour: number): number =>
   violations === 0
     ? 0
-    : Math.min(8, Math.max(1, Math.ceil((violations / top) * 8)));
+    : Math.min(8, Math.max(1, Math.ceil((violations / maxPerHour) * 8)));
+
+const barStyles = (
+  violations: number,
+  maxPerHour: number
+): ReadonlyArray<stylex.StyleXStyles> => [
+  barLevels[barLevel(violations, maxPerHour)] ?? factoryStyles.bar,
+  violations === 0 ? factoryStyles.barQuiet : factoryStyles.barLit,
+];
 
 const hourLabels = (hours: ReadonlyArray<HourBucket>, h: Ui): readonly Html[] =>
   hours
@@ -316,12 +324,12 @@ const hourLabels = (hours: ReadonlyArray<HourBucket>, h: Ui): readonly Html[] =>
     );
 
 const chart = (violations: Violations, h: Ui): Html => {
-  const top = Math.max(violations.top, 1);
+  const maxPerHour = Math.max(violations.top, 1);
   const hours = violations.hourly;
 
   return h.figure([h.Class(classes(factoryStyles.chartFigure))], [
     h.figcaption([h.Class(classes(factoryStyles.axis))], [
-      `Violations per hour, last 24h, scale 0 to ${String(top)}`,
+      `Violations per hour, last 24h, scale 0 to ${String(maxPerHour)}`,
     ]),
     ...(hours.length === 0
       ? [h.p([h.Class(classes(factoryStyles.small))], ["No hourly readings."])]
@@ -329,9 +337,7 @@ const chart = (violations: Violations, h: Ui): Html => {
           h.div(
             [
               h.Role("img"),
-              h.AriaLabel(
-                `Violations per hour, last 24 hours, scale 0 to ${String(top)}`
-              ),
+              h.AriaLabel("Violations per hour, last 24 hours"),
               h.Class(classes(factoryStyles.bars)),
             ],
             [
@@ -351,11 +357,7 @@ const chart = (violations: Violations, h: Ui): Html => {
                       [
                         h.Class(
                           classes(
-                            barLevels[barLevel(bucket.violations, top)] ??
-                              factoryStyles.bar,
-                            bucket.violations > 0
-                              ? factoryStyles.barLit
-                              : factoryStyles.barQuiet
+                            ...barStyles(bucket.violations, maxPerHour)
                           )
                         ),
                         h.Title(
@@ -415,14 +417,14 @@ const windowBody = (
 
 const kpisSection = (
   feed: FactoryFeed,
-  window: WindowKey,
+  windowKey: WindowKey,
   h: Ui
 ): Html => {
-  const numbers = feed.kpis.windows[window];
+  const numbers = feed.kpis.windows[windowKey];
 
   return h.section([h.Class(classes(factoryStyles.section))], [
     h.h2([], ["KPIs"]),
-    picker(window, h),
+    picker(windowKey, h),
     ...(numbers === undefined
       ? [
           h.p([h.Class(classes(factoryStyles.small))], [
