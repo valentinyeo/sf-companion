@@ -25,3 +25,6 @@ env.d.ts
 
 # Muster packet reports and notes in worker clones
 .pi/muster/
+
+# Factory numbers are exported on the host; the site builds without them
+apps/web/content/feed/factory.json
