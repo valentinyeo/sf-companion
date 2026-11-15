@@ -207,7 +207,7 @@ export const decodeFeed = Effect.fn("content.decodeFeed")(function* decodeFeed(
   path: string,
   raw: string
 ) {
-  return yield* Schema.decodeEffect(Schema.fromJsonString(FactoryFeed))(raw).pipe(
-    Effect.mapError((cause) => new FeedError({ cause, path }))
-  );
+  return yield* Schema.decodeEffect(
+    Schema.fromJsonString(FactoryFeed)
+  )(raw).pipe(Effect.mapError((cause) => new FeedError({ cause, path })));
 });

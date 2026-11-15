@@ -108,10 +108,7 @@ const fixtureFeed = {
 describe("factory page", () => {
   it.effect("shows the fixture plan card and KPI tile", () =>
     Effect.gen(function* () {
-      const feed = yield* decodeFeed(
-        fixturePath,
-        JSON.stringify(fixtureFeed)
-      );
+      const feed = yield* decodeFeed(fixturePath, JSON.stringify(fixtureFeed));
       const route = SiteRoute.Factory();
 
       scene(

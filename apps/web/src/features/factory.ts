@@ -28,13 +28,9 @@ type StateWord = "ok" | "bad" | "warm" | "hot";
 const classes = (
   ...styles: ReadonlyArray<stylex.StyleXStyles | null>
 ): string =>
-  stylex
-    .props(
-      ...styles.filter(
-        (style): style is stylex.StyleXStyles => style !== null
-      )
-    )
-    .className ?? "";
+  stylex.props(
+    ...styles.filter((style): style is stylex.StyleXStyles => style !== null)
+  ).className ?? "";
 
 const trimmed = (value: number): string => {
   const fixed = value.toFixed(2);
@@ -73,31 +69,36 @@ const numbersFrom = (iso: string): string => {
     : `Numbers from ${year}-${month}-${day} ${hour}:${minute} UTC`;
 };
 
-const toneStyle = (tone: Tone): stylex.StyleXStyles | null =>
-  tone === "hot"
-    ? factoryStyles.bigValueHot
-    : tone === "warm"
-      ? factoryStyles.bigValueWarm
-      : null;
+const toneStyle = (tone: Tone): stylex.StyleXStyles | null => {
+  if (tone === "hot") {
+    return factoryStyles.bigValueHot;
+  }
 
-const cueStyle = (word: StateWord): stylex.StyleXStyles =>
-  word === "ok"
-    ? factoryStyles.cueOk
-    : word === "bad"
-      ? factoryStyles.cueBad
-      : word === "warm"
-        ? factoryStyles.cueWarm
-        : factoryStyles.cueHot;
+  return tone === "warm" ? factoryStyles.bigValueWarm : null;
+};
+
+const cueStyle = (word: StateWord): stylex.StyleXStyles => {
+  if (word === "ok") {
+    return factoryStyles.cueOk;
+  }
+
+  if (word === "bad") {
+    return factoryStyles.cueBad;
+  }
+
+  return word === "warm" ? factoryStyles.cueWarm : factoryStyles.cueHot;
+};
 
 const cue = (word: StateWord, label: string, h: Ui): Html =>
   h.span([h.Class(classes(factoryStyles.cue, cueStyle(word)))], [label]);
 
-const toneWord = (tone: Tone): string =>
-  tone === "hot"
-    ? "well over pace"
-    : tone === "warm"
-      ? "over pace"
-      : "at pace";
+const toneWord = (tone: Tone): string => {
+  if (tone === "hot") {
+    return "well over pace";
+  }
+
+  return tone === "warm" ? "over pace" : "at pace";
+};
 
 const tileStateWord = (state: KpiState): StateWord =>
   state === "ok" ? "ok" : "bad";
