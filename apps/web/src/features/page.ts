@@ -10,8 +10,15 @@ import type { AppModel } from "../client/app/model.js";
 import { entriesOf, findEntry } from "../content/entry.js";
 import type { Entry, EntryKind } from "../content/entry.js";
 import { styles } from "./page.stylex.js";
-import { entryPath, listPath, parsePath, Route } from "./route.js";
-import type { Route as RouteValue } from "./route.js";
+import {
+  entryPath,
+  entryRouter,
+  homeRouter,
+  kindOf,
+  listPath,
+  SiteRoute,
+} from "./route.js";
+import type { SiteRoute as SiteRouteValue } from "./route.js";
 
 const SITE_NAME = "Software Factory Companion";
 
@@ -31,16 +38,19 @@ const copyLabel = CopyState.match({
 });
 
 const paragraphs = (body: string) =>
-  body
-    .split(/\n{2,}/u)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph !== "");
+  body.split(/\n{2,}/u).flatMap((paragraph) => {
+    const trimmed = paragraph.trim();
+
+    return trimmed === "" ? [] : [trimmed];
+  });
 
 const siteHeader = (h: HtmlBuilder<AppMessage>): Html =>
   h.header(
     [h.Class(className(styles.header))],
     [
-      h.a([h.Href("/"), h.Class(className(styles.wordmark))], [SITE_NAME]),
+      h.a([h.Href(homeRouter()), h.Class(className(styles.wordmark))], [
+        SITE_NAME,
+      ]),
       h.nav(
         [h.AriaLabel("Sections")],
         [
@@ -139,10 +149,14 @@ const listView = (
   );
 };
 
-const copyLink = (model: AppModel, h: HtmlBuilder<AppMessage>): Html =>
+const copyLink = (
+  model: AppModel,
+  path: string,
+  h: HtmlBuilder<AppMessage>
+): Html =>
   Button.view(
     {
-      onClick: Message.ClickedCopyEntryLink({ path: model.path }),
+      onClick: Message.ClickedCopyEntryLink({ path }),
       toView: ({ button }) =>
         h.button([...button, h.Class(className(styles.button))], [
           copyLabel(model.copyState),
@@ -153,11 +167,13 @@ const copyLink = (model: AppModel, h: HtmlBuilder<AppMessage>): Html =>
   );
 
 const entryView = (
-  route: Extract<RouteValue, { readonly _tag: "Entry" }>,
+  route: Extract<SiteRouteValue, { readonly _tag: "Entry" }>,
   model: AppModel,
   h: HtmlBuilder<AppMessage>
-): Html =>
-  Option.match(findEntry(model.entries, route.kind, route.slug), {
+): Html => {
+  const kind = kindOf(route.section);
+
+  return Option.match(findEntry(model.entries, kind, route.slug), {
     onNone: () => missingView(h),
     onSome: (entry) =>
       h.article(
@@ -173,61 +189,65 @@ const entryView = (
             [h.Class(className(styles.prose))],
             paragraphs(entry.body).map((paragraph) => h.p([], [paragraph]))
           ),
-          copyLink(model, h),
+          copyLink(
+            model,
+            entryRouter({ section: route.section, slug: route.slug }),
+            h
+          ),
           h.p(
             [h.Class(className(styles.back))],
             [
               h.a(
-                [h.Href(listPath(entry.kind))],
-                [`Back to ${sectionName(entry.kind).toLowerCase()}`]
+                [h.Href(listPath(kind))],
+                [`Back to ${sectionName(kind).toLowerCase()}`]
               ),
             ]
           ),
         ]
       ),
   });
+};
 
 const missingView = (h: HtmlBuilder<AppMessage>): Html =>
   h.section(
     [],
     [
       h.h1([], ["Page not found"]),
-      h.p([], [h.a([h.Href("/")], ["Go to the home page."])]),
+      h.p([], [h.a([h.Href(homeRouter())], ["Go to the home page."])]),
     ]
   );
 
-const titleOf = (route: RouteValue, model: AppModel) =>
-  Route.match(route, {
-    Entry: ({ kind, slug }) =>
-      Option.match(findEntry(model.entries, kind, slug), {
+const titleOf = (route: SiteRouteValue, model: AppModel) =>
+  SiteRoute.match(route, {
+    Entry: ({ section, slug }) =>
+      Option.match(findEntry(model.entries, kindOf(section), slug), {
         onNone: () => "Page not found",
         onSome: (entry) => entry.title,
       }),
     Home: () => SITE_NAME,
-    List: ({ kind }) => sectionName(kind),
-    Missing: () => "Page not found",
+    List: ({ section }) => sectionName(kindOf(section)),
+    NotFound: () => "Page not found",
   });
 
 const bodyOf = (
-  route: RouteValue,
+  route: SiteRouteValue,
   model: AppModel,
   h: HtmlBuilder<AppMessage>
 ): Html =>
-  Route.match(route, {
+  SiteRoute.match(route, {
     Entry: (entry) => entryView(entry, model, h),
     Home: () => homeView(h),
-    List: ({ kind }) => listView(kind, model, h),
-    Missing: () => missingView(h),
+    List: ({ section }) => listView(kindOf(section), model, h),
+    NotFound: () => missingView(h),
   });
 
-export const view = (model: AppModel, h: HtmlBuilder<AppMessage>): Document => {
-  const route = parsePath(model.path);
-
-  return {
-    body: h.div(
-      [h.Class(className(styles.shell))],
-      [siteHeader(h), h.main([], [bodyOf(route, model, h)]), siteFooter(h)]
-    ),
-    title: titleOf(route, model),
-  };
-};
+export const view = (
+  model: AppModel,
+  h: HtmlBuilder<AppMessage>
+): Document => ({
+  body: h.div(
+    [h.Class(className(styles.shell))],
+    [siteHeader(h), h.main([], [bodyOf(model.route, model, h)]), siteFooter(h)]
+  ),
+  title: titleOf(model.route, model),
+});

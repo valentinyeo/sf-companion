@@ -3,6 +3,7 @@ import { defineTaggedUnion } from "foldkit/schema";
 
 import { Entry } from "../../content/entry.js";
 import type { Entry as EntryValue } from "../../content/entry.js";
+import { SiteRoute } from "../../features/route.js";
 
 export const CopyState = defineTaggedUnion({
   Copied: {},
@@ -10,14 +11,14 @@ export const CopyState = defineTaggedUnion({
   Idle: {},
 });
 
-export const Flags = Schema.Struct({ path: Schema.String });
+export const Flags = Schema.Struct({ route: SiteRoute });
 
 export type PageFlags = typeof Flags.Type;
 
 export const Model = Schema.Struct({
   copyState: CopyState,
   entries: Schema.Array(Entry),
-  path: Schema.String,
+  route: SiteRoute,
 });
 
 export type AppModel = typeof Model.Type;
@@ -28,5 +29,5 @@ export const initialModel = (
 ): AppModel => ({
   copyState: CopyState.Idle(),
   entries: [...entries],
-  path: flags.path,
+  route: flags.route,
 });

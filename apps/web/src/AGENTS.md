@@ -17,14 +17,14 @@ Rules for browser code under `apps/web/src/client/` and `apps/web/src/features/`
 | --- | --- |
 | `src/content/entry.ts` | The `Entry` Schema, the `ContentError` failure, decoding, list and lookup helpers |
 | `src/content/entries.ts` | Reads every entry file once and decodes it at load |
-| `src/features/route.ts` | The page route union, path parsing, and canonical paths |
+| `src/features/route.ts` | The page route union and its Routers; URLs come from calling a Router as a printer |
 | `src/features/page.ts` and `page.stylex.ts` | The page view and its StyleX styles |
 | `src/client/app/` | Model, Messages, named Commands, and `update` |
 | `src/client/entry.ts` | Browser runtime boot and hydration |
 | `src/entry.server.ts` | Server rendering, `prerenderPaths`, and 404 handling |
 | `src/website.ts` | The Cloudflare `Website` resource; never import it into browser code |
 
-The path travels from `entry.server.ts` to the browser as Foldkit Flags, so the hydrating client boots from the same Model.
+The route travels from `entry.server.ts` to the browser as Foldkit Flags, so the hydrating client boots from the same Model.
 
 ## Content
 

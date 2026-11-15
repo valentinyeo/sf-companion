@@ -12,6 +12,7 @@ import { initialModel } from "../src/client/app/model.js";
 import { update } from "../src/client/app/update.js";
 import { ContentError, decodeEntry } from "../src/content/entry.js";
 import { view } from "../src/features/page.js";
+import { SiteRoute } from "../src/features/route.js";
 
 const fixturePath = "content/explorations/fixture-exploration.json";
 
@@ -32,15 +33,21 @@ describe("entry pages", () => {
         JSON.stringify(fixtureFile)
       );
 
+      const list = SiteRoute.List({ section: "explorations" });
+      const detail = SiteRoute.Entry({
+        section: "explorations",
+        slug: entry.slug,
+      });
+
       scene(
         { update, view },
-        given(initialModel({ path: "/explorations" }, [entry])),
+        given(initialModel({ route: list }, [entry])),
         expectElement(role("link", { name: entry.title })).toExist()
       );
 
       scene(
         { update, view },
-        given(initialModel({ path: `/explorations/${entry.slug}` }, [entry])),
+        given(initialModel({ route: detail }, [entry])),
         expectElement(role("heading", { name: entry.title })).toExist(),
         expectElement(text(entry.body)).toExist()
       );

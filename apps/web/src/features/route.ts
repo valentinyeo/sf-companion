@@ -1,60 +1,46 @@
-import { Schema } from "effect";
-import { defineTaggedUnion } from "foldkit/schema";
+import { pipe, Schema } from "effect";
+import { Route } from "foldkit";
 
-import { Kind } from "../content/entry.js";
 import type { EntryKind } from "../content/entry.js";
 
-export const Route = defineTaggedUnion({
-  Entry: { kind: Kind, slug: Schema.String },
+const Section = Schema.Literals(["explorations", "reports"]);
+
+export type SectionValue = typeof Section.Type;
+
+export const SiteRoute = Route.defineRouteUnion({
+  Entry: { section: Section, slug: Schema.String },
   Home: {},
-  List: { kind: Kind },
-  Missing: {},
+  List: { section: Section },
+  NotFound: { path: Schema.String },
 });
 
-export type Route = typeof Route.Type;
+export type SiteRoute = typeof SiteRoute.Type;
 
-const kindForSection = (section: string): EntryKind | undefined => {
-  if (section === "explorations") {
-    return "exploration";
-  }
+const sectionSegment = Route.schemaSegment("section", Section);
 
-  if (section === "reports") {
-    return "report";
-  }
+export const homeRouter = pipe(Route.root, Route.mapTo(SiteRoute.Home));
 
-  return undefined;
-};
+export const listRouter = pipe(sectionSegment, Route.mapTo(SiteRoute.List));
+
+export const entryRouter = pipe(
+  sectionSegment,
+  Route.slash(Route.string("slug")),
+  Route.mapTo(SiteRoute.Entry)
+);
+
+export const parseRoute = Route.parseUrlWithFallback(
+  Route.oneOf(homeRouter, listRouter, entryRouter),
+  SiteRoute.NotFound
+);
+
+export const sectionFor = (kind: EntryKind): SectionValue =>
+  kind === "exploration" ? "explorations" : "reports";
+
+export const kindOf = (section: SectionValue): EntryKind =>
+  section === "explorations" ? "exploration" : "report";
 
 export const listPath = (kind: EntryKind): string =>
-  kind === "exploration" ? "/explorations" : "/reports";
+  listRouter({ section: sectionFor(kind) });
 
 export const entryPath = (kind: EntryKind, slug: string): string =>
-  `${listPath(kind)}/${slug}`;
-
-export const normalizePath = (path: string): string => {
-  const trimmed = path.length > 1 ? path.replace(/\/+$/u, "") : path;
-
-  return trimmed === "" ? "/" : trimmed;
-};
-
-export const parsePath = (path: string): Route => {
-  const [section, slug, ...rest] = normalizePath(path)
-    .split("/")
-    .filter((segment) => segment !== "");
-
-  if (section === undefined) {
-    return Route.Home();
-  }
-
-  const kind = kindForSection(section);
-
-  if (kind === undefined) {
-    return Route.Missing();
-  }
-
-  if (slug === undefined) {
-    return Route.List({ kind });
-  }
-
-  return rest.length > 0 ? Route.Missing() : Route.Entry({ kind, slug });
-};
+  entryRouter({ section: sectionFor(kind), slug });

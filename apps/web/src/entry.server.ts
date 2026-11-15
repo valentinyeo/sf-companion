@@ -1,9 +1,10 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import {
   Rendered,
   Responded,
   renderToString,
 } from "foldkit/experimental/server";
+import { fromString } from "foldkit/url";
 
 import { Flags, initialModel } from "./client/app/model.js";
 import type { PageFlags } from "./client/app/model.js";
@@ -11,16 +12,16 @@ import { entries } from "./content/entries.js";
 import { view } from "./features/page.js";
 import {
   entryPath,
+  homeRouter,
   listPath,
-  normalizePath,
-  parsePath,
-  Route,
+  parseRoute,
+  SiteRoute,
 } from "./features/route.js";
 
 export { renderDocument } from "foldkit/experimental/server";
 
 export const prerenderPaths = [
-  "/",
+  homeRouter(),
   listPath("exploration"),
   listPath("report"),
   ...entries.map((entry) => entryPath(entry.kind, entry.slug)),
@@ -38,7 +39,7 @@ const renderRoute = Effect.fn("site.renderRoute")(function* renderRoute(
     );
   }
 
-  const path = normalizePath(new URL(request.url).pathname);
+  const route = parseRoute(Option.getOrThrow(fromString(request.url)));
 
   const application = yield* renderToString(
     {
@@ -46,10 +47,10 @@ const renderRoute = Effect.fn("site.renderRoute")(function* renderRoute(
       init: (flags: PageFlags) => ({ model: initialModel(flags, entries) }),
       view,
     },
-    { flags: { path } }
+    { flags: { route } }
   );
 
-  return Route.guards.Missing(parsePath(path))
+  return SiteRoute.guards.NotFound(route)
     ? Rendered(application, { status: 404 })
     : Rendered(application);
 });
