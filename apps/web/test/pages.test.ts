@@ -41,13 +41,13 @@ describe("entry pages", () => {
 
       scene(
         { update, view },
-        given(initialModel({ route: list }, [entry])),
+        given(initialModel({ route: list }, [entry], null)),
         expectElement(role("link", { name: entry.title })).toExist()
       );
 
       scene(
         { update, view },
-        given(initialModel({ route: detail }, [entry])),
+        given(initialModel({ route: detail }, [entry], null)),
         expectElement(role("heading", { name: entry.title })).toExist(),
         expectElement(text(entry.body)).toExist()
       );

@@ -9,6 +9,7 @@ export type SectionValue = typeof Section.Type;
 
 export const SiteRoute = Route.defineRouteUnion({
   Entry: { section: Section, slug: Schema.String },
+  Factory: {},
   Home: {},
   List: { section: Section },
   NotFound: { path: Schema.String },
@@ -22,6 +23,11 @@ export const homeRouter = pipe(Route.root, Route.mapTo(SiteRoute.Home));
 
 export const listRouter = pipe(sectionSegment, Route.mapTo(SiteRoute.List));
 
+export const factoryRouter = pipe(
+  Route.literal("factory"),
+  Route.mapTo(SiteRoute.Factory)
+);
+
 export const entryRouter = pipe(
   sectionSegment,
   Route.slash(Route.string("slug")),
@@ -29,7 +35,7 @@ export const entryRouter = pipe(
 );
 
 export const parseRoute = Route.parseUrlWithFallback(
-  Route.oneOf(homeRouter, listRouter, entryRouter),
+  Route.oneOf(homeRouter, factoryRouter, listRouter, entryRouter),
   SiteRoute.NotFound
 );
 

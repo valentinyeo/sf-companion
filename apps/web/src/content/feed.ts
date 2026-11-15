@@ -38,6 +38,8 @@ const UsageMode = Schema.Literals(["percent", "credit", "none"]);
 
 const Tone = Schema.Literals(["plain", "warm", "hot"]);
 
+export type Tone = typeof Tone.Type;
+
 const CreditSubLabel = Schema.Literals(["credit", "month full"]);
 
 const KpiState = Schema.Literals(["ok", "bad"]);

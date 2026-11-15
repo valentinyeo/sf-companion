@@ -9,10 +9,12 @@ import { CopyState } from "../client/app/model.js";
 import type { AppModel } from "../client/app/model.js";
 import { entriesOf, findEntry } from "../content/entry.js";
 import type { Entry, EntryKind } from "../content/entry.js";
+import { factoryView } from "./factory.js";
 import { readerStyles } from "./reader.stylex.js";
 import {
   entryPath,
   entryRouter,
+  factoryRouter,
   homeRouter,
   kindOf,
   listPath,
@@ -50,6 +52,7 @@ const paragraphs = (body: string) =>
 const sectionLinks = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
   h.li([], [h.a([h.Href(listPath("exploration"))], ["Explorations"])]),
   h.li([], [h.a([h.Href(listPath("report"))], ["Reports"])]),
+  h.li([], [h.a([h.Href(factoryRouter())], ["Factory"])]),
 ];
 
 const siteHeader = (h: HtmlBuilder<AppMessage>): Html =>
@@ -76,6 +79,10 @@ const homeBranches = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
   h.li([], [
     h.a([h.Href(listPath("report"))], ["Reports"]),
     h.p([], ["Finished findings and write-ups."]),
+  ]),
+  h.li([], [
+    h.a([h.Href(factoryRouter())], ["Factory"]),
+    h.p([], ["Usage and KPIs from the factory's own numbers."]),
   ]),
 ];
 
@@ -162,6 +169,7 @@ const titleOf = (route: SiteRouteValue, model: AppModel) =>
         onNone: () => "Page not found",
         onSome: (entry) => entry.title,
       }),
+    Factory: () => "Factory",
     Home: () => SITE_NAME,
     List: ({ section }) => sectionName(kindOf(section)),
     NotFound: () => "Page not found",
@@ -174,6 +182,7 @@ const bodyOf = (
 ): readonly Html[] =>
   SiteRoute.match(route, {
     Entry: (entry) => entryView(entry, model, h),
+    Factory: () => factoryView(model, h),
     Home: () => homeView(h),
     List: ({ section }) => listView(kindOf(section), model, h),
     NotFound: () => missingView(h),

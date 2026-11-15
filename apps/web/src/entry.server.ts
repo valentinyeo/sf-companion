@@ -9,9 +9,11 @@ import { fromString } from "foldkit/url";
 import { Flags, initialModel } from "./client/app/model.js";
 import type { PageFlags } from "./client/app/model.js";
 import { entries } from "./content/entries.js";
+import { factoryFeed } from "./content/factory.js";
 import { view } from "./features/page.js";
 import {
   entryPath,
+  factoryRouter,
   homeRouter,
   listPath,
   parseRoute,
@@ -22,6 +24,7 @@ export { renderDocument } from "foldkit/experimental/server";
 
 export const prerenderPaths = [
   homeRouter(),
+  factoryRouter(),
   listPath("exploration"),
   listPath("report"),
   ...entries.map((entry) => entryPath(entry.kind, entry.slug)),
@@ -44,7 +47,9 @@ const renderRoute = Effect.fn("site.renderRoute")(function* renderRoute(
   const application = yield* renderToString(
     {
       Flags,
-      init: (flags: PageFlags) => ({ model: initialModel(flags, entries) }),
+      init: (flags: PageFlags) => ({
+        model: initialModel(flags, entries, factoryFeed),
+      }),
       view,
     },
     { flags: { route } }

@@ -20,4 +20,7 @@ export const update = (model: AppModel, message: AppMessage): UpdateReturn =>
         copyState: copied ? CopyState.Copied() : CopyState.Failed(),
       },
     }),
+    SelectedKpiWindow: ({ window }) => ({
+      model: { ...model, kpiWindow: window },
+    }),
   });
