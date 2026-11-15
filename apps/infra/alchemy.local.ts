@@ -14,6 +14,17 @@ if (allowedEmail === undefined || allowedEmail === "") {
 class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   name: "sf-companion",
   rootDir: "../web",
+  memo: {
+    include: [
+      "src/**",
+      "content/**",
+      "public/**",
+      "index.html",
+      "package.json",
+      "vite.config.ts",
+    ],
+    lockfile: true,
+  },
   access: {
     name: "SF Companion",
     sessionDuration: "720h",
