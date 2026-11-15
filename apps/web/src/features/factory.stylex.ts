@@ -11,6 +11,7 @@ export const factoryStyles = stylex.create({
   bar: {
     backgroundColor: reader.codeInk,
     minHeight: "1px",
+    width: "100%",
   },
   barLevel1: { height: "0.5rem" },
   barLevel2: { height: "1rem" },
@@ -23,7 +24,6 @@ export const factoryStyles = stylex.create({
   barLit: { backgroundColor: state.bad },
   barQuiet: { backgroundColor: surface.line },
   bars: {
-    alignItems: "flex-end",
     blockSize: "4.75rem",
     display: "grid",
     gap: "1px",
@@ -68,7 +68,7 @@ export const factoryStyles = stylex.create({
     marginInline: 0,
   },
   column: {
-    alignItems: "center",
+    alignItems: "stretch",
     display: "flex",
     flexDirection: "column",
     justifyContent: "flex-end",
@@ -78,6 +78,7 @@ export const factoryStyles = stylex.create({
     color: surface.muted,
     fontSize: reader.fontLabel,
     minHeight: "1lh",
+    textAlign: "center",
   },
   cue: {
     borderColor: surface.line,
