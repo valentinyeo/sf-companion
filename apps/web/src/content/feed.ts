@@ -6,6 +6,8 @@ export const PlanKey = Schema.Literals([
   "grok",
   "opencode",
   "vercel",
+  "deepseek",
+  "openrouter",
 ]);
 
 export type PlanKeyValue = typeof PlanKey.Type;
@@ -112,6 +114,8 @@ const BurnByPlan = Schema.Struct({
   grok: Schema.optional(BurnCell),
   opencode: Schema.optional(BurnCell),
   vercel: Schema.optional(BurnCell),
+  deepseek: Schema.optional(BurnCell),
+  openrouter: Schema.optional(BurnCell),
 });
 
 const BurnByWindow = Schema.Struct({

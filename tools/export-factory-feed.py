@@ -26,7 +26,8 @@ if not os.environ.get("TOKEN_LADDER_STATUS"):
     sys.exit("Set TOKEN_LADDER_STATUS to token-ladder's status JSON file.")
 TOKEN_LADDER_STATUS = Path(os.environ["TOKEN_LADDER_STATUS"])
 PICKER_WINDOWS = ("1h", "3h", "6h", "12h", "24h", "7d", "30d")
-PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel")
+PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel", "deepseek", "openrouter")
+PLAN_NAMES = ("Claude", "Codex", "Grok", "OpenCode", "Vercel", "DeepSeek", "OpenRouter")
 WINDOW_ENUM = ("week", "month")
 MODE_ENUM = ("percent", "credit", "none")
 TONE_ENUM = ("plain", "warm", "hot")
@@ -115,16 +116,55 @@ def vercel_reading(now):
         return None
 
 
+def fetch_json(url, key):
+    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+
+def deepseek_reading(now):
+    key = os.environ.get("DEEPSEEK_API_KEY")
+    if not key:
+        return None
+    try:
+        infos = fetch_json("https://api.deepseek.com/user/balance", key).get("balance_infos") or []
+        usd = next(i for i in infos if isinstance(i, dict) and i.get("currency") == "USD")
+        credit = number(float(usd["total_balance"]))
+    except (OSError, urllib.error.URLError, ValueError, TypeError, AttributeError, KeyError, StopIteration):
+        return None
+    return (credit, None, now, iso_utc(now)) if credit is not None else None
+
+
+def openrouter_reading(now):
+    """Credit left summed over every OpenRouter account whose management key is set."""
+    keys = [os.environ.get(name) for name in ("OPENROUTER_MANAGEMENT_KEY", "OPENROUTER_MANAGEMENT_KEY_AGENTS")]
+    keys = [key for key in keys if key]
+    if not keys:
+        return None
+    left = 0.0
+    try:
+        for key in keys:
+            data = fetch_json("https://openrouter.ai/api/v1/credits", key).get("data") or {}
+            total, used = number(data.get("total_credits")), number(data.get("total_usage"))
+            if total is None or used is None:
+                return None
+            left += max(0.0, total - used)
+    except (OSError, urllib.error.URLError, ValueError, TypeError, AttributeError):
+        return None
+    return round(left, 2), None, now, iso_utc(now)
+
+
 def usage_part(ub, g, now):
     status = read_status()
     sampled_at = number(status.get("ts"))
     fresh = sampled_at is not None and now - sampled_at <= 30 * 60
     opencode_credit = opencode_reading()
     vercel_credit = vercel_reading(now)
+    other_credit = {"deepseek": deepseek_reading(now), "openrouter": openrouter_reading(now)}
     groups = ub.runner_groups()
     cards = []
-    for plan, label in zip(PLAN_ENUM, ("Claude", "Codex", "Grok", "OpenCode", "Vercel")):
-        credit = opencode_credit if plan == "opencode" else vercel_credit if plan == "vercel" else None
+    for plan, label in zip(PLAN_ENUM, PLAN_NAMES):
+        credit = opencode_credit if plan == "opencode" else vercel_credit if plan == "vercel" else other_credit.get(plan)
         reading = status.get(plan) if plan in ("claude", "codex") and fresh else None
         reading = reading if isinstance(reading, dict) and not reading.get("error") else {}
         week = reading.get("week")
