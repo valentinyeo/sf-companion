@@ -8,6 +8,7 @@ Set these environment variables before running it:
 - `TOKEN_LADDER_STATUS` (required): token-ladder's status JSON file. Claude and Codex use the weekly percentage, reset time, and pace (`used - time_gone`), plus any available week and five-hour readings. Readings older than 30 minutes, or plans reporting an error, show no reading.
 - `OPENCODE_HISTORY` (optional): the OpenCode credit history JSONL file. The last nonblank line supplies `credits_usd`, `today_usd`, and the epoch timestamp `at`. The card shows the balance and reading age; the burn line includes today's dollars.
 - `AI_GATEWAY_API_KEY` (optional): the Vercel AI Gateway key. One authenticated GET to `https://ai-gateway.vercel.sh/v1/credits` supplies `token_pass.remaining` in dollars. Numeric strings are accepted. The request has a 30-second timeout and no retries. The key and response are never logged.
+- `GROK_STATE` (optional): token-ladder's `grok.json`, written every 30 minutes by `cursor-usage-read` from the Cursor plan. Readings older than one hour show no reading.
 - `DEEPSEEK_API_KEY` (optional): a DeepSeek platform key. One GET to `https://api.deepseek.com/user/balance` supplies the USD `total_balance`.
 - `OPENROUTER_MANAGEMENT_KEY` and `OPENROUTER_MANAGEMENT_KEY_AGENTS` (optional): OpenRouter keys, one per account. Each GET to `https://openrouter.ai/api/v1/credits` supplies `total_credits - total_usage`; the card shows the sum. If any account fails to read, the card shows no reading.
 

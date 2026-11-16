@@ -116,6 +116,23 @@ def vercel_reading(now):
         return None
 
 
+def grok_reading(now):
+    """Cursor plan usage that cursor-usage-read records through token-ladder grok-set."""
+    path = os.environ.get("GROK_STATE")
+    if not path:
+        return None
+    try:
+        state = json.loads(Path(path).read_text())
+        used = number(state.get("pct"))
+        resets = datetime.fromisoformat(state["resets_at"]).timestamp()
+        updated = datetime.fromisoformat(state["updated_at"]).timestamp()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return None
+    if used is None or not 0 <= used <= 100 or now - updated > 60 * 60:
+        return None
+    return used, resets
+
+
 def fetch_json(url, key):
     request = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
     with urllib.request.urlopen(request, timeout=30) as response:
@@ -160,6 +177,7 @@ def usage_part(ub, g, now):
     fresh = sampled_at is not None and now - sampled_at <= 30 * 60
     opencode_credit = opencode_reading()
     vercel_credit = vercel_reading(now)
+    grok = grok_reading(now)
     other_credit = {"deepseek": deepseek_reading(now), "openrouter": openrouter_reading(now)}
     groups = ub.runner_groups()
     cards = []
@@ -173,10 +191,13 @@ def usage_part(ub, g, now):
         used = used if used is not None and 0 <= used <= 100 else None
         delta = used - time_gone if used is not None and time_gone is not None else None
         resets = number(week.get("resets_at"))
+        if plan == "grok" and grok is not None:
+            used, resets = grok
         resets_text = None
         if used is not None and resets is not None:
             try:
-                resets_text = ub.when(resets)
+                # Grok resets monthly, so a weekday alone would read as this week.
+                resets_text = time.strftime("%-d %b", time.localtime(resets)) if plan == "grok" else ub.when(resets)
             except (OSError, ValueError, OverflowError):
                 pass
         windows = []
@@ -190,7 +211,7 @@ def usage_part(ub, g, now):
         cards.append({
             "plan": plan,
             "name": label,
-            "primaryWindow": ub.PRIMARY.get(plan, "week"),
+            "primaryWindow": "month" if plan == "grok" else ub.PRIMARY.get(plan, "week"),
             "mode": "credit" if credit else "percent" if used is not None else "none",
             "usedPct": used,
             "resetsText": resets_text,
