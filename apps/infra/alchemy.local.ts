@@ -13,15 +13,20 @@ if (allowedEmail === undefined || allowedEmail === "") {
 
 const serviceTokenId = process.env.SF_ACCESS_SERVICE_TOKEN_ID;
 
+const factoryPageRoutesOnYeouxNetBesideYeouxSiteAstroAssets = [
+  { pattern: "yeoux.net/factory*", zoneName: "yeoux.net" },
+  { pattern: "yeoux.net/assets/*", zoneName: "yeoux.net" },
+];
+
+const excludeListThatAlsoRebuildsOnGitignoredHourlyFeed = [
+  "**/node_modules/**",
+  "**/dist/**",
+];
+
 class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   name: "sf-companion",
   rootDir: "../web",
-  // The Factory page also lives at yeoux.net/factory/, behind yeoux.net's own login.
-  // yeoux-site keeps every other yeoux.net path; its build assets sit under /_astro, so /assets is free.
-  routes: [
-    { pattern: "yeoux.net/factory*", zoneName: "yeoux.net" },
-    { pattern: "yeoux.net/assets/*", zoneName: "yeoux.net" },
-  ],
+  routes: factoryPageRoutesOnYeouxNetBesideYeouxSiteAstroAssets,
   memo: {
     include: [
       "src/**",
@@ -31,9 +36,7 @@ class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
       "package.json",
       "vite.config.ts",
     ],
-    // Setting exclude turns off .gitignore filtering. The hourly feed file is gitignored,
-    // so without this a numbers-only refresh never rebuilds the site.
-    exclude: ["**/node_modules/**", "**/dist/**"],
+    exclude: excludeListThatAlsoRebuildsOnGitignoredHourlyFeed,
     lockfile: true,
   },
   access: {

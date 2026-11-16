@@ -1,6 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
 
-// Dark mode follows the device setting. src/client/rat.css carries the matching page colors.
 const DARK = "@media (prefers-color-scheme: dark)";
 
 export const accent = stylex.defineVars({
