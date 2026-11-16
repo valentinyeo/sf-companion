@@ -1,0 +1,148 @@
+{
+  "generatedAt": "2026-11-15T00:41:07Z",
+  "kpis": {
+    "notes": [
+      "Drain-loop health unavailable. No recent loop observations; not a measured zero."
+    ],
+    "tiles": [
+      {
+        "details": [
+          "Board 15 / Product Lead, 1d: 29",
+          "Synthetic second detail",
+          "Synthetic third measurement detail"
+        ],
+        "display": "29 / day · 87 / week",
+        "id": "delivered",
+        "label": "Tickets delivered",
+        "source": "Synthetic Hypertask boards · sectionChangedAt",
+        "state": null,
+        "window": "Rolling 24h and 7d"
+      },
+      {
+        "details": [
+          "3/4 PRs passed their first verdict",
+          "Merged without verdict: 25% (1/4)"
+        ],
+        "display": "75%",
+        "id": "verifier",
+        "label": "Verifier first-pass rate",
+        "source": "GitHub fleet PR comments",
+        "state": null,
+        "window": "First verdicts and merges in rolling 7d"
+      },
+      {
+        "details": ["claude: 1.25× · over pace"],
+        "display": "1/2 over pace",
+        "id": "pace",
+        "label": "Plan usage pace",
+        "source": "token-ladder pools --json · pace_ratio",
+        "state": "bad",
+        "window": "Current plan windows at export time"
+      },
+      {
+        "details": ["3 PRs merged in 7d. Open-to-merge includes draft time."],
+        "display": "1 / day · 3 / week · 20.0 min median",
+        "id": "merges",
+        "label": "PR throughput and merge time",
+        "source": "GitHub fleet PRs · createdAt and mergedAt",
+        "state": null,
+        "window": "Rolling 24h and 7d; merge-time cohort is 7d"
+      },
+      {
+        "details": ["1/2 live chats have matching named agent tokens."],
+        "display": "50%",
+        "id": "identity",
+        "label": "Chat identity sync",
+        "source": "Fleet hosted_chats · solo-wake identity-gap rule",
+        "state": "bad",
+        "window": "Live Multibot chats at export time"
+      },
+      {
+        "details": [
+          "No matching Production receipts; latency unavailable, not zero."
+        ],
+        "display": "– to live · 0% confirmed infra · 0% confirmed code · 50% unclassified",
+        "id": "ci",
+        "label": "CI health",
+        "source": "GitHub Actions annotations and Production deployment statuses",
+        "state": null,
+        "window": "Runs created and PRs merged in rolling 24h"
+      }
+    ]
+  },
+  "usage": {
+    "burn": {
+      "1h": {
+        "claude": {
+          "gbp": 0,
+          "pricedPts": 0,
+          "pts": 2,
+          "todayUsd": null
+        }
+      },
+      "7d": {
+        "claude": {
+          "gbp": 7,
+          "pricedPts": 0,
+          "pts": 14,
+          "todayUsd": null
+        }
+      }
+    },
+    "cards": [
+      {
+        "creditAsOf": null,
+        "creditReadAt": null,
+        "creditSubLabel": null,
+        "creditUsd": null,
+        "mode": "percent",
+        "name": "Fixture Plan",
+        "paceDelta": 13.2,
+        "plan": "claude",
+        "primaryWindow": "week",
+        "resetsText": "Sun 18:00",
+        "reviewer": {
+          "known": true,
+          "show": false,
+          "tip": ""
+        },
+        "runnersLive": true,
+        "runnersText": "0 runners",
+        "tone": "warm",
+        "usedPct": 67,
+        "windows": [
+          {
+            "label": "Weekly",
+            "usedPct": 67
+          },
+          {
+            "label": "Session",
+            "usedPct": null
+          }
+        ]
+      },
+      {
+        "creditAsOf": " · as of 28h ago",
+        "creditReadAt": "2026-11-14T00:41:00Z",
+        "creditSubLabel": "credit",
+        "creditUsd": 29.1,
+        "mode": "credit",
+        "name": "Credit Plan",
+        "paceDelta": null,
+        "plan": "opencode",
+        "primaryWindow": "week",
+        "resetsText": null,
+        "reviewer": {
+          "known": true,
+          "show": false,
+          "tip": ""
+        },
+        "runnersLive": true,
+        "runnersText": "0 runners",
+        "tone": "plain",
+        "usedPct": null,
+        "windows": []
+      }
+    ]
+  }
+}

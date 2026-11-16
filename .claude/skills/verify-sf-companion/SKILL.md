@@ -13,7 +13,7 @@ From the repository root, run:
 .claude/skills/verify-sf-companion/run.sh
 ```
 
-The helper copies this checkout into a disposable directory, excluding Git state, dependencies, generated output, and the host feed. It installs with `pnpm install --frozen-lockfile --ignore-scripts`, builds each feed state, then starts Vite with `PORTLESS=0` on an unused loopback port. No certificates, proxy changes, credentials, deployment, or board writes are needed. Node and pnpm versions are pinned in `package.json`; older versions can warn. Ignoring install scripts avoids lefthook's global `core.hooksPath` conflict.
+The helper copies this checkout into a disposable directory, excluding Git state, dependencies, generated output, and the host feed. It installs with `pnpm install --frozen-lockfile --ignore-scripts`, builds each feed state with `pnpm --filter @sf-companion/web build`, then starts Vite with `PORTLESS=0` on an unused loopback port. A disposable Vite config names `src/client/entry.ts` as the dependency-scan entry. This lets Vite find dependencies before browser requests, avoiding cold-cache 504 errors on this SSR-only app. The production Vite config is unchanged. No certificates, proxy changes, credentials, deployment, or board writes are needed. Node and pnpm versions are pinned in `package.json`; older versions can warn. Ignoring install scripts avoids lefthook's global `core.hooksPath` conflict.
 
 Playwright is pinned and installed in disposable tooling, outside the workspace dependency graph. Chromium must be available; the helper installs its matching browser without system dependencies. If host libraries are missing, report the launch error rather than changing the system.
 
