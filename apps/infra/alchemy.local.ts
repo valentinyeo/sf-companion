@@ -31,6 +31,9 @@ class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
       "package.json",
       "vite.config.ts",
     ],
+    // Setting exclude turns off .gitignore filtering. The hourly feed file is gitignored,
+    // so without this a numbers-only refresh never rebuilds the site.
+    exclude: ["**/node_modules/**", "**/dist/**"],
     lockfile: true,
   },
   access: {
