@@ -117,7 +117,7 @@ def vercel_reading(now):
 
 
 def grok_reading(now):
-    """Cursor plan usage that cursor-usage-read records through token-ladder grok-set."""
+    """Grok Bot plan usage (Grok, Cursor and X merged into one weekly plan), recorded by cursor-usage-read."""
     path = os.environ.get("GROK_STATE")
     if not path:
         return None
@@ -193,11 +193,13 @@ def usage_part(ub, g, now):
         resets = number(week.get("resets_at"))
         if plan == "grok" and grok is not None:
             used, resets = grok
+            # Weekly plan: pace is usage minus the share of the week already gone.
+            gone = 100 * (now - (resets - 7 * 24 * 3600)) / (7 * 24 * 3600)
+            delta = used - gone if 0 <= gone <= 100 else None
         resets_text = None
         if used is not None and resets is not None:
             try:
-                # Grok resets monthly, so a weekday alone would read as this week.
-                resets_text = time.strftime("%-d %b", time.localtime(resets)) if plan == "grok" else ub.when(resets)
+                resets_text = ub.when(resets)
             except (OSError, ValueError, OverflowError):
                 pass
         windows = []
@@ -211,7 +213,7 @@ def usage_part(ub, g, now):
         cards.append({
             "plan": plan,
             "name": label,
-            "primaryWindow": "month" if plan == "grok" else ub.PRIMARY.get(plan, "week"),
+            "primaryWindow": ub.PRIMARY.get(plan, "week"),
             "mode": "credit" if credit else "percent" if used is not None else "none",
             "usedPct": used,
             "resetsText": resets_text,
