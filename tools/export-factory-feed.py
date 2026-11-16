@@ -344,7 +344,7 @@ def validate(feed):
             continue
         ok(set(tile) == {"id", "label", "display", "source", "window", "details", "state"}, "kpis tile: unexpected fields")
         key = tile.get("id")
-        ok(key in ("delivered", "verifier", "pace", "loops") and key not in ids, "kpis tile: unknown or duplicate id")
+        ok(key in ("delivered", "verifier", "pace", "loops", "merges", "identity", "ci") and key not in ids, "kpis tile: unknown or duplicate id")
         ids.add(key)
         for field in ("label", "display", "source", "window"):
             ok(isinstance(tile.get(field), str) and bool(tile[field]), f"kpis tile {field}: needs text")

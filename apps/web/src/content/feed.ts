@@ -114,7 +114,15 @@ export type BurnByWindowValue = typeof BurnByWindow.Type;
 const KpiTile = Schema.Struct({
   details: Schema.NonEmptyArray(Schema.NonEmptyString),
   display: Schema.NonEmptyString,
-  id: Schema.Literals(["delivered", "verifier", "pace", "loops"]),
+  id: Schema.Literals([
+    "delivered",
+    "verifier",
+    "pace",
+    "loops",
+    "merges",
+    "identity",
+    "ci",
+  ]),
   label: Schema.NonEmptyString,
   source: Schema.NonEmptyString,
   state: Schema.NullOr(KpiState),

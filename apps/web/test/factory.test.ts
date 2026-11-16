@@ -56,6 +56,36 @@ const fixtureFeed = {
         state: "bad",
         window: "Current plan windows at export time",
       },
+      {
+        details: ["3 PRs merged in 7d. Open-to-merge includes draft time."],
+        display: "1 / day · 3 / week · 20.0 min median",
+        id: "merges",
+        label: "PR throughput and merge time",
+        source: "GitHub fleet PRs · createdAt and mergedAt",
+        state: null,
+        window: "Rolling 24h and 7d; merge-time cohort is 7d",
+      },
+      {
+        details: ["1/2 live chats have matching named agent tokens."],
+        display: "50%",
+        id: "identity",
+        label: "Chat identity sync",
+        source: "Fleet hosted_chats · solo-wake identity-gap rule",
+        state: "bad",
+        window: "Live Multibot chats at export time",
+      },
+      {
+        details: [
+          "No matching Production receipts; latency unavailable, not zero.",
+        ],
+        display:
+          "– to live · 0% confirmed infra · 0% confirmed code · 50% unclassified",
+        id: "ci",
+        label: "CI health",
+        source: "GitHub Actions annotations and Production deployment statuses",
+        state: null,
+        window: "Runs created and PRs merged in rolling 24h",
+      },
     ],
   },
   usage: {
@@ -123,6 +153,22 @@ describe("factory page", () => {
         expectElement(text("Rolling 24h and 7d")).toExist(),
         expectElement(text("75%")).toExist(),
         expectElement(text("1/2 over pace")).toExist(),
+        expectElement(text("1 / day · 3 / week · 20.0 min median")).toExist(),
+        expectElement(text("Chat identity sync")).toExist(),
+        expectElement(text("50%")).toExist(),
+        expectElement(
+          text("Runs created and PRs merged in rolling 24h")
+        ).toExist(),
+        expectElement(
+          text(
+            "– to live · 0% confirmed infra · 0% confirmed code · 50% unclassified"
+          )
+        ).toExist(),
+        expectElement(
+          text(
+            "No matching Production receipts; latency unavailable, not zero."
+          )
+        ).toExist(),
         expectElement(text("Board 15 / Product Lead, 1d: 29")).toExist(),
         expectElement(text("Numbers from 2026-11-15 00:41 UTC")).toExist(),
         click(role("button", { name: "7d" })),
