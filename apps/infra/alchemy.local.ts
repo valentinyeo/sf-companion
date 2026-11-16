@@ -16,6 +16,12 @@ const serviceTokenId = process.env.SF_ACCESS_SERVICE_TOKEN_ID;
 class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   name: "sf-companion",
   rootDir: "../web",
+  // The Factory page also lives at yeoux.net/factory/, behind yeoux.net's own login.
+  // yeoux-site keeps every other yeoux.net path; its build assets sit under /_astro, so /assets is free.
+  routes: [
+    { pattern: "yeoux.net/factory*", zoneName: "yeoux.net" },
+    { pattern: "yeoux.net/assets/*", zoneName: "yeoux.net" },
+  ],
   memo: {
     include: [
       "src/**",
