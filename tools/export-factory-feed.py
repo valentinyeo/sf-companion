@@ -208,7 +208,7 @@ def usage_part(ub, g, now):
             value = number(window.get("used")) if isinstance(window, dict) else None
             if value is not None and 0 <= value <= 100:
                 windows.append({"label": window_label, "usedPct": value})
-        age = max(0, int((now - credit[2]) / 60)) if credit and plan == "opencode" else None
+        age = max(0, int((now - credit[2]) / 60)) if credit else None
         age_text = f"{age // 60}h ago" if age is not None and age >= 60 else f"{age}m ago"
         cards.append({
             "plan": plan,

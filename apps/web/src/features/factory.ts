@@ -120,7 +120,9 @@ const bigNumber = (card: UsageCardValue): string => {
 
 const resetLine = (card: UsageCardValue): string => {
   if (card.resetsText === null) {
-    return "";
+    return card.mode === "credit" && card.creditAsOf !== null
+      ? card.creditAsOf.replace(/^ · /u, "")
+      : "";
   }
 
   const prefix =

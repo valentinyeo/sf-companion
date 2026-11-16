@@ -23,10 +23,10 @@ Inject the Vercel key through your secret manager rather than placing it in a co
 
 It needs Python 3 and nothing else. Run it on the factory host, because the runners line reads live tmux state. It never reads or recreates pacer state or starts a timer.
 
-Every export includes Claude, Codex, Grok, OpenCode, and Vercel, in that order. Grok has no live source and always shows no reading. Missing or unreadable source files and missing or failed Vercel responses leave the affected cards without readings; they never become zero usage. OpenCode's age uses the contract's existing `· as of` prefix, for example ` · as of 28h ago`.
+Every export includes Claude, Codex, Grok, OpenCode, Vercel, DeepSeek and OpenRouter, in that order. Grok reads the merged Grok Bot weekly usage from `GROK_STATE`. Missing or unreadable source files and missing or failed Vercel responses leave the affected cards without readings; they never become zero usage. Every credit card's age uses the contract's `· as of` prefix, for example ` · as of 28h ago`.
 
 The file is written to a temp path and then renamed, so a crash never leaves half a feed. Each export reads current inputs and, when configured, Vercel's current balance.
 
 Before writing, the script checks the feed against the contract and refuses to write an invalid one. Unset required environment variables exit with a setup message. The script only reads source state; it never runs the advisor's writers. Run verdicts come from its cached `violations.json`.
 
-The field contract is the `FactoryFeed` schema in `apps/web/src/content/feed.ts`. The validator accepts Claude and Codex window readings using the existing window fields; no web schema change is needed.
+The field contract is the `FactoryFeed` schema in `apps/web/src/content/feed.ts`.
