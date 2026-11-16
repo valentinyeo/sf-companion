@@ -271,8 +271,9 @@ def merges(prs, now):
                f"{len(merged)} PRs merged in 7d; {len(merged) / 7:.2f} per day averaged over the full window.",
                "Open-to-merge includes draft and review time." if merged else "No merged PRs in this window; merge time has no samples.",
                "Repositories: " + ", ".join(os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(","))]
-    return tile("merges", "PR throughput and merge time", f"{daily} / day · {len(merged)} / week · {duration}",
-                "GitHub fleet PRs · createdAt and mergedAt", "Rolling 24h and 7d; merge-time cohort is 7d", details)
+    return tile("merges", "PR throughput and merge time",
+                f"{daily} merged in 24h · {len(merged) / 7:.1f} per day over 7d · {duration}",
+                "GitHub fleet PRs · createdAt and mergedAt", "Rolling 24h count and 7d daily average; merge-time cohort is 7d", details)
 
 
 def read_identities(run=command_json):
@@ -309,6 +310,9 @@ def identity_sync(chats, now):
 
 INFRA_FAILURE = re.compile(r"recent account payments have failed|billing (?:limit|error|problem)|failed to acquire.*runner|runner.*(?:lost communication|offline|shutdown signal)|hosted runner.*(?:unavailable|capacity)|no hosted runner|no space left on device|ENOSPC", re.I)
 CODE_FAILURE = re.compile(r"error TS\d+|AssertionError|\bFAIL\s+\S+\.(?:test|spec)\.|(?:tests?|assertions?) failed|SyntaxError|IndentationError", re.I)
+POLICY_FAILURE = re.compile(r"PR body must contain the line|required checks do not match|docs/ci-policy\.yml", re.I)
+FAILED_RUN_LIMIT = 0.05
+LIVE_MINUTES_LIMIT = 15
 
 
 def read_actions(repo, start, end, run):
@@ -360,7 +364,14 @@ def read_failure_kinds(repo, rows, run):
             else:
                 annotations = [a for c in failed_checks for a in c["annotations"]["nodes"] if a["annotationLevel"] == "FAILURE"]
             text = "\n".join(a.get("message", "") + " " + (a.get("title") or "") for a in annotations)
-            kinds[row["id"]] = "infra" if INFRA_FAILURE.search(text) else "code" if CODE_FAILURE.search(text) else "unknown"
+            startup = row.get("conclusion") == "startup_failure" or any(
+                str(c.get("conclusion") or "").lower() == "startup_failure" for c in failed_checks)
+            if startup or INFRA_FAILURE.search(text):
+                kinds[row["id"]] = "infra"
+            elif POLICY_FAILURE.search(text) or CODE_FAILURE.search(text):
+                kinds[row["id"]] = "code"
+            else:
+                kinds[row["id"]] = "unknown"
     return kinds
 
 
@@ -409,22 +420,33 @@ def ci_health(data, prs, now):
     live = data["live_minutes"]
     merged = sum(timestamp(p.get("mergedAt")) is not None and now - DAY <= timestamp(p["mergedAt"]) <= now for p in prs)
     counts = {kind: sum(r["failure_kind"] == kind for r in runs) for kind in ("infra", "code", "unknown")}
-    latency = f"{statistics.median(live):.1f} min median to live" if live else "– to live"
-    failures = (f"{counts['infra'] / len(runs):.0%} confirmed infra · {counts['code'] / len(runs):.0%} confirmed code · {counts['unknown'] / len(runs):.0%} unclassified"
-                if runs else "– failure rates")
-    details = [f"{len(live)}/{merged} merged PRs have an exact merge-SHA successful Production deployment receipt; budget 15 min.",
+    failed = sum(counts.values())
+    if live and merged:
+        latency = f"{statistics.median(live):.1f} min median to live ({len(live)}/{merged} receipted)"
+    elif merged:
+        latency = f"– to live (0/{merged} receipted)"
+    else:
+        latency = "– to live"
+    if runs:
+        tenths = round(failed / len(runs) * 1000)
+        share = f"{tenths // 10}%" if tenths % 10 == 0 else f"{tenths // 10}.{tenths % 10}%"
+        failures = f"{share} runs failed · infra {counts['infra']} · code/policy {counts['code']} · unclassified {counts['unknown']}"
+    else:
+        failures = "– runs failed"
+    details = [f"{len(live)}/{merged} merged PRs have an exact merge-SHA successful Production deployment receipt. Off target above {FAILED_RUN_LIMIT:.0%} failed runs or {LIVE_MINUTES_LIMIT:g} min receipted median.",
                "No matching successful Production deployment receipts; latency is unavailable, not zero." if not live else "Latency covers only receipted PRs, not the whole fleet. Earliest successful deployment per merge SHA counts.",
                f"{len(runs)} completed Actions runs created in 24h, latest attempt per run. Cancelled, skipped and neutral runs remain in the denominator.",
-               f"Failures: infra {counts['infra']}, code {counts['code']}, unclassified {counts['unknown']}.",
-               "Classification uses explicit failure annotations. Generic exit codes and missing annotations stay unclassified; no failed runs are assumed to be code failures.",
-               "Zero confirmed failures means no matching failure annotations, not zero actual failures when unclassified runs remain.",
+               f"Failures: infra {counts['infra']}, code/policy {counts['code']}, unclassified {counts['unknown']}.",
+               "Classification uses the startup_failure conclusion and explicit failure annotations. Billing, runner, and startup_failure signatures are infra. Policy-check text is code/policy. Generic exit codes and other missing annotations stay unclassified.",
+               "A zero code/policy count means no matching annotations, not zero product failures when unclassified runs remain.",
                "Repositories: " + ", ".join(os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(","))]
     if not runs:
         details.append("No completed Actions runs in this window; failure rates have no denominator.")
-    return tile("ci", "CI health", f"{latency} · {failures}",
+    off_target = (bool(runs) and failed / len(runs) > FAILED_RUN_LIMIT) or (bool(live) and statistics.median(live) > LIVE_MINUTES_LIMIT)
+    return tile("ci", "CI health", f"{failures} · {latency}",
                 "GitHub Actions run/job annotations and Production deployment statuses · fleet repos",
                 "Runs created and PRs merged in rolling 24h", details,
-                "bad" if live and statistics.median(live) > 15 else None)
+                "bad" if off_target else None)
 
 
 def collect(now, run=command_json):
