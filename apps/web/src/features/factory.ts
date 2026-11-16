@@ -404,6 +404,25 @@ const shippingSection = (
 ): Html => {
   const { shipping } = feed.kpis;
 
+  const burnColumns = Object.entries({
+    claude: "Claude",
+    codex: "Codex",
+    grok: "Grok",
+    opencode: "OpenCode",
+  });
+
+  const availablePlans = new Set<string>(
+    shipping?.days.flatMap((day) =>
+      day.burn
+        .filter((burn) => burn.reading.kind === "measured")
+        .map((burn) => burn.plan)
+    )
+  );
+
+  const omittedPlans = burnColumns.filter(
+    ([plan]) => !availablePlans.has(plan)
+  );
+
   return h.section(
     [h.Class(classes(factoryStyles.section))],
     [
@@ -418,9 +437,6 @@ const shippingSection = (
             ),
           ]
         : [
-            ...shipping.notes.map((note) =>
-              h.p([h.Class(classes(factoryStyles.small))], [note])
-            ),
             h.p(
               [h.Class(classes(factoryStyles.small))],
               [
@@ -452,10 +468,9 @@ const shippingSection = (
                           [
                             "UTC date",
                             "Merged PRs",
-                            "Claude pts",
-                            "Codex pts",
-                            "Grok pts",
-                            "OpenCode pts",
+                            ...burnColumns
+                              .filter(([plan]) => availablePlans.has(plan))
+                              .map(([, label]) => `${label} pts`),
                             "Attributed £",
                             "Attributed £/PR",
                           ].map((label) =>
@@ -489,9 +504,9 @@ const shippingSection = (
                                 [day.date]
                               ),
                               shippingCell(day.merges, h),
-                              ...day.burn.map((burn) =>
-                                shippingCell(burn.reading, h)
-                              ),
+                              ...day.burn
+                                .filter((burn) => availablePlans.has(burn.plan))
+                                .map((burn) => shippingCell(burn.reading, h)),
                               shippingCell(day.cost, h),
                               shippingCell(day.perPr, h),
                             ]
@@ -502,6 +517,19 @@ const shippingSection = (
                 ),
               ]
             ),
+            ...shipping.notes.map((note) =>
+              h.p([h.Class(classes(factoryStyles.small))], [note])
+            ),
+            ...(omittedPlans.length === 0
+              ? []
+              : [
+                  h.p(
+                    [h.Class(classes(factoryStyles.small))],
+                    [
+                      `${omittedPlans.map(([, label]) => label).join(", ")} omitted: no quota readings on any of the 30 UTC dates. Grok and OpenCode's pacing sampler retired on 2026-11-15.`,
+                    ]
+                  ),
+                ]),
           ]),
     ]
   );

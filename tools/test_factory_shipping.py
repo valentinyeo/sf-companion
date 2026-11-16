@@ -41,6 +41,18 @@ class ShippingTests(unittest.TestCase):
         self.assertEqual(today["cost"]["kind"], "missing")
         self.assertEqual(validate(result), [])
 
+    def test_cell_sources_stay_short_and_full_repos_appear_once_in_notes(self):
+        prs, readings, metric = fixture()
+        source = "GitHub mergedAt · " + ", ".join(f"fleet/repository-{i}" for i in range(18))
+        result = shipping(NOW, prs, source, readings, metric)
+        for day in result["days"]:
+            cells = [day["merges"], day["cost"], day["perPr"]] + [b["reading"] for b in day["burn"]]
+            for reading in cells:
+                self.assertLessEqual(len(reading["source"]), 80)
+                self.assertNotIn("fleet/repository-", reading["source"])
+        self.assertEqual(result["notes"].count(source), 1)
+        self.assertFalse(any("OpenCode points" in note for note in result["notes"]))
+
     def test_missing_is_not_zero_and_failure_is_independent(self):
         prs, readings, metric = fixture()
         result = shipping(NOW, None, "GitHub fixture", readings, metric)

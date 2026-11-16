@@ -162,6 +162,18 @@ const shippingFixture = {
       ],
       days: [
         {
+          date: "2026-11-13",
+          merges: measured(1, "1 PRs"),
+          burn: [
+            { plan: "claude", reading: measured(1, "1 pts") },
+            { plan: "codex", reading: missing },
+            { plan: "grok", reading: missing },
+            { plan: "opencode", reading: missing },
+          ],
+          cost: missing,
+          perPr: missing,
+        },
+        {
           date: "2026-11-14",
           merges: measured(2, "2 PRs"),
           burn: [
@@ -202,6 +214,16 @@ describe("factory page", () => {
           expectElement(text("2 PRs")).toExist(),
           expectElement(text("6 pts")).toExist(),
           expectElement(text("0 pts")).toExist(),
+          expectElement(role("columnheader", { name: "Claude pts" })).toExist(),
+          expectElement(role("columnheader", { name: "Grok pts" })).toExist(),
+          expectElement(
+            role("columnheader", { name: "OpenCode pts" })
+          ).not.toExist(),
+          expectElement(
+            text(
+              "OpenCode omitted: no quota readings on any of the 30 UTC dates. Grok and OpenCode's pacing sampler retired on 2026-11-15."
+            )
+          ).toExist(),
           expectElement(text("£12.00")).toExist(),
           expectElement(text("£6.00")).toExist(),
           expectElement(text(missing.reason)).toExist(),

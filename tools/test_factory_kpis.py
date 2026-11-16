@@ -106,7 +106,7 @@ class FactoryKpiTests(unittest.TestCase):
         day = next(d for d in result["shipping"]["days"] if d["date"] == date)
         self.assertEqual(day["merges"]["value"], 1)
         self.assertEqual(next(t for t in result["tiles"] if t["id"] == "merges")["display"],
-                         "3 / day · 3 / week · 4319.8 min median")
+                         "3 merged in 24h · 0.4 per day over 7d · 4319.8 min median")
 
     def test_seeded_sources_change_only_their_tile(self):
         baseline = exported(seed())

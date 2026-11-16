@@ -46,7 +46,7 @@ def shipping(now, prs, pr_source, readings, metric, max_gap=6 * 3600):
         end = min(start + DAY, now)
         key = date.isoformat()
         window = f"{key} 00:00 UTC to " + (datetime.fromtimestamp(end, timezone.utc).strftime("%Y-%m-%d %H:%M UTC"))
-        merged = cell(counts.get(key, 0) if prs is not None else None, "prs", pr_source, window,
+        merged = cell(counts.get(key, 0) if prs is not None else None, "prs", "GitHub search · fleet mergedAt", window,
                       "GitHub fleet PR collection failed; no complete merge count.")
         burn = []
         for plan in PLANS:
@@ -54,7 +54,7 @@ def shipping(now, prs, pr_source, readings, metric, max_gap=6 * 3600):
             pairs = [(a, b) for a, b in zip(rows, rows[1:])
                      if start <= b[0] < start + DAY and b[0] <= end and 0 < b[0] - a[0] <= max_gap]
             rises = sum(max(0, b[1] - a[1]) for a, b in pairs)
-            source = f"Advisor daily_burn.readings · {plan} weekly quota · observed rises ≤6h apart"
+            source = f"Advisor · {plan} weekly quota rises"
             burn.append({"plan": plan, "reading": cell(rises if pairs else None, "points", source, window,
                          "No consecutive quota readings within 6h on this UTC date.")})
         at = metric.get("at")
@@ -63,12 +63,12 @@ def shipping(now, prs, pr_source, readings, metric, max_gap=6 * 3600):
         cover = metric.get("cover")
         complete = finite(at) and start + DAY <= at <= now and finite(cover) and cover <= start and finite(cost)
         as_of = datetime.fromtimestamp(at, timezone.utc).isoformat() if finite(at) and at <= now else "unknown"
-        source = f"Advisor metric.days.spent · as of {as_of} · attributed priced subset, not total plan cost"
+        source = f"Advisor attributed £ · {as_of}"
         cost_cell = cell(cost if complete else None, "gbp", source, window,
                          "No closed-day attributed cost reading; missing or still incomplete in advisor metric.")
         denominator = merged.get("value")
         per_pr = cost / denominator if complete and denominator is not None and denominator > 0 else None
-        ratio = cell(per_pr, "gbp", source + " ÷ GitHub fleet mergedAt count", window,
+        ratio = cell(per_pr, "gbp", "Advisor attributed £ ÷ GitHub merges", window,
                      "No merged PRs on this date; division has no denominator." if denominator == 0 else
                      "Daily attributed cost or complete merge count unavailable.")
         days.append({"date": key, "merges": merged, "burn": burn, "cost": cost_cell, "perPr": ratio})
@@ -79,9 +79,11 @@ def shipping(now, prs, pr_source, readings, metric, max_gap=6 * 3600):
             if c["kind"] == "measured":
                 c["barPct"] = round(100 * c["value"] / maximum, 2) if maximum else 0
     return {"days": days, "notes": [
+        pr_source,
         "30 UTC dates, newest first; today to export time. Bars start at zero; each column has its own maximum. Usage window buttons do not change this chart.",
         "Quota points are observed rises, not tokens. Plans have different quotas; do not add their points. Resets add no burn. Gaps over 6h are excluded; measured values may undercount daily use.",
-        "OpenCode points cover its weekly subscription, not credit spend. Vercel, DeepSeek and OpenRouter daily history is unavailable in these sources.",
+        "Vercel, DeepSeek and OpenRouter daily history is unavailable in these sources.",
+        *(["OpenCode points cover its weekly subscription, not credit spend."] if any(d["burn"][3]["reading"]["kind"] == "measured" for d in days) else []),
         "£ and £/PR cover only the advisor's attributed priced subset, not the total bill. £/PR compares same-day fleet output, not the cost of an individual PR. Open days have no final cost.",
     ]}
 
