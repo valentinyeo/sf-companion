@@ -30,6 +30,8 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.3.0 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Feed change rebuilds the site
+        run: scripts/check-feed-rebuilds.sh
       - name: Check and test
         run: pnpm turbo run check test build --concurrency=2
       - name: Upload Turbo run summaries

@@ -32,6 +32,11 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
+    "@sf-companion/web#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "content/feed/factory.json"],
+      "outputs": ["dist/**"]
+    },
     "test": {
       "dependsOn": ["build"],
       "outputs": []
