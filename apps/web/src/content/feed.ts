@@ -165,6 +165,14 @@ const Shipping = Schema.Struct({
     })
   ),
   notes: Schema.Array(Schema.NonEmptyString),
+  omissions: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        plan: PlanKey,
+        reason: Schema.NonEmptyString,
+      })
+    )
+  ),
 });
 
 export const FactoryFeed = Schema.Struct({

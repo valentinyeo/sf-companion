@@ -68,7 +68,158 @@
         "state": null,
         "window": "Runs created and PRs merged in rolling 24h"
       }
-    ]
+    ],
+    "shipping": {
+      "notes": ["Quota points are observed rises, not tokens."],
+      "omissions": [
+        {
+          "plan": "grok",
+          "reason": "pacing sampler retired on 2026-11-15."
+        },
+        {
+          "plan": "opencode",
+          "reason": "pacing sampler retired on 2026-11-15."
+        }
+      ],
+      "days": [
+        {
+          "date": "2026-11-14",
+          "merges": {
+            "kind": "measured",
+            "value": 1,
+            "display": "1 PRs",
+            "barPct": 50,
+            "source": "GitHub search · fleet mergedAt",
+            "window": "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC"
+          },
+          "burn": [
+            {
+              "plan": "claude",
+              "reading": {
+                "kind": "measured",
+                "value": 4,
+                "display": "4 pts",
+                "barPct": 100,
+                "source": "Advisor · claude weekly quota rises",
+                "window": "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC"
+              }
+            },
+            {
+              "plan": "codex",
+              "reading": {
+                "kind": "missing",
+                "reason": "No consecutive quota readings within 6h on this UTC date.",
+                "source": "Advisor · codex weekly quota rises",
+                "window": "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC"
+              }
+            },
+            {
+              "plan": "grok",
+              "reading": {
+                "kind": "missing",
+                "reason": "No consecutive quota readings within 6h on this UTC date.",
+                "source": "Advisor · grok weekly quota rises",
+                "window": "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC"
+              }
+            },
+            {
+              "plan": "opencode",
+              "reading": {
+                "kind": "missing",
+                "reason": "No consecutive quota readings within 6h on this UTC date.",
+                "source": "Advisor · opencode weekly quota rises",
+                "window": "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC"
+              }
+            }
+          ],
+          "cost": {
+            "kind": "measured",
+            "value": 3,
+            "display": "£3.00",
+            "barPct": 25,
+            "source": "Advisor attributed £ · 2026-11-16 11:34 UTC",
+            "window": "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC"
+          },
+          "perPr": {
+            "kind": "measured",
+            "value": 3,
+            "display": "£3.00",
+            "barPct": 50,
+            "source": "Advisor attributed £ ÷ GitHub merges",
+            "window": "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC"
+          }
+        },
+        {
+          "date": "2026-11-15",
+          "merges": {
+            "kind": "measured",
+            "value": 2,
+            "display": "2 PRs",
+            "barPct": 100,
+            "source": "GitHub search · fleet mergedAt",
+            "window": "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC"
+          },
+          "burn": [
+            {
+              "plan": "claude",
+              "reading": {
+                "kind": "measured",
+                "value": 1,
+                "display": "1 pts",
+                "barPct": 25,
+                "source": "Advisor · claude weekly quota rises",
+                "window": "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC"
+              }
+            },
+            {
+              "plan": "codex",
+              "reading": {
+                "kind": "measured",
+                "value": 6,
+                "display": "6 pts",
+                "barPct": 100,
+                "source": "Advisor · codex weekly quota rises",
+                "window": "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC"
+              }
+            },
+            {
+              "plan": "grok",
+              "reading": {
+                "kind": "missing",
+                "reason": "No consecutive quota readings within 6h on this UTC date.",
+                "source": "Advisor · grok weekly quota rises",
+                "window": "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC"
+              }
+            },
+            {
+              "plan": "opencode",
+              "reading": {
+                "kind": "missing",
+                "reason": "No consecutive quota readings within 6h on this UTC date.",
+                "source": "Advisor · opencode weekly quota rises",
+                "window": "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC"
+              }
+            }
+          ],
+          "cost": {
+            "kind": "measured",
+            "value": 12,
+            "display": "£12.00",
+            "barPct": 100,
+            "source": "Advisor attributed £ · 2026-11-16 11:34 UTC",
+            "window": "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC"
+          },
+          "perPr": {
+            "kind": "measured",
+            "value": 6,
+            "display": "£6.00",
+            "barPct": 100,
+            "source": "Advisor attributed £ ÷ GitHub merges",
+            "window": "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC"
+          }
+        }
+      ]
+    }
   },
   "usage": {
     "burn": {

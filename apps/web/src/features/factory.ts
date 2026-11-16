@@ -398,6 +398,28 @@ const shippingCell = (
   );
 };
 
+const omissionNote = (
+  items: readonly { readonly plan: string; readonly reason: string }[],
+  labels: readonly (readonly [string, string])[]
+): string => {
+  const groups: { labels: string[]; reason: string }[] = [];
+
+  for (const item of items) {
+    const label = labels.find(([plan]) => plan === item.plan)?.[1] ?? item.plan;
+    const previous = groups.at(-1);
+
+    if (previous !== undefined && previous.reason === item.reason) {
+      previous.labels.push(label);
+    } else {
+      groups.push({ labels: [label], reason: item.reason });
+    }
+  }
+
+  return groups
+    .map((group) => `${group.labels.join(", ")} omitted: ${group.reason}`)
+    .join(" ");
+};
+
 const shippingSection = (
   feed: FactoryFeedValue,
   h: HtmlBuilder<AppMessage>
@@ -422,6 +444,17 @@ const shippingSection = (
   const omittedPlans = burnColumns.filter(
     ([plan]) => !availablePlans.has(plan)
   );
+
+  const statedOmissions = shipping?.omissions?.filter(
+    (item) => !availablePlans.has(item.plan)
+  );
+
+  const omissionItems =
+    statedOmissions ??
+    omittedPlans.map(([plan]) => ({
+      plan,
+      reason: "no quota readings on any of the 30 UTC dates.",
+    }));
 
   return h.section(
     [h.Class(classes(factoryStyles.section))],
@@ -520,14 +553,12 @@ const shippingSection = (
             ...shipping.notes.map((note) =>
               h.p([h.Class(classes(factoryStyles.small))], [note])
             ),
-            ...(omittedPlans.length === 0
+            ...(omissionItems.length === 0
               ? []
               : [
                   h.p(
                     [h.Class(classes(factoryStyles.small))],
-                    [
-                      `${omittedPlans.map(([, label]) => label).join(", ")} omitted: no quota readings on any of the 30 UTC dates. Grok and OpenCode's pacing sampler retired on 2026-11-15.`,
-                    ]
+                    [omissionNote(omissionItems, burnColumns)]
                   ),
                 ]),
           ]),

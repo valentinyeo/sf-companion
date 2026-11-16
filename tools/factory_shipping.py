@@ -4,6 +4,18 @@ from datetime import datetime, timedelta, timezone
 
 PLANS = ("claude", "codex", "grok", "opencode")
 DAY = 86400
+NO_READINGS = "no quota readings on any of the 30 UTC dates."
+RETIRED_SAMPLER = "pacing sampler retired on 2026-11-15."
+ABSENCE = {"grok": RETIRED_SAMPLER, "opencode": RETIRED_SAMPLER}
+
+
+def minutes_utc(at):
+    return datetime.fromtimestamp(at, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def plan_omissions(days):
+    measured = {item["plan"] for day in days for item in day["burn"] if item["reading"]["kind"] == "measured"}
+    return [{"plan": plan, "reason": ABSENCE.get(plan, NO_READINGS)} for plan in PLANS if plan not in measured]
 
 
 def finite(value):
@@ -62,7 +74,7 @@ def shipping(now, prs, pr_source, readings, metric, max_gap=6 * 3600):
         cost = cost_day.get("spent") if isinstance(cost_day, dict) else None
         cover = metric.get("cover")
         complete = finite(at) and start + DAY <= at <= now and finite(cover) and cover <= start and finite(cost)
-        as_of = datetime.fromtimestamp(at, timezone.utc).isoformat() if finite(at) and at <= now else "unknown"
+        as_of = minutes_utc(at) if finite(at) and at <= now else "unknown"
         source = f"Advisor attributed £ · {as_of}"
         cost_cell = cell(cost if complete else None, "gbp", source, window,
                          "No closed-day attributed cost reading; missing or still incomplete in advisor metric.")
@@ -78,7 +90,7 @@ def shipping(now, prs, pr_source, readings, metric, max_gap=6 * 3600):
         for c in cells:
             if c["kind"] == "measured":
                 c["barPct"] = round(100 * c["value"] / maximum, 2) if maximum else 0
-    return {"days": days, "notes": [
+    return {"days": days, "omissions": plan_omissions(days), "notes": [
         pr_source,
         "30 UTC dates, newest first; today to export time. Bars start at zero; each column has its own maximum. Usage window buttons do not change this chart.",
         "Quota points are observed rises, not tokens. Plans have different quotas; do not add their points. Resets add no burn. Gaps over 6h are excluded; measured values may undercount daily use.",
@@ -90,8 +102,8 @@ def shipping(now, prs, pr_source, readings, metric, max_gap=6 * 3600):
 
 def validate(chart):
     errors = []
-    if not isinstance(chart, dict) or set(chart) != {"days", "notes"}:
-        return ["shipping: needs days and notes"]
+    if not isinstance(chart, dict) or set(chart) != {"days", "notes", "omissions"}:
+        return ["shipping: needs days, notes and omissions"]
     days = chart["days"]
     if not isinstance(days, list) or len(days) != 30:
         return ["shipping.days: needs 30 UTC dates"]
@@ -125,4 +137,22 @@ def validate(chart):
                 errors.append("shipping missing cell: needs a reason, never a zero")
     if not isinstance(chart["notes"], list) or not chart["notes"] or not all(isinstance(n, str) and n for n in chart["notes"]):
         errors.append("shipping notes: needs source limitations")
+    measured = set()
+    for day in days:
+        burn = day.get("burn") if isinstance(day, dict) else None
+        if isinstance(burn, list):
+            measured.update(item.get("plan") for item in burn if isinstance(item, dict) and isinstance(item.get("reading"), dict) and item["reading"].get("kind") == "measured")
+    expected = [plan for plan in PLANS if plan not in measured]
+    omissions = chart["omissions"]
+    seen = []
+    if not isinstance(omissions, list):
+        errors.append("shipping omissions: needs one reason per plan with no readings")
+    else:
+        for item in omissions:
+            if not isinstance(item, dict) or set(item) != {"plan", "reason"} or item.get("plan") not in PLANS or not isinstance(item.get("reason"), str) or not item["reason"]:
+                errors.append("shipping omission: needs a plan and a reason")
+            else:
+                seen.append(item["plan"])
+        if seen != expected:
+            errors.append("shipping omissions: needs one reason per plan with no readings")
     return errors

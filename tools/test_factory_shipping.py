@@ -94,6 +94,36 @@ class ShippingTests(unittest.TestCase):
         result["days"][-1]["date"] = result["days"][-2]["date"]
         self.assertTrue(validate(result))
 
+    def test_omitted_plan_keeps_its_own_reason(self):
+        prs, readings, metric = fixture()
+        result = shipping(NOW, prs, "GitHub fixture", readings, metric)
+        reasons = {item["plan"]: item["reason"] for item in result["omissions"]}
+        self.assertEqual(set(reasons), {"claude", "grok", "opencode"})
+        self.assertEqual(reasons["claude"], "no quota readings on any of the 30 UTC dates.")
+        self.assertNotIn("pacing", reasons["claude"])
+        self.assertNotIn("Grok", reasons["claude"])
+        self.assertNotIn("OpenCode", reasons["claude"])
+        self.assertEqual(reasons["grok"], "pacing sampler retired on 2026-11-15.")
+        self.assertEqual(reasons["opencode"], "pacing sampler retired on 2026-11-15.")
+        self.assertEqual(validate(result), [])
+        readings["claude"] = [(MIDNIGHT + 60, 1), (MIDNIGHT + 120, 4)]
+        readings["grok"] = [(MIDNIGHT + 60, 1), (MIDNIGHT + 120, 1)]
+        present = shipping(NOW, prs, "GitHub fixture", readings, metric)
+        self.assertEqual([item["plan"] for item in present["omissions"]], ["opencode"])
+        self.assertEqual(present["omissions"][0]["reason"], "pacing sampler retired on 2026-11-15.")
+        self.assertNotIn("Claude", present["omissions"][0]["reason"])
+
+    def test_advisor_clock_is_minutes_utc(self):
+        prs, readings, metric = fixture()
+        metric = dict(metric, at=datetime(2026, 11, 16, 11, 34, 17, 455841, tzinfo=timezone.utc).timestamp())
+        result = shipping(NOW, prs, "GitHub fixture", readings, metric)
+        source = result["days"][-2]["cost"]["source"]
+        self.assertEqual(source, "Advisor attributed £ · 2026-11-16 11:34 UTC")
+        for day in result["days"]:
+            self.assertNotIn("+00:00", day["cost"]["source"])
+            self.assertNotRegex(day["cost"]["source"], r"\d{2}:\d{2}:\d{2}")
+            self.assertNotRegex(day["cost"]["source"], r"\.\d{3,}")
+
 
 if __name__ == "__main__":
     unittest.main()
