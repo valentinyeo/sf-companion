@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light dark;
   --accent: #ff1493;
   --accent-text: #c8006e;
   --code-ink: #4c4f69;
@@ -620,4 +621,50 @@ main > .copy-actions:has(.copy-primary) + p {
   color: #595959;
   font-size: 0.875em;
   margin-top: var(--space-tight);
+}
+
+/* Dark mode follows the device setting. The matching StyleX values sit in features/tokens.stylex.ts. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent-text: #f5c2e7;
+    --code-ink: #bac2de;
+    --code-keyword: #cdd6f4;
+    --code-literal: #a6adc8;
+    --code-muted: #9399b2;
+    --code-highlight: #313244;
+  }
+
+  body {
+    background: #1e1e2e;
+    color: #cdd6f4;
+  }
+
+  a {
+    color: #89b4fa;
+  }
+
+  a:visited {
+    color: #cba6f7;
+  }
+
+  main > .copy-actions:has(.copy-primary) + p {
+    color: #a6adc8;
+  }
+
+  code,
+  pre,
+  .copy:not(.copy-primary):hover,
+  .copy:not(.copy-primary):focus-visible {
+    background: #313244;
+  }
+
+  code,
+  pre,
+  figure img {
+    border-color: #45475a;
+  }
+
+  .block-transclusion {
+    border-inline-start-color: #45475a;
+  }
 }
