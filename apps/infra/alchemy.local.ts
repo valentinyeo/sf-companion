@@ -13,9 +13,20 @@ if (allowedEmail === undefined || allowedEmail === "") {
 
 const serviceTokenId = process.env.SF_ACCESS_SERVICE_TOKEN_ID;
 
+const factoryPageRoutesOnYeouxNetBesideYeouxSiteAstroAssets = [
+  { pattern: "yeoux.net/factory*", zoneName: "yeoux.net" },
+  { pattern: "yeoux.net/assets/*", zoneName: "yeoux.net" },
+];
+
+const excludeListThatAlsoRebuildsOnGitignoredHourlyFeed = [
+  "**/node_modules/**",
+  "**/dist/**",
+];
+
 class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   name: "sf-companion",
   rootDir: "../web",
+  routes: factoryPageRoutesOnYeouxNetBesideYeouxSiteAstroAssets,
   memo: {
     include: [
       "src/**",
@@ -25,6 +36,7 @@ class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
       "package.json",
       "vite.config.ts",
     ],
+    exclude: excludeListThatAlsoRebuildsOnGitignoredHourlyFeed,
     lockfile: true,
   },
   access: {
