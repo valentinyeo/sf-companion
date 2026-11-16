@@ -1,28 +1,52 @@
 import { pipe, Schema } from "effect";
 import { Route } from "foldkit";
-import { defineRouteUnion, literal } from "foldkit/route";
 
-export const AppRoute = defineRouteUnion({
+import type { EntryKind } from "../content/entry.js";
+
+const Section = Schema.Literals(["explorations", "reports"]);
+
+export type SectionValue = typeof Section.Type;
+
+export const SiteRoute = Route.defineRouteUnion({
+  Entry: { section: Section, slug: Schema.String },
+  Factory: {},
+  Home: {},
+  List: { section: Section },
   NotFound: { path: Schema.String },
-  Read: { id: Schema.String },
-  Search: { q: Schema.OptionFromNullOr(Schema.String) },
 });
 
-export type AppRouteState = typeof AppRoute.Type;
+export type SiteRouteValue = typeof SiteRoute.Type;
 
-export const docsReadRouter = pipe(
-  literal("search"),
-  Route.query(Schema.Struct({ id: Schema.String })),
-  Route.mapTo(AppRoute.Read)
+const sectionSegment = Route.schemaSegment("section", Section);
+
+export const homeRouter = pipe(Route.root, Route.mapTo(SiteRoute.Home));
+
+export const listRouter = pipe(sectionSegment, Route.mapTo(SiteRoute.List));
+
+export const factoryRouter = pipe(
+  Route.literal("factory"),
+  Route.mapTo(SiteRoute.Factory)
 );
 
-export const docsSearchRouter = pipe(
-  literal("search"),
-  Route.query(Schema.Struct({ q: Schema.OptionFromOptional(Schema.String) })),
-  Route.mapTo(AppRoute.Search)
+export const entryRouter = pipe(
+  sectionSegment,
+  Route.slash(Route.string("slug")),
+  Route.mapTo(SiteRoute.Entry)
 );
 
 export const parseRoute = Route.parseUrlWithFallback(
-  Route.oneOf(docsReadRouter, docsSearchRouter),
-  AppRoute.NotFound
+  Route.oneOf(homeRouter, factoryRouter, listRouter, entryRouter),
+  SiteRoute.NotFound
 );
+
+export const sectionFor = (kind: EntryKind): SectionValue =>
+  kind === "exploration" ? "explorations" : "reports";
+
+export const kindOf = (section: SectionValue): EntryKind =>
+  section === "explorations" ? "exploration" : "report";
+
+export const listPath = (kind: EntryKind): string =>
+  listRouter({ section: sectionFor(kind) });
+
+export const entryPath = (kind: EntryKind, slug: string): string =>
+  entryRouter({ section: sectionFor(kind), slug });

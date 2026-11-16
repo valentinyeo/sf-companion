@@ -6,12 +6,5 @@ export default defineConfig({
   ignorePatterns: [
     ...(ultracite.ignorePatterns ?? []),
     "skills/security-audit/**",
-    "examples/**",
-  ],
-  overrides: [
-    {
-      files: ["apps/web/test/fixtures/content-migration/*.md"],
-      options: { proseWrap: "preserve" },
-    },
   ],
 });

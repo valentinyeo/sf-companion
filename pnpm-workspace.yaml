@@ -5,11 +5,8 @@ overrides:
 
 packages:
   - "apps/*"
-  - "packages/*"
 
 allowBuilds:
-  alchemy-turbo-cache: true
-  "@google/genai": true
   esbuild: true
   lefthook: true
   msgpackr-extract: true

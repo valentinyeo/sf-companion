@@ -1,5 +1,3 @@
-import { createRequire } from "node:module";
-
 import foldkitRecommended from "@foldkit/oxlint-plugin/recommended.json" with { type: "json" };
 import { defineConfig } from "oxlint";
 import core from "ultracite/oxlint/core";
@@ -48,9 +46,6 @@ export default defineConfig({
   ],
   jsPlugins: [
     { name: "foldkit", specifier: "@foldkit/oxlint-plugin" },
-    createRequire(
-      new URL("packages/core/package.json", import.meta.url)
-    ).resolve("@xstate/effect/oxlint"),
     "./scripts/oxlint-plugin-effect-tests.ts",
     "./scripts/oxlint-plugin-no-comments.ts",
     {
@@ -108,16 +103,6 @@ export default defineConfig({
         "rat-stack-boundaries/no-feature-transport": "error",
       },
     },
-    {
-      files: [
-        "apps/site/scripts/content-lib.ts",
-        "apps/site/scripts/generate-content.ts",
-        "apps/site/scripts/wiki-prose.ts",
-      ],
-      rules: {
-        "rat-stack-patterns/audited-content-regex": "error",
-      },
-    },
   ],
   rules: {
     "anti-slop-effect/no-manual-effect-error-tag": "error",
@@ -170,6 +155,5 @@ export default defineConfig({
     "typescript/promise-function-async": "off",
     "unicorn/no-useless-undefined": ["error", { checkArguments: true }],
     "unicorn/throw-new-error": "off",
-    "xstate-effect/no-inline-effect": "error",
   },
 });

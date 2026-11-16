@@ -10,8 +10,6 @@ import type {
   Variable,
 } from "@oxlint/plugins";
 
-import { auditedStringRegexes } from "../apps/site/scripts/source-regex-policy.ts";
-
 type RuleContext = Context;
 
 type NodeOfType<Type extends ESTree.Node["type"]> = Extract<
@@ -1498,91 +1496,6 @@ const learnSnippetIdiom = defineRule({
   },
 });
 
-const rawSourceNames = new Set([
-  "frontmatter",
-  "markdown",
-  "rawText",
-  "source",
-  "sourceText",
-  "svx",
-]);
-
-const isRawSourceIdentifier = (node: ESTree.Node) =>
-  node.type === "Identifier" && rawSourceNames.has(node.name);
-
-const auditedExpressions = new Set(
-  auditedStringRegexes
-    .filter((entry) => entry.reason !== "")
-    .map((entry) => entry.expression)
-);
-
-const auditedContentRegex = defineRule({
-  create(context) {
-    const requireAudit = (node: ESTree.Node) => {
-      const expression = context.sourceCode.getText(node);
-
-      if (!auditedExpressions.has(expression)) {
-        context.report({ data: { expression }, messageId: "unaudited", node });
-      }
-    };
-
-    return {
-      CallExpression(node) {
-        const { callee } = node;
-
-        if (
-          callee.type !== "MemberExpression" ||
-          callee.property.type !== "Identifier"
-        ) {
-          return;
-        }
-
-        const method = callee.property.name;
-
-        const sourceArgument =
-          (method === "exec" || method === "test") &&
-          node.arguments.some(isRawSourceIdentifier);
-
-        const sourceReceiver =
-          (method === "match" ||
-            method === "matchAll" ||
-            method === "search") &&
-          isRawSourceIdentifier(callee.object);
-
-        if (sourceArgument || sourceReceiver) {
-          context.report({ messageId: "sourceRegex", node });
-        }
-      },
-      Literal(node) {
-        if ("regex" in node && node.regex !== undefined) {
-          requireAudit(node);
-        }
-      },
-      NewExpression(node) {
-        if (
-          node.callee.type === "Identifier" &&
-          node.callee.name === "RegExp"
-        ) {
-          requireAudit(node);
-        }
-      },
-    };
-  },
-  meta: {
-    docs: {
-      description:
-        "Keep regular expressions in the content pipeline to audited expressions over parsed values, never over svx source.",
-    },
-    messages: {
-      sourceRegex:
-        "A regular expression over raw svx source is forbidden. A regex over source breaks on the nesting, fences, and quoting the parser handles. Fix: parse the source with `apps/site/scripts/svx-ast.ts` and match parsed values instead.",
-      unaudited:
-        "Unaudited regular expression {{expression}}. Every content regex carries a recorded reason, so source matching stays reviewable. Fix: match a parsed value, or add the expression and its reason to `apps/site/scripts/source-regex-policy.ts`.",
-    },
-    type: "problem",
-  },
-});
-
 const flagRemovalDate = defineRule({
   create(context) {
     return {
@@ -1817,7 +1730,6 @@ export default definePlugin({
   rules: {
     "acquire-release-constructs-in-acquire-body":
       acquireReleaseConstructsInAcquireBody,
-    "audited-content-regex": auditedContentRegex,
     "contract-binding-matches-name": contractBindingMatchesName,
     "flag-removal-date": flagRemovalDate,
     "learn-snippet-idiom": learnSnippetIdiom,
