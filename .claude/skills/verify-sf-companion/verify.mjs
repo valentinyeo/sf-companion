@@ -194,6 +194,26 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         .getByText("Synthetic third measurement detail", { exact: true })
         .waitFor({ state: "visible" });
       await record("open Measurement details and read third detail");
+      await page
+        .getByRole("heading", { name: "PRs shipped vs plan burn", exact: true })
+        .waitFor();
+      const chart = page.getByRole("region", {
+        name: "Daily shipping and burn chart",
+      });
+      await chart
+        .getByRole("rowheader", { name: "2026-11-15", exact: true })
+        .waitFor();
+      await chart
+        .getByRole("rowheader", { name: "2026-11-14", exact: true })
+        .waitFor();
+      const newest = chart.getByRole("row").filter({
+        has: page.getByRole("rowheader", { name: "2026-11-15", exact: true }),
+      });
+      await newest.getByText("2 PRs", { exact: true }).click();
+      await newest
+        .getByText("GitHub search · fleet mergedAt", { exact: true })
+        .waitFor();
+      await record("expand one shipping source inside the chart");
     } else {
       await page
         .getByText("No factory numbers yet.", { exact: true })
@@ -204,6 +224,12 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       );
       assert.equal(
         await page.getByRole("heading", { name: "Output and waste" }).count(),
+        0
+      );
+      assert.equal(
+        await page
+          .getByRole("heading", { name: "PRs shipped vs plan burn" })
+          .count(),
         0
       );
       await record(

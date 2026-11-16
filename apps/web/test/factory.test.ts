@@ -160,6 +160,12 @@ const shippingFixture = {
       notes: [
         "Quota points are not tokens; £ is the attributed priced subset.",
       ],
+      omissions: [
+        {
+          plan: "opencode",
+          reason: "pacing sampler retired on 2026-11-15.",
+        },
+      ],
       days: [
         {
           date: "2026-11-13",
@@ -220,10 +226,11 @@ describe("factory page", () => {
             role("columnheader", { name: "OpenCode pts" })
           ).not.toExist(),
           expectElement(
-            text(
-              "OpenCode omitted: no quota readings on any of the 30 UTC dates. Grok and OpenCode's pacing sampler retired on 2026-11-15."
-            )
+            text("OpenCode omitted: pacing sampler retired on 2026-11-15.")
           ).toExist(),
+          expectElement(
+            text("Grok and OpenCode's pacing sampler retired on 2026-11-15.")
+          ).not.toExist(),
           expectElement(text("£12.00")).toExist(),
           expectElement(text("£6.00")).toExist(),
           expectElement(text(missing.reason)).toExist(),
@@ -233,6 +240,63 @@ describe("factory page", () => {
           expectElement(text("£6.00")).toExist()
         );
       })
+  );
+
+  it.effect("does not blame a missing plan on another plan's sampler", () =>
+    Effect.gen(function* keepReasonsApart() {
+      const separated = {
+        ...shippingFixture,
+        kpis: {
+          ...shippingFixture.kpis,
+          shipping: {
+            ...shippingFixture.kpis.shipping,
+            omissions: [
+              {
+                plan: "claude",
+                reason: "no quota readings on any of the 30 UTC dates.",
+              },
+              {
+                plan: "grok",
+                reason: "pacing sampler retired on 2026-11-15.",
+              },
+              {
+                plan: "opencode",
+                reason: "pacing sampler retired on 2026-11-15.",
+              },
+            ],
+            days: shippingFixture.kpis.shipping.days.map((day) => ({
+              ...day,
+              burn: day.burn.map((item) =>
+                item.plan === "claude" || item.plan === "grok"
+                  ? { ...item, reading: missing }
+                  : item
+              ),
+            })),
+          },
+        },
+      };
+
+      const feed = yield* decodeFeed(fixturePath, JSON.stringify(separated));
+
+      scene(
+        { update, view },
+        given(
+          initialModel({ route: SiteRoute.Factory() }, [], Option.some(feed))
+        ),
+        expectElement(role("columnheader", { name: "Codex pts" })).toExist(),
+        expectElement(
+          role("columnheader", { name: "Claude pts" })
+        ).not.toExist(),
+        expectElement(
+          text(
+            "Claude omitted: no quota readings on any of the 30 UTC dates. Grok, OpenCode omitted: pacing sampler retired on 2026-11-15."
+          )
+        ).toExist(),
+        expectElement(
+          text("Grok and OpenCode's pacing sampler retired on 2026-11-15.")
+        ).not.toExist()
+      );
+    })
   );
 
   it.effect(
