@@ -1,24 +1,30 @@
 #!/usr/bin/env python3
 """Write the Factory feed JSON that the companion site reads.
 
-Every number comes from the advisor's own functions in ADVISOR_BIN; nothing here recomputes one.
-Nothing here writes into the advisor's state: the run verdicts come from its cached violations.json.
+Usage comes from token-ladder, OpenCode credit history, and Vercel's credits API.
+Advisor helpers supply runner, reviewer, and KPI readings without writing their state.
 """
 
 import argparse
 import html
 import json
+import math
 import os
 import re
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
 if "ADVISOR_BIN" not in os.environ:
     sys.exit("Set ADVISOR_BIN to the advisor's bin directory.")
 ADVISOR_BIN = Path(os.environ["ADVISOR_BIN"])
+if not os.environ.get("TOKEN_LADDER_STATUS"):
+    sys.exit("Set TOKEN_LADDER_STATUS to token-ladder's status JSON file.")
+TOKEN_LADDER_STATUS = Path(os.environ["TOKEN_LADDER_STATUS"])
 PICKER_WINDOWS = ("1h", "3h", "6h", "12h", "24h", "7d", "30d")
 PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel")
 WINDOW_ENUM = ("week", "month")
@@ -47,7 +53,7 @@ def iso_utc(seconds):
 
 
 def number(value):
-    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
 
 
 def review_of(ub, plan, label):
@@ -58,30 +64,103 @@ def review_of(ub, plan, label):
     return {"show": True, "known": " off" not in pill, "tip": html.unescape(title[1]) if title else ""}
 
 
+def read_status():
+    try:
+        status = json.loads(TOKEN_LADDER_STATUS.read_text())
+        return status if isinstance(status, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def opencode_reading():
+    path = os.environ.get("OPENCODE_HISTORY")
+    if not path:
+        return None
+    try:
+        last = ""
+        with Path(path).open() as history:
+            for line in history:
+                if line.strip():
+                    last = line
+        entry = json.loads(last)
+        credit, at = number(entry.get("credits_usd")), number(entry.get("at"))
+        if credit is not None and at is not None:
+            return credit, number(entry.get("today_usd")), at, iso_utc(at)
+    except (OSError, ValueError, AttributeError, OverflowError):
+        pass
+    return None
+
+
+def vercel_reading(now):
+    key = os.environ.get("AI_GATEWAY_API_KEY")
+    if not key:
+        return None
+    request = urllib.request.Request(
+        "https://ai-gateway.vercel.sh/v1/credits",
+        headers={"Authorization": f"Bearer {key}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            token_pass = json.load(response).get("token_pass")
+        if not isinstance(token_pass, dict) or token_pass.get("remaining") is None:
+            return None
+        remaining = token_pass["remaining"]
+        if isinstance(remaining, bool):
+            return None
+        credit = number(float(remaining))
+        if credit is None:
+            return None
+        return credit, None, now, iso_utc(now)
+    except (OSError, urllib.error.URLError, ValueError, TypeError, AttributeError):
+        return None
+
+
 def usage_part(ub, g, now):
-    plans = ub.load()
-    rows = ub.rows(plans) if plans else []
-    opencode_credit = ub.credits(plans, now)
-    vercel_credit = ub.token_pass_credit()
+    status = read_status()
+    sampled_at = number(status.get("ts"))
+    fresh = sampled_at is not None and now - sampled_at <= 30 * 60
+    opencode_credit = opencode_reading()
+    vercel_credit = vercel_reading(now)
     groups = ub.runner_groups()
     cards = []
-    for plan, label, primary, details in rows:
+    for plan, label in zip(PLAN_ENUM, ("Claude", "Codex", "Grok", "OpenCode", "Vercel")):
         credit = opencode_credit if plan == "opencode" else vercel_credit if plan == "vercel" else None
-        mode = "credit" if credit else "percent" if primary else "none"
+        reading = status.get(plan) if plan in ("claude", "codex") and fresh else None
+        reading = reading if isinstance(reading, dict) and not reading.get("error") else {}
+        week = reading.get("week")
+        week = week if isinstance(week, dict) else {}
+        used, time_gone = number(week.get("used")), number(week.get("time_gone"))
+        used = used if used is not None and 0 <= used <= 100 else None
+        delta = used - time_gone if used is not None and time_gone is not None else None
+        resets = number(week.get("resets_at"))
+        resets_text = None
+        if used is not None and resets is not None:
+            try:
+                resets_text = ub.when(resets)
+            except (OSError, ValueError, OverflowError):
+                pass
+        windows = []
+        for key, window_label in (("week", "week"), ("five_hour", "5h")):
+            window = reading.get(key)
+            value = number(window.get("used")) if isinstance(window, dict) else None
+            if value is not None and 0 <= value <= 100:
+                windows.append({"label": window_label, "usedPct": value})
+        age = max(0, int((now - credit[2]) / 60)) if credit and plan == "opencode" else None
+        age_text = f"{age // 60}h ago" if age is not None and age >= 60 else f"{age}m ago"
         cards.append({
             "plan": plan,
             "name": label,
             "primaryWindow": ub.PRIMARY.get(plan, "week"),
-            "mode": mode,
-            "usedPct": number(primary[0]) if primary else None,
-            "resetsText": primary[1] if primary else None,
-            "paceDelta": number(ub.pace_delta(plan)),
-            "tone": "plain" if credit else (ub.tone(ub.pace_delta(plan)).strip() or "plain"),
-            "creditUsd": number(credit[0]) if credit else None,
-            "creditSubLabel": ("credit" if plan == "vercel" else "month full") if credit else None,
-            "creditReadAt": iso_utc(credit[2]) if credit else None,
-            "creditAsOf": (ub.as_of(credit, now) or None) if credit else None,
-            "windows": [{"label": k, "usedPct": number(v)} for k, v in details],
+            "mode": "credit" if credit else "percent" if used is not None else "none",
+            "usedPct": used,
+            "resetsText": resets_text,
+            "paceDelta": delta,
+            "tone": ub.tone(delta).strip() or "plain",
+            "creditUsd": credit[0] if credit else None,
+            "creditSubLabel": "credit" if credit else None,
+            "creditReadAt": credit[3] if credit else None,
+            "creditAsOf": f" · as of {age_text}" if age is not None else None,
+            "windows": windows,
             "runnersText": ub.runners_text(None if groups is None else groups.get(plan, {})),
             "runnersLive": groups is not None,
             "reviewer": review_of(ub, plan, label),
@@ -163,11 +242,7 @@ def kpis_part(sv, rv, g):
 
 
 def build(ub, sv, rv, g, now):
-    try:
-        usage = usage_part(ub, g, now)
-    except (OSError, KeyError, TypeError, ValueError) as ex:
-        print(f"usage: {type(ex).__name__}: {ex}; writing the absent form", file=sys.stderr)
-        usage = {"cards": [], "burn": {}}
+    usage = usage_part(ub, g, now)
     try:
         kpis = kpis_part(sv, rv, g)
     except (OSError, KeyError, TypeError, ValueError) as ex:
@@ -253,8 +328,8 @@ def validate(feed):
             ok(card.get("creditUsd") is None, f"{where}: percent mode has no creditUsd")
         if card.get("mode") == "credit":
             ok(is_num(card.get("creditUsd")) and is_iso(card.get("creditReadAt")), f"{where}: credit mode needs creditUsd and creditReadAt")
-        if not (card.get("plan") == "opencode" and card.get("mode") == "credit"):
-            ok(card.get("windows") == [], f"{where}.windows: empty outside credit-mode opencode")
+        if card.get("plan") not in ("claude", "codex") and not (card.get("plan") == "opencode" and card.get("mode") == "credit"):
+            ok(card.get("windows") == [], f"{where}.windows: empty outside Claude, Codex or credit-mode opencode")
     burn = usage["burn"]
     ok(isinstance(burn, dict), "usage.burn: needs an object")
     for window, per_plan in (burn if isinstance(burn, dict) else {}).items():
