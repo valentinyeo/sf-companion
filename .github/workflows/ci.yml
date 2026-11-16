@@ -32,6 +32,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Feed change rebuilds the site
         run: scripts/check-feed-rebuilds.sh
+      - name: Test factory KPI exporter
+        run: python3 -m unittest discover -s tools -p "test_factory_kpis.py" -v
       - name: Check and test
         run: pnpm turbo run check test build --concurrency=2
       - name: Upload Turbo run summaries

@@ -31,3 +31,5 @@ apps/web/content/feed/factory.json
 
 # Local Alchemy deploy state
 .alchemy/
+
+__pycache__/

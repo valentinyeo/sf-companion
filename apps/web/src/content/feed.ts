@@ -46,25 +46,6 @@ const CreditSubLabel = Schema.Literals(["credit", "month full"]);
 
 const KpiState = Schema.Literals(["ok", "bad"]);
 
-const BigTileId = Schema.Literals([
-  "product_tickets",
-  "per_runner_hour",
-  "gbp_per_product",
-  "runs_per_product",
-  "violations",
-  "linked_runs",
-]);
-
-const MoreTileId = Schema.Literals([
-  "upkeep_tickets",
-  "unattributed_runs",
-  "runs_per_upkeep_ticket",
-  "product_runs",
-  "upkeep_runs",
-  "prs_merged",
-  "reviews",
-]);
-
 const WindowReading = Schema.Struct({
   label: Schema.NonEmptyString,
   usedPct: Schema.NullOr(Schema.Number),
@@ -130,66 +111,25 @@ const BurnByWindow = Schema.Struct({
 
 export type BurnByWindowValue = typeof BurnByWindow.Type;
 
-const tileFields = {
+const KpiTile = Schema.Struct({
+  details: Schema.NonEmptyArray(Schema.NonEmptyString),
   display: Schema.NonEmptyString,
+  id: Schema.Literals(["delivered", "verifier", "pace", "loops"]),
   label: Schema.NonEmptyString,
+  source: Schema.NonEmptyString,
   state: Schema.NullOr(KpiState),
-  sub: Schema.NullOr(Schema.String),
-  target: Schema.NullOr(Schema.String),
-};
+  window: Schema.NonEmptyString,
+});
 
-const BigTile = Schema.Struct({ id: BigTileId, ...tileFields });
-
-export type BigTileValue = typeof BigTile.Type;
-
-const MoreTile = Schema.Struct({ id: MoreTileId, ...tileFields });
-
-export type MoreTileValue = typeof MoreTile.Type;
+export type KpiTileValue = typeof KpiTile.Type;
 
 export type KpiStateValue = typeof KpiState.Type;
-
-const KpiWindow = Schema.Struct({
-  big: Schema.Array(BigTile),
-  from: Schema.Number,
-  more: Schema.Array(MoreTile),
-  note: Schema.NullOr(Schema.String),
-  to: Schema.Number,
-});
-
-export type KpiWindowValue = typeof KpiWindow.Type;
-
-const KpiWindows = Schema.Struct({
-  "1h": Schema.optional(KpiWindow),
-  "3h": Schema.optional(KpiWindow),
-  "6h": Schema.optional(KpiWindow),
-  "12h": Schema.optional(KpiWindow),
-  "24h": Schema.optional(KpiWindow),
-  "7d": Schema.optional(KpiWindow),
-  "30d": Schema.optional(KpiWindow),
-});
-
-export type KpiWindowsValue = typeof KpiWindows.Type;
-
-const HourBucket = Schema.Struct({
-  runs: Schema.Number,
-  t: Schema.Number,
-  violations: Schema.Number,
-});
-
-export type HourBucketValue = typeof HourBucket.Type;
-
-const Violations = Schema.Struct({
-  hourly: Schema.Array(HourBucket),
-  top: Schema.Number,
-});
-
-export type ViolationsValue = typeof Violations.Type;
 
 export const FactoryFeed = Schema.Struct({
   generatedAt: Schema.String,
   kpis: Schema.Struct({
-    violations: Violations,
-    windows: KpiWindows,
+    notes: Schema.Array(Schema.NonEmptyString),
+    tiles: Schema.Array(KpiTile),
   }),
   usage: Schema.Struct({
     burn: BurnByWindow,

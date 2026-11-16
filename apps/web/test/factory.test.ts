@@ -17,64 +17,46 @@ import { SiteRoute } from "../src/features/route.js";
 
 const fixturePath = "content/feed/factory.json";
 
-const productTile = {
-  display: "29",
-  id: "product_tickets",
-  label: "Product tickets done",
-  state: "ok",
-  sub: null,
-  target: "≥ 1",
+const deliveredTile = {
+  details: ["Board 15 / Product Lead, 1d: 29"],
+  display: "29 / day · 87 / week",
+  id: "delivered",
+  label: "Tickets delivered",
+  source: "Hypertask boards 15, 2060, 11514 · sectionChangedAt",
+  state: null,
+  window: "Rolling 24h and 7d",
 };
-
-const oneHourBig = [
-  productTile,
-  {
-    display: "0.73",
-    id: "per_runner_hour",
-    label: "Per runner-hour",
-    state: "ok",
-    sub: "39.7 h",
-    target: "≥ 0.37",
-  },
-  {
-    display: "£0.44",
-    id: "gbp_per_product",
-    label: "£ per Product ticket",
-    state: "ok",
-    sub: null,
-    target: "≤ £0.50",
-  },
-  {
-    display: "11.2",
-    id: "runs_per_product",
-    label: "Runs per Product ticket",
-    state: "bad",
-    sub: null,
-    target: "≤ 1",
-  },
-];
-
-const windowOf = (display: string) => ({
-  big: oneHourBig.map((tile, index) =>
-    index === 2 ? { ...tile, display } : tile
-  ),
-  from: 1_794_695_497,
-  more: [],
-  note: null,
-  to: 1_794_699_097,
-});
 
 const fixtureFeed = {
   generatedAt: "2026-11-15T00:41:07Z",
   kpis: {
-    violations: {
-      hourly: [{ runs: 7, t: 1_794_686_400, violations: 1 }],
-      top: 3,
-    },
-    windows: {
-      "1h": windowOf("£0.44"),
-      "7d": windowOf("£12.74 / 0"),
-    },
+    notes: [
+      "Drain-loop health unavailable. No recent loop observations; not a measured zero.",
+    ],
+    tiles: [
+      deliveredTile,
+      {
+        details: [
+          "3/4 PRs passed their first verdict",
+          "Merged without verdict: 25% (1/4)",
+        ],
+        display: "75%",
+        id: "verifier",
+        label: "Verifier first-pass rate",
+        source: "GitHub fleet PR comments",
+        state: null,
+        window: "First verdicts and merges in rolling 7d",
+      },
+      {
+        details: ["claude: 1.25× · over pace"],
+        display: "1/2 over pace",
+        id: "pace",
+        label: "Plan usage pace",
+        source: "token-ladder pools --json · pace_ratio",
+        state: "bad",
+        window: "Current plan windows at export time",
+      },
+    ],
   },
   usage: {
     burn: {
@@ -134,10 +116,17 @@ describe("factory page", () => {
         given(initialModel({ route }, [], Option.some(feed))),
         expectElement(text("Fixture Plan")).toExist(),
         expectElement(text("as of 28h ago")).toExist(),
-        expectElement(text("£0.44")).toExist(),
+        expectElement(text("29 / day · 87 / week")).toExist(),
+        expectElement(
+          text("Hypertask boards 15, 2060, 11514 · sectionChangedAt")
+        ).toExist(),
+        expectElement(text("Rolling 24h and 7d")).toExist(),
+        expectElement(text("75%")).toExist(),
+        expectElement(text("1/2 over pace")).toExist(),
+        expectElement(text("Board 15 / Product Lead, 1d: 29")).toExist(),
         expectElement(text("Numbers from 2026-11-15 00:41 UTC")).toExist(),
         click(role("button", { name: "7d" })),
-        expectElement(text("£12.74 / 0")).toExist()
+        expectElement(text("29 / day · 87 / week")).toExist()
       );
     })
   );
@@ -148,12 +137,7 @@ describe("factory page", () => {
         ...fixtureFeed,
         kpis: {
           ...fixtureFeed.kpis,
-          windows: {
-            "1h": {
-              ...windowOf("£0.44"),
-              big: [{ ...productTile, state: "great" }],
-            },
-          },
+          tiles: [{ ...deliveredTile, state: "great" }],
         },
       };
 
