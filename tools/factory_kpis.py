@@ -81,7 +81,7 @@ def read_tickets(now, run=command_json):
 
 def read_prs(now, run=command_json):
     rows = []
-    for repo in os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(","):
+    for repo in [item.strip() for item in os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(",") if item.strip()]:
         owner, name = repo.strip().split("/")
         after = None
         while True:
@@ -132,7 +132,7 @@ def delivered(tickets, now):
                 key = f"Board {board} / {name}"
                 counts[key] = counts.get(key, 0) + 1
         totals.append(total)
-        details.append(f"Last {days}d: {total} tickets" + ("; no tickets entered Done" if total == 0 else ""))
+        details.append(f"Last {days}d: {total} ticket{'' if total == 1 else 's'}" + ("; no tickets entered Done" if total == 0 else ""))
         for board in BOARDS:
             count = sum(1 for t in done if t["boardId"] == board and now - days * DAY <= timestamp(t["sectionChangedAt"]) <= now)
             details.append(f"Board {board}, {days}d: {count}")
@@ -217,7 +217,7 @@ def loop_health(roster, lines, now):
         at = timestamp(match[1])
         if at is None or not now - 45 * 60 <= at <= now:
             continue
-        if match[2] not in latest or at > latest[match[2]][0]:
+        if match[2] not in latest or at >= latest[match[2]][0]:
             latest[match[2]] = (at, match[3].lower(), match[4])
     if not latest:
         raise SourceUnavailable("no loop observations in the last 45m; ordinary wakes are not loop fires")
