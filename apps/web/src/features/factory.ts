@@ -8,6 +8,7 @@ import type { AppModel } from "../client/app/model.js";
 import { windowKeys } from "../content/feed.js";
 import type {
   KpiTileValue,
+  ShippingCellValue,
   BurnByWindowValue,
   FactoryFeedValue,
   KpiStateValue,
@@ -350,6 +351,162 @@ const kpisSection = (
     ]
   );
 
+const shippingCell = (
+  cell: ShippingCellValue,
+  h: HtmlBuilder<AppMessage>
+): Html => {
+  const bar = stylex.props(
+    factoryStyles.bar(cell.kind === "measured" ? cell.barPct : 0)
+  );
+
+  return h.td(
+    [h.Class(classes(factoryStyles.chartCell))],
+    [
+      h.details(
+        [],
+        [
+          h.summary(
+            [],
+            [cell.kind === "measured" ? cell.display : "Unavailable"]
+          ),
+          ...(cell.kind === "missing" ? [h.p([], [cell.reason])] : []),
+          h.p([], [cell.source]),
+          h.p([], [cell.window]),
+        ]
+      ),
+      ...(cell.kind === "measured"
+        ? [
+            h.div(
+              [h.AriaHidden(true), h.Class(classes(factoryStyles.barTrack))],
+              [
+                h.div([
+                  h.Class(bar.className ?? ""),
+                  h.Style(
+                    Object.fromEntries(
+                      Object.entries(bar.style ?? {}).map(([key, value]) => [
+                        key,
+                        String(value),
+                      ])
+                    )
+                  ),
+                ]),
+              ]
+            ),
+          ]
+        : []),
+    ]
+  );
+};
+
+const shippingSection = (
+  feed: FactoryFeedValue,
+  h: HtmlBuilder<AppMessage>
+): Html => {
+  const { shipping } = feed.kpis;
+
+  return h.section(
+    [h.Class(classes(factoryStyles.section))],
+    [
+      h.h2([], ["PRs shipped vs plan burn"]),
+      ...(shipping === undefined
+        ? [
+            h.p(
+              [],
+              [
+                "Daily shipping data unavailable. This feed predates the daily collector.",
+              ]
+            ),
+          ]
+        : [
+            ...shipping.notes.map((note) =>
+              h.p([h.Class(classes(factoryStyles.small))], [note])
+            ),
+            h.p(
+              [h.Class(classes(factoryStyles.small))],
+              [
+                "Expand any value for its source and UTC window. Scroll the chart horizontally on small screens.",
+              ]
+            ),
+            h.div(
+              [
+                h.Role("region"),
+                h.AriaLabel("Daily shipping and burn chart"),
+                h.Tabindex(0),
+                h.Class(classes(factoryStyles.chartScroll)),
+              ],
+              [
+                h.table(
+                  [h.Class(classes(factoryStyles.chartTable))],
+                  [
+                    h.caption(
+                      [],
+                      [
+                        "Last 30 UTC dates · fleet merges, observed weekly quota points and attributed £",
+                      ]
+                    ),
+                    h.thead(
+                      [h.Class(classes(factoryStyles.chartHead))],
+                      [
+                        h.tr(
+                          [h.Class(classes(factoryStyles.chartRow))],
+                          [
+                            "UTC date",
+                            "Merged PRs",
+                            "Claude pts",
+                            "Codex pts",
+                            "Grok pts",
+                            "OpenCode pts",
+                            "Attributed £",
+                            "Attributed £/PR",
+                          ].map((label) =>
+                            h.th(
+                              [
+                                h.Scope("col"),
+                                h.Class(classes(factoryStyles.chartCell)),
+                              ],
+                              [label]
+                            )
+                          )
+                        ),
+                      ]
+                    ),
+                    h.tbody(
+                      [h.Class(classes(factoryStyles.chartBody))],
+                      shipping.days
+                        .toReversed()
+                        .map((day) =>
+                          h.tr(
+                            [
+                              h.Key(day.date),
+                              h.Class(classes(factoryStyles.chartRow)),
+                            ],
+                            [
+                              h.th(
+                                [
+                                  h.Scope("row"),
+                                  h.Class(classes(factoryStyles.chartCell)),
+                                ],
+                                [day.date]
+                              ),
+                              shippingCell(day.merges, h),
+                              ...day.burn.map((burn) =>
+                                shippingCell(burn.reading, h)
+                              ),
+                              shippingCell(day.cost, h),
+                              shippingCell(day.perPr, h),
+                            ]
+                          )
+                        )
+                    ),
+                  ]
+                ),
+              ]
+            ),
+          ]),
+    ]
+  );
+};
+
 export const factoryView = (
   model: AppModel,
   h: HtmlBuilder<AppMessage>
@@ -362,6 +519,7 @@ export const factoryView = (
         [h.Class(classes(factoryStyles.small))],
         [numbersFrom(feed.generatedAt)]
       ),
+      shippingSection(feed, h),
       usageSection(feed, model.kpiWindow, h),
       kpisSection(feed, h),
     ],

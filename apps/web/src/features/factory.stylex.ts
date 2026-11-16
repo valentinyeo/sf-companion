@@ -3,6 +3,49 @@ import * as stylex from "@stylexjs/stylex";
 import { reader, state, surface } from "./tokens.stylex.js";
 
 export const factoryStyles = stylex.create({
+  bar: (width: number) => ({
+    backgroundColor: surface.muted,
+    height: "0.375rem",
+    width: `${width}%`,
+  }),
+  barTrack: {
+    backgroundColor: surface.wash,
+    marginBlockStart: reader.spaceTight,
+    width: "100%",
+  },
+  chartBody: { display: "table-row-group" },
+  chartCell: {
+    display: "table-cell",
+    fontSize: reader.fontTiny,
+    maxWidth: "18rem",
+    minWidth: "7rem",
+    overflowWrap: "anywhere",
+    padding: reader.spaceTight,
+    textAlign: "start",
+    whiteSpace: "normal",
+    verticalAlign: "top",
+  },
+  chartHead: {
+    clipPath: "none",
+    display: "table-header-group",
+    height: "auto",
+    overflow: "visible",
+    position: "static",
+    whiteSpace: "normal",
+    width: "auto",
+  },
+  chartRow: { display: "table-row" },
+  chartScroll: {
+    maxWidth: "100%",
+    overflowX: "auto",
+  },
+  chartTable: {
+    display: "table",
+    marginBlock: reader.spaceSmall,
+    minWidth: "48rem",
+    tableLayout: "fixed",
+    width: "100%",
+  },
   bigValue: {
     fontSize: reader.fontBig,
     marginBlock: 0,

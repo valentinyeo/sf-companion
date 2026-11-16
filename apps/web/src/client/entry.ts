@@ -9,7 +9,6 @@ import { Flags, initialModel, Model } from "./app/model.js";
 import type { PageFlags } from "./app/model.js";
 import { update } from "./app/update.js";
 
-import "./rat.css";
 import "./reader.css";
 
 const application = Runtime.makeApplication({

@@ -12,6 +12,7 @@ import {
 import { initialModel } from "../src/client/app/model.js";
 import { update } from "../src/client/app/update.js";
 import { decodeFeed, FeedError } from "../src/content/feed.js";
+import type { ShippingCellValue } from "../src/content/feed.js";
 import { view } from "../src/features/page.js";
 import { SiteRoute } from "../src/features/route.js";
 
@@ -135,7 +136,113 @@ const fixtureFeed = {
   },
 };
 
+const measured = (value: number, display: string): ShippingCellValue => ({
+  kind: "measured",
+  value,
+  display,
+  barPct: 50,
+  source: "Seeded GitHub mergedAt and advisor daily source",
+  window: "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC",
+});
+
+const missing: ShippingCellValue = {
+  kind: "missing",
+  reason: "No consecutive quota readings within 6h on this UTC date.",
+  source: "Advisor daily_burn.readings · claude weekly quota",
+  window: "2026-11-14 00:00 UTC to 2026-11-15 00:00 UTC",
+};
+
+const shippingFixture = {
+  ...fixtureFeed,
+  kpis: {
+    ...fixtureFeed.kpis,
+    shipping: {
+      notes: [
+        "Quota points are not tokens; £ is the attributed priced subset.",
+      ],
+      days: [
+        {
+          date: "2026-11-14",
+          merges: measured(2, "2 PRs"),
+          burn: [
+            { plan: "claude", reading: missing },
+            { plan: "codex", reading: measured(6, "6 pts") },
+            { plan: "grok", reading: measured(0, "0 pts") },
+            { plan: "opencode", reading: missing },
+          ],
+          cost: measured(12, "£12.00"),
+          perPr: measured(6, "£6.00"),
+        },
+      ],
+    },
+  },
+};
+
 describe("factory page", () => {
+  it.effect(
+    "shows daily bars, exact costs and expandable provenance independently of the usage picker",
+    () =>
+      Effect.gen(function* showShipping() {
+        const feed = yield* decodeFeed(
+          fixturePath,
+          JSON.stringify(shippingFixture)
+        );
+
+        scene(
+          { update, view },
+          given(
+            initialModel({ route: SiteRoute.Factory() }, [], Option.some(feed))
+          ),
+          expectElement(
+            role("region", { name: "Daily shipping and burn chart" })
+          ).toExist(),
+          expectElement(
+            role("columnheader", { name: "Attributed £/PR" })
+          ).toExist(),
+          expectElement(text("2 PRs")).toExist(),
+          expectElement(text("6 pts")).toExist(),
+          expectElement(text("0 pts")).toExist(),
+          expectElement(text("£12.00")).toExist(),
+          expectElement(text("£6.00")).toExist(),
+          expectElement(text(missing.reason)).toExist(),
+          expectElement(text(missing.window)).toExist(),
+          expectElement(text(missing.source)).toExist(),
+          click(role("button", { name: "30d" })),
+          expectElement(text("£6.00")).toExist()
+        );
+      })
+  );
+
+  it.effect(
+    "rejects daily values without provenance or with negative burn",
+    () =>
+      Effect.gen(function* rejectInvalidShipping() {
+        for (const cell of [
+          { ...measured(2, "2 PRs"), source: "" },
+          { ...measured(2, "2 PRs"), value: -1 },
+        ]) {
+          const broken = {
+            ...shippingFixture,
+            kpis: {
+              ...shippingFixture.kpis,
+              shipping: {
+                ...shippingFixture.kpis.shipping,
+                days: shippingFixture.kpis.shipping.days.map((day) => ({
+                  ...day,
+                  merges: cell,
+                })),
+              },
+            },
+          };
+
+          const failure = yield* Effect.flip(
+            decodeFeed(fixturePath, JSON.stringify(broken))
+          );
+
+          expect(failure).toBeInstanceOf(FeedError);
+        }
+      })
+  );
   it.effect("shows the fixture plan card and KPI tile", () =>
     Effect.gen(function* showFixturePlan() {
       const feed = yield* decodeFeed(fixturePath, JSON.stringify(fixtureFeed));
@@ -145,6 +252,11 @@ describe("factory page", () => {
         { update, view },
         given(initialModel({ route }, [], Option.some(feed))),
         expectElement(text("Fixture Plan")).toExist(),
+        expectElement(
+          text(
+            "Daily shipping data unavailable. This feed predates the daily collector."
+          )
+        ).toExist(),
         expectElement(text("as of 28h ago")).toExist(),
         expectElement(text("29 / day · 87 / week")).toExist(),
         expectElement(

@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import statistics
+import factory_shipping
 from functools import cache
 from datetime import datetime, timezone
 from pathlib import Path
@@ -96,7 +97,7 @@ def read_tickets(now, run=command_json):
     return list({row["id"]: row for row in rows}.values())
 
 
-def read_prs(now, run=command_json):
+def read_prs(now, run=command_json, days=7):
     rows = []
     for repo in [item.strip() for item in os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(",") if item.strip()]:
         owner, name = repo.strip().split("/")
@@ -110,8 +111,12 @@ def read_prs(now, run=command_json):
             if data.get("errors"):
                 raise ValueError("PR query failed")
             page = data["data"]["repository"]["pullRequests"]
-            recent = [p for p in page["nodes"] if timestamp(p["updatedAt"]) >= now - 7 * DAY]
+            if any(timestamp(p.get("updatedAt")) is None for p in page["nodes"]):
+                raise SourceUnavailable("PR pagination has an invalid updatedAt timestamp")
+            recent = [p for p in page["nodes"] if timestamp(p["updatedAt"]) >= now - days * DAY]
             for pr in recent:
+                if pr.get("mergedAt") is not None and timestamp(pr["mergedAt"]) is None:
+                    raise SourceUnavailable("PR merge date unavailable")
                 comments = pr["comments"]["nodes"]
                 if pr["comments"]["pageInfo"]["hasNextPage"]:
                     comments = [{"body": c["body"], "createdAt": c["created_at"]}
@@ -119,7 +124,10 @@ def read_prs(now, run=command_json):
                 rows.append(dict(pr, repo=repo, comments=comments))
             if len(recent) < len(page["nodes"]) or not page["pageInfo"]["hasNextPage"]:
                 break
-            after = page["pageInfo"]["endCursor"]
+            cursor = page["pageInfo"]["endCursor"]
+            if not cursor or cursor == after:
+                raise SourceUnavailable("PR pagination did not advance")
+            after = cursor
     return rows
 
 
@@ -449,14 +457,14 @@ def ci_health(data, prs, now):
                 "bad" if off_target else None)
 
 
-def collect(now, run=command_json):
+def collect(now, run=command_json, burn_readings=None, metric=None):
     tiles = []
     notes = []
     home = Path.home()
 
     @cache
     def prs():
-        return read_prs(now, run)
+        return read_prs(now, run, days=30)
 
     sources = (
         ("Tickets delivered", lambda: delivered(read_tickets(now, run), now)),
@@ -483,4 +491,11 @@ def collect(now, run=command_json):
         "Cost per delivered ticket unavailable. Dated deliveries are blocked by HYCI-9390, so plan prices and token spend have no delivered-ticket denominator. Flat plans do not establish a zero total cost.",
         "Workers in flight vs slots unavailable. fleet/slots calculates a per-coordinator decision from running and ready counts but stores no tick receipts. Live chat counts cannot establish each coordinator's running count, cap or top shortfall reason. Not a measured zero.",
     ])
-    return {"tiles": tiles, "notes": notes}
+    try:
+        shipping_prs = prs()
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.SubprocessError):
+        shipping_prs = None
+    repos = ", ".join(os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(","))
+    shipping = factory_shipping.shipping(now, shipping_prs, "GitHub mergedAt · " + repos,
+                                         burn_readings or {}, metric or {})
+    return {"tiles": tiles, "notes": notes, "shipping": shipping}

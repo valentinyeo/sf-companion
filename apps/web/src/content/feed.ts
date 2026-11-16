@@ -133,9 +133,44 @@ export type KpiTileValue = typeof KpiTile.Type;
 
 export type KpiStateValue = typeof KpiState.Type;
 
+const ShippingCell = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal("measured"),
+    value: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
+    display: Schema.NonEmptyString,
+    barPct: Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 100 })),
+    source: Schema.NonEmptyString,
+    window: Schema.NonEmptyString,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("missing"),
+    reason: Schema.NonEmptyString,
+    source: Schema.NonEmptyString,
+    window: Schema.NonEmptyString,
+  }),
+]);
+
+export type ShippingCellValue = typeof ShippingCell.Type;
+
+const Shipping = Schema.Struct({
+  days: Schema.Array(
+    Schema.Struct({
+      date: Schema.NonEmptyString,
+      merges: ShippingCell,
+      burn: Schema.Array(
+        Schema.Struct({ plan: PlanKey, reading: ShippingCell })
+      ),
+      cost: ShippingCell,
+      perPr: ShippingCell,
+    })
+  ),
+  notes: Schema.Array(Schema.NonEmptyString),
+});
+
 export const FactoryFeed = Schema.Struct({
   generatedAt: Schema.String,
   kpis: Schema.Struct({
+    shipping: Schema.optional(Shipping),
     notes: Schema.Array(Schema.NonEmptyString),
     tiles: Schema.Array(KpiTile),
   }),

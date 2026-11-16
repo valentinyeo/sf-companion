@@ -7,6 +7,7 @@ Factory KPIs use independent read-only source collectors.
 """
 
 import factory_kpis
+import factory_shipping
 
 import argparse
 import html
@@ -250,7 +251,12 @@ def usage_part(ub, g, now):
 
 def build(ub, sv, rv, g, now):
     usage = usage_part(ub, g, now)
-    kpis = factory_kpis.collect(now)
+    try:
+        import daily_burn
+        burn_readings = daily_burn.readings()
+    except (ImportError, OSError, ValueError, KeyError, TypeError):
+        burn_readings = {}
+    kpis = factory_kpis.collect(now, burn_readings=burn_readings, metric=g)
     return {"generatedAt": iso_utc(now), "usage": usage, "kpis": kpis}
 
 
@@ -280,7 +286,7 @@ def validate(feed):
     ok(is_iso(feed.get("generatedAt")), "generatedAt: needs an ISO 8601 UTC string")
     usage, kpis = feed.get("usage"), feed.get("kpis")
     ok(isinstance(usage, dict) and set(usage) == {"cards", "burn"}, "usage: needs exactly cards and burn")
-    ok(isinstance(kpis, dict) and set(kpis) == {"tiles", "notes"}, "kpis: needs exactly tiles and notes")
+    ok(isinstance(kpis, dict) and set(kpis) == {"tiles", "notes", "shipping"}, "kpis: needs exactly tiles, notes and shipping")
     if bad:
         return bad
     cards = usage["cards"]
@@ -353,6 +359,7 @@ def validate(feed):
         ok(isinstance(details, list) and bool(details) and all(isinstance(d, str) and d for d in details), "kpis tile details: needs explanatory text")
     notes = kpis.get("notes")
     ok(isinstance(notes, list) and all(isinstance(n, str) and n for n in notes), "kpis.notes: needs text array")
+    bad.extend(factory_shipping.validate(kpis["shipping"]))
     return bad
 
 
