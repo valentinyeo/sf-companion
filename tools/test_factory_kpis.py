@@ -101,8 +101,8 @@ class FactoryKpiTests(unittest.TestCase):
         self.assertEqual(len(baseline["notes"]), 5)
         self.assertEqual([t["display"] for t in baseline["tiles"]],
                          ["1 / day · 2 / week", "50%", "1/2 over pace", "50%",
-                          "3 / day · 3 / week · 4319.8 min median", "50%",
-                          "0.1 min median to live · 50% confirmed infra · 0% confirmed code · 0% unclassified"])
+                          "3 merged in 24h · 0.4 per day over 7d · 4319.8 min median", "50%",
+                          "50% runs failed · infra 1 · code/policy 0 · unclassified 0 · 0.1 min median to live (1/3 receipted)"])
         for index in range(7):
             fixture = seed()
             if index == 0:
@@ -226,8 +226,8 @@ class FactoryKpiTests(unittest.TestCase):
         prs[0]["mergedAt"] = iso(NOW - 8 * kpi.DAY)
         prs[1]["mergedAt"] = iso(NOW + 1)
         prs[2]["createdAt"] = iso(NOW - 1210)
-        self.assertIn("1 / day · 1 / week · 20.0 min median", kpi.merges(prs, NOW)["display"])
-        self.assertIn("0 / day · 0 / week · – median", kpi.merges([], NOW)["display"])
+        self.assertIn("1 merged in 24h · 0.1 per day over 7d · 20.0 min median", kpi.merges(prs, NOW)["display"])
+        self.assertIn("0 merged in 24h · 0.0 per day over 7d · – median", kpi.merges([], NOW)["display"])
         prs[2]["createdAt"] = None
         with self.assertRaises(kpi.SourceUnavailable):
             kpi.merges(prs, NOW)
@@ -247,11 +247,11 @@ class FactoryKpiTests(unittest.TestCase):
         fixture = seed()
         fixture["annotations"] = [{"message": "Process completed with exit code 1", "title": "Error"}]
         tile = next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")
-        self.assertIn("0% confirmed infra · 0% confirmed code · 50% unclassified", tile["display"])
+        self.assertIn("infra 0 · code/policy 0 · unclassified 1", tile["display"])
         fixture["runs"] = []
         fixture["deployments"] = []
         tile = next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")
-        self.assertEqual(tile["display"], "– to live · – failure rates")
+        self.assertEqual(tile["display"], "– runs failed · – to live (0/3 receipted)")
         self.assertIn("No completed Actions runs", " ".join(tile["details"]))
 
     def test_ci_latency_requires_successful_production_merge_sha(self):
@@ -259,20 +259,20 @@ class FactoryKpiTests(unittest.TestCase):
             fixture = seed()
             fixture["deployments"][0][field] = value
             tile = next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")
-            self.assertTrue(tile["display"].startswith("– to live"))
+            self.assertIn("– to live (0/3 receipted)", tile["display"])
         for status in ({"state": "pending", "created_at": iso(NOW - 1)},
                        {"state": "success", "created_at": iso(NOW + 1)},
                        {"state": "success", "created_at": iso(NOW - 100)}):
             fixture = seed()
             fixture["statuses"] = [status]
             tile = next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")
-            self.assertTrue(tile["display"].startswith("– to live"))
+            self.assertIn("– to live (0/3 receipted)", tile["display"])
         fixture = seed()
         fixture["prs"][0]["mergedAt"] = iso(NOW - 1800)
         fixture["statuses"] += [{"state": "success", "created_at": iso(NOW - 600)}]
         fixture["deployments"] *= 2
         tile = next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")
-        self.assertTrue(tile["display"].startswith("20.0 min"))
+        self.assertIn("20.0 min median to live (1/3 receipted)", tile["display"])
         self.assertEqual(tile["state"], "bad")
         self.assertIn("1/3 merged PRs", tile["details"][0])
 
@@ -319,10 +319,10 @@ class FactoryKpiTests(unittest.TestCase):
     def test_annotation_overflow_is_paged_and_warnings_are_not_failures(self):
         fixture = seed()
         fixture["annotation_overflow"] = True
-        self.assertIn("50% confirmed infra", next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")["display"])
+        self.assertIn("infra 1 · code/policy 0 · unclassified 0", next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")["display"])
         fixture["annotation_overflow"] = False
         fixture["annotations"][0]["annotationLevel"] = "WARNING"
-        self.assertIn("50% unclassified", next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")["display"])
+        self.assertIn("infra 0 · code/policy 0 · unclassified 1", next(t for t in exported(fixture)["tiles"] if t["id"] == "ci")["display"])
 
     def test_identity_reader_uses_file_existence_without_reading_tokens(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -365,6 +365,60 @@ class FactoryKpiTests(unittest.TestCase):
         broken = copy.deepcopy(feed)
         broken["kpis"]["tiles"][0]["source"] = ""
         self.assertTrue(exporter.validate(broken))
+
+    def test_ci_headline_names_receipts_and_a_high_failed_share(self):
+        unknown = {"failure_kind": "unknown"}
+        ok = {"failure_kind": None}
+        merged = [{"mergedAt": iso(NOW - 30)} for _ in range(31)]
+        loud = kpi.ci_health({"runs": [unknown] * 89 + [ok] * 911, "live_minutes": [4.9, 4.9]}, merged, NOW)
+        self.assertIn("8.9% runs failed", loud["display"])
+        self.assertIn("unclassified 89", loud["display"])
+        self.assertIn("4.9 min median to live (2/31 receipted)", loud["display"])
+        self.assertEqual(loud["state"], "bad")
+        self.assertIn("above 5% failed runs", " ".join(loud["details"]))
+        quiet = kpi.ci_health({"runs": [unknown] + [ok] * 19, "live_minutes": [4.9]}, merged[:1], NOW)
+        self.assertIn("5% runs failed", quiet["display"])
+        self.assertIn("(1/1 receipted)", quiet["display"])
+        self.assertIsNone(quiet["state"])
+        slow = kpi.ci_health({"runs": [ok] * 20, "live_minutes": [20.0]}, merged[:1], NOW)
+        self.assertEqual(slow["state"], "bad")
+        self.assertIn("20.0 min median to live (1/1 receipted)", slow["display"])
+
+    def test_merge_headline_uses_one_daily_basis(self):
+        prs = [{"createdAt": iso(NOW - i * kpi.DAY - 120), "mergedAt": iso(NOW - i * kpi.DAY - 60)} for i in range(7)]
+        tile = kpi.merges(prs, NOW)
+        self.assertEqual(tile["display"], "1 merged in 24h · 1.0 per day over 7d · 1.0 min median")
+        self.assertNotIn("/ week", tile["display"])
+        self.assertIn("1.00 per day", " ".join(tile["details"]))
+
+    def test_startup_and_policy_failures_keep_a_counted_unclassified_rest(self):
+        rows = [
+            {"id": 1, "check_suite_node_id": "s1", "conclusion": "startup_failure"},
+            {"id": 2, "check_suite_node_id": "s2", "conclusion": "failure"},
+            {"id": 3, "check_suite_node_id": "s3", "conclusion": "failure"},
+            {"id": 4, "check_suite_node_id": "s4", "conclusion": "failure"},
+            {"id": 5, "check_suite_node_id": "s5", "conclusion": "failure"},
+            {"id": 6, "check_suite_node_id": "s6", "conclusion": "failure"},
+        ]
+        messages = {
+            "s1": "",
+            "s2": "The PR body must contain the line Fixes SOFT-1",
+            "s3": "Live required checks do not match docs/ci-policy.yml",
+            "s4": "failed to acquire a runner to run this job",
+            "s5": "Process completed with exit code 1",
+            "s6": "",
+        }
+        conclusions = {"s6": "STARTUP_FAILURE"}
+
+        def run(args):
+            ids = json.loads(args[-1].split("nodes(ids: ")[1].split(") {")[0])
+            return {"data": {"nodes": [{"id": sid, "checkRuns": {"pageInfo": {"hasNextPage": False}, "nodes": [
+                {"conclusion": conclusions.get(sid, "FAILURE"), "annotations": {"pageInfo": {"hasNextPage": False}, "nodes": [] if not messages[sid] else [
+                    {"annotationLevel": "FAILURE", "message": messages[sid], "title": "Error"}]}}
+            ]}} for sid in ids]}}
+
+        self.assertEqual(kpi.read_failure_kinds("fixture/repo", rows, run),
+                         {1: "infra", 2: "code", 3: "code", 4: "infra", 5: "unknown", 6: "infra"})
 
 
 if __name__ == "__main__":
