@@ -1,3 +1,5 @@
+@import "./rat.css" layer(rat-base);
+
 #root {
   display: contents;
 }

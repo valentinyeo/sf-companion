@@ -8,6 +8,7 @@ import type { AppModel } from "../client/app/model.js";
 import { windowKeys } from "../content/feed.js";
 import type {
   KpiTileValue,
+  ShippingCellValue,
   BurnByWindowValue,
   FactoryFeedValue,
   KpiStateValue,
@@ -350,6 +351,190 @@ const kpisSection = (
     ]
   );
 
+const shippingCell = (
+  cell: ShippingCellValue,
+  h: HtmlBuilder<AppMessage>
+): Html => {
+  const bar = stylex.props(
+    factoryStyles.bar(cell.kind === "measured" ? cell.barPct : 0)
+  );
+
+  return h.td(
+    [h.Class(classes(factoryStyles.chartCell))],
+    [
+      h.details(
+        [],
+        [
+          h.summary(
+            [],
+            [cell.kind === "measured" ? cell.display : "Unavailable"]
+          ),
+          ...(cell.kind === "missing" ? [h.p([], [cell.reason])] : []),
+          h.p([], [cell.source]),
+          h.p([], [cell.window]),
+        ]
+      ),
+      ...(cell.kind === "measured"
+        ? [
+            h.div(
+              [h.AriaHidden(true), h.Class(classes(factoryStyles.barTrack))],
+              [
+                h.div([
+                  h.Class(bar.className ?? ""),
+                  h.Style(
+                    Object.fromEntries(
+                      Object.entries(bar.style ?? {}).map(([key, value]) => [
+                        key,
+                        String(value),
+                      ])
+                    )
+                  ),
+                ]),
+              ]
+            ),
+          ]
+        : []),
+    ]
+  );
+};
+
+const shippingSection = (
+  feed: FactoryFeedValue,
+  h: HtmlBuilder<AppMessage>
+): Html => {
+  const { shipping } = feed.kpis;
+
+  const burnColumns = Object.entries({
+    claude: "Claude",
+    codex: "Codex",
+    grok: "Grok",
+    opencode: "OpenCode",
+  });
+
+  const availablePlans = new Set<string>(
+    shipping?.days.flatMap((day) =>
+      day.burn
+        .filter((burn) => burn.reading.kind === "measured")
+        .map((burn) => burn.plan)
+    )
+  );
+
+  const omittedPlans = burnColumns.filter(
+    ([plan]) => !availablePlans.has(plan)
+  );
+
+  return h.section(
+    [h.Class(classes(factoryStyles.section))],
+    [
+      h.h2([], ["PRs shipped vs plan burn"]),
+      ...(shipping === undefined
+        ? [
+            h.p(
+              [],
+              [
+                "Daily shipping data unavailable. This feed predates the daily collector.",
+              ]
+            ),
+          ]
+        : [
+            h.p(
+              [h.Class(classes(factoryStyles.small))],
+              [
+                "Expand any value for its source and UTC window. Scroll the chart horizontally on small screens.",
+              ]
+            ),
+            h.div(
+              [
+                h.Role("region"),
+                h.AriaLabel("Daily shipping and burn chart"),
+                h.Tabindex(0),
+                h.Class(classes(factoryStyles.chartScroll)),
+              ],
+              [
+                h.table(
+                  [h.Class(classes(factoryStyles.chartTable))],
+                  [
+                    h.caption(
+                      [],
+                      [
+                        "Last 30 UTC dates · fleet merges, observed weekly quota points and attributed £",
+                      ]
+                    ),
+                    h.thead(
+                      [h.Class(classes(factoryStyles.chartHead))],
+                      [
+                        h.tr(
+                          [h.Class(classes(factoryStyles.chartRow))],
+                          [
+                            "UTC date",
+                            "Merged PRs",
+                            ...burnColumns
+                              .filter(([plan]) => availablePlans.has(plan))
+                              .map(([, label]) => `${label} pts`),
+                            "Attributed £",
+                            "Attributed £/PR",
+                          ].map((label) =>
+                            h.th(
+                              [
+                                h.Scope("col"),
+                                h.Class(classes(factoryStyles.chartCell)),
+                              ],
+                              [label]
+                            )
+                          )
+                        ),
+                      ]
+                    ),
+                    h.tbody(
+                      [h.Class(classes(factoryStyles.chartBody))],
+                      shipping.days
+                        .toReversed()
+                        .map((day) =>
+                          h.tr(
+                            [
+                              h.Key(day.date),
+                              h.Class(classes(factoryStyles.chartRow)),
+                            ],
+                            [
+                              h.th(
+                                [
+                                  h.Scope("row"),
+                                  h.Class(classes(factoryStyles.chartCell)),
+                                ],
+                                [day.date]
+                              ),
+                              shippingCell(day.merges, h),
+                              ...day.burn
+                                .filter((burn) => availablePlans.has(burn.plan))
+                                .map((burn) => shippingCell(burn.reading, h)),
+                              shippingCell(day.cost, h),
+                              shippingCell(day.perPr, h),
+                            ]
+                          )
+                        )
+                    ),
+                  ]
+                ),
+              ]
+            ),
+            ...shipping.notes.map((note) =>
+              h.p([h.Class(classes(factoryStyles.small))], [note])
+            ),
+            ...(omittedPlans.length === 0
+              ? []
+              : [
+                  h.p(
+                    [h.Class(classes(factoryStyles.small))],
+                    [
+                      `${omittedPlans.map(([, label]) => label).join(", ")} omitted: no quota readings on any of the 30 UTC dates. Grok and OpenCode's pacing sampler retired on 2026-11-15.`,
+                    ]
+                  ),
+                ]),
+          ]),
+    ]
+  );
+};
+
 export const factoryView = (
   model: AppModel,
   h: HtmlBuilder<AppMessage>
@@ -362,6 +547,7 @@ export const factoryView = (
         [h.Class(classes(factoryStyles.small))],
         [numbersFrom(feed.generatedAt)]
       ),
+      shippingSection(feed, h),
       usageSection(feed, model.kpiWindow, h),
       kpisSection(feed, h),
     ],

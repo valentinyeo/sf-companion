@@ -96,6 +96,18 @@ def exported(fixture):
 
 
 class FactoryKpiTests(unittest.TestCase):
+    def test_daily_shipping_reuses_collector_beyond_seven_days(self):
+        fixture = seed()
+        fixture["prs"].append({"number": 99, "createdAt": iso(NOW - 20 * kpi.DAY),
+                               "updatedAt": iso(NOW - 15 * kpi.DAY), "mergedAt": iso(NOW - 15 * kpi.DAY),
+                               "comments": []})
+        result = exported(fixture)
+        date = kpi.datetime.fromtimestamp(NOW - 15 * kpi.DAY, kpi.timezone.utc).date().isoformat()
+        day = next(d for d in result["shipping"]["days"] if d["date"] == date)
+        self.assertEqual(day["merges"]["value"], 1)
+        self.assertEqual(next(t for t in result["tiles"] if t["id"] == "merges")["display"],
+                         "3 merged in 24h · 0.4 per day over 7d · 4319.8 min median")
+
     def test_seeded_sources_change_only_their_tile(self):
         baseline = exported(seed())
         self.assertEqual(len(baseline["notes"]), 5)
