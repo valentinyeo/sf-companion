@@ -2,8 +2,11 @@
 """Write the Factory feed JSON that the companion site reads.
 
 Usage comes from token-ladder, OpenCode credit history, and Vercel's credits API.
-Advisor helpers supply runner, reviewer, and KPI readings without writing their state.
+Advisor helpers supply runner, reviewer, and burn readings without writing their state.
+Factory KPIs use independent read-only source collectors.
 """
+
+import factory_kpis
 
 import argparse
 import html
@@ -33,8 +36,6 @@ MODE_ENUM = ("percent", "credit", "none")
 TONE_ENUM = ("plain", "warm", "hot")
 CREDIT_LABELS = ("credit", "month full")
 STATES = ("ok", "bad")
-BIG_IDS = ("product_tickets", "per_runner_hour", "gbp_per_product", "runs_per_product", "violations", "linked_runs")
-MORE_IDS = ("upkeep_tickets", "unattributed_runs", "runs_per_upkeep_ticket", "product_runs", "upkeep_runs", "prs_merged", "reviews")
 
 
 def advisor():
@@ -247,70 +248,9 @@ def usage_part(ub, g, now):
     return {"cards": cards, "burn": burn}
 
 
-def cached_violations(rv):
-    if rv.window("24h") is None:
-        return None
-    try:
-        return json.loads((rv.GOAL / "violations.json").read_text())
-    except (OSError, ValueError):
-        return None
-
-
-def big_items(sv, x, ref):
-    return [{"id": BIG_IDS[i], "label": label, "display": shown, "sub": sub or None, "state": state or None,
-             "target": target or None}
-            for i, ((label, _tip), (shown, state, sub, target)) in enumerate(zip(sv.PRIMARY_ITEMS, sv.primary_values(x, ref)))]
-
-
-def more_items(sv, x):
-    review = x.get("review") or {}
-    out = []
-    for (label, _tip), value in list(zip(sv.BAR_ITEMS, sv.bar_values(x)))[1:]:
-        if value is None:
-            shown = "–"
-        elif isinstance(value, float):
-            shown = f"{value:g}"
-        else:
-            shown = sv.n(value)
-        sub = None
-        if label == "Reviews" and number(review.get("gbp")) is not None:
-            sub = f"~£{review['gbp']:.2f}" + (f" · {review['unpriced']} unpriced" if review.get("unpriced") else "")
-        out.append({"id": MORE_IDS[len(out)], "label": label, "display": shown, "sub": sub, "state": None, "target": None})
-    return out
-
-
-def kpis_part(sv, rv, g):
-    cached = cached_violations(rv)
-    verdicts = (cached or {}).get("windows") or {}
-    windows = {}
-    ref = (g.get("windows") or {}).get("7d")
-    for window in PICKER_WINDOWS:
-        x = (g.get("windows") or {}).get(window)
-        if not isinstance(x, dict) or number(x.get("from")) is None or number(x.get("to")) is None:
-            continue
-        try:
-            if window in verdicts:
-                x["viol"] = verdicts[window]
-            windows[window] = {
-                "from": int(x["from"]),
-                "to": int(x["to"]),
-                "note": sv.full_note(x) or None,
-                "big": big_items(sv, x, ref),
-                "more": more_items(sv, x),
-            }
-        except (KeyError, TypeError, ValueError) as ex:
-            print(f"kpis {window}: {type(ex).__name__}: {ex}; left out", file=sys.stderr)
-    hourly = [{"t": int(h["t"]), "violations": int(h["v"]), "runs": int(h["r"])} for h in (cached or {}).get("hourly") or []]
-    return {"windows": windows, "violations": {"top": max([h["violations"] for h in hourly] + [1]) if hourly else 0, "hourly": hourly}}
-
-
 def build(ub, sv, rv, g, now):
     usage = usage_part(ub, g, now)
-    try:
-        kpis = kpis_part(sv, rv, g)
-    except (OSError, KeyError, TypeError, ValueError) as ex:
-        print(f"kpis: {type(ex).__name__}: {ex}; writing the absent form", file=sys.stderr)
-        kpis = {"windows": {}, "violations": {"top": 0, "hourly": []}}
+    kpis = factory_kpis.collect(now)
     return {"generatedAt": iso_utc(now), "usage": usage, "kpis": kpis}
 
 
@@ -333,15 +273,6 @@ def validate(feed):
             return False
         return True
 
-    def item(where, entry, ids):
-        ok(set(entry) == {"id", "label", "display", "sub", "state", "target"}, f"{where}: needs id, label, display, sub, state, target")
-        ok(entry.get("id") == ids, f"{where}: id must be {ids}, got {entry.get('id')}")
-        ok(isinstance(entry.get("label"), str) and entry["label"], f"{where}.label: needs text")
-        ok(isinstance(entry.get("display"), str) and entry["display"], f"{where}.display: needs pre-formatted text")
-        ok(entry.get("sub") is None or isinstance(entry["sub"], str), f"{where}.sub: needs text or null")
-        ok(entry.get("state") is None or entry.get("state") in STATES, f"{where}.state: needs ok, bad or null")
-        ok(entry.get("target") is None or isinstance(entry["target"], str), f"{where}.target: needs text or null")
-
     ok(isinstance(feed, dict), "feed: not an object")
     if bad:
         return bad
@@ -349,7 +280,7 @@ def validate(feed):
     ok(is_iso(feed.get("generatedAt")), "generatedAt: needs an ISO 8601 UTC string")
     usage, kpis = feed.get("usage"), feed.get("kpis")
     ok(isinstance(usage, dict) and set(usage) == {"cards", "burn"}, "usage: needs exactly cards and burn")
-    ok(isinstance(kpis, dict) and set(kpis) == {"windows", "violations"}, "kpis: needs exactly windows and violations")
+    ok(isinstance(kpis, dict) and set(kpis) == {"tiles", "notes"}, "kpis: needs exactly tiles and notes")
     if bad:
         return bad
     cards = usage["cards"]
@@ -404,40 +335,24 @@ def validate(feed):
                f"usage.burn.{window}.{plan}: needs exactly pts, gbp, pricedPts, todayUsd")
             for field in ("pts", "gbp", "pricedPts", "todayUsd"):
                 ok(entry.get(field) is None or is_num(entry[field]), f"usage.burn.{window}.{plan}.{field}: needs a number or null")
-    windows = kpis["windows"]
-    ok(isinstance(windows, dict), "kpis.windows: needs an object")
-    for window, entry in (windows if isinstance(windows, dict) else {}).items():
-        where = f"kpis.windows.{window}"
-        ok(window in PICKER_WINDOWS, f"{where}: not a picker window")
-        ok(isinstance(entry, dict) and set(entry) == {"from", "to", "note", "big", "more"}, f"{where}: needs exactly from, to, note, big, more")
-        ok(is_num(entry.get("from")) and is_num(entry.get("to")), f"{where}: from and to need unix seconds")
-        ok(entry.get("note") is None or isinstance(entry["note"], str), f"{where}.note: needs text or null")
-        big = entry.get("big")
-        ok(isinstance(big, list) and len(big) == len(BIG_IDS), f"{where}.big: needs {len(BIG_IDS)} tiles")
-        for j, tile in enumerate(big if isinstance(big, list) else []):
-            if isinstance(tile, dict):
-                item(f"{where}.big[{j}]", tile, BIG_IDS[j])
-            else:
-                bad.append(f"{where}.big[{j}]: not an object")
-        more = entry.get("more")
-        ok(isinstance(more, list) and len(more) == len(MORE_IDS), f"{where}.more: needs {len(MORE_IDS)} items")
-        for j, row in enumerate(more if isinstance(more, list) else []):
-            if isinstance(row, dict):
-                item(f"{where}.more[{j}]", row, MORE_IDS[j])
-            else:
-                bad.append(f"{where}.more[{j}]: not an object")
-    violations = kpis["violations"]
-    ok(isinstance(violations, dict) and set(violations) == {"top", "hourly"}, "kpis.violations: needs exactly top and hourly")
-    if isinstance(violations, dict):
-        ok(is_num(violations.get("top")) and violations["top"] >= 0, "kpis.violations.top: needs a count of zero or more")
-        hourly = violations.get("hourly")
-        ok(isinstance(hourly, list), "kpis.violations.hourly: needs an array")
-        ok(not (hourly and not is_num(violations.get("top"))) , "kpis.violations.top: needs a number")
-        for j, hour in enumerate(hourly if isinstance(hourly, list) else []):
-            ok(isinstance(hour, dict) and set(hour) == {"t", "violations", "runs"}, f"kpis.violations.hourly[{j}]: needs exactly t, violations, runs")
-            for field in ("t", "violations", "runs"):
-                ok(hour.get(field) is not None and is_num(hour[field]), f"kpis.violations.hourly[{j}].{field}: needs a number")
-            ok(is_num(hour.get("t")) and hour["t"] % 3600 == 0, f"kpis.violations.hourly[{j}].t: needs a UTC hour start")
+    tiles = kpis.get("tiles")
+    ok(isinstance(tiles, list), "kpis.tiles: needs an array")
+    ids = set()
+    for tile in tiles if isinstance(tiles, list) else []:
+        ok(isinstance(tile, dict), "kpis.tiles: needs objects")
+        if not isinstance(tile, dict):
+            continue
+        ok(set(tile) == {"id", "label", "display", "source", "window", "details", "state"}, "kpis tile: unexpected fields")
+        key = tile.get("id")
+        ok(key in ("delivered", "verifier", "pace", "loops") and key not in ids, "kpis tile: unknown or duplicate id")
+        ids.add(key)
+        for field in ("label", "display", "source", "window"):
+            ok(isinstance(tile.get(field), str) and bool(tile[field]), f"kpis tile {field}: needs text")
+        ok(tile.get("state") is None or tile.get("state") in STATES, "kpis tile state: needs ok, bad or null")
+        details = tile.get("details")
+        ok(isinstance(details, list) and bool(details) and all(isinstance(d, str) and d for d in details), "kpis tile details: needs explanatory text")
+    notes = kpis.get("notes")
+    ok(isinstance(notes, list) and all(isinstance(n, str) and n for n in notes), "kpis.notes: needs text array")
     return bad
 
 
@@ -481,7 +396,7 @@ def main(argv=None):
         return 2
     usage, kpis = feed["usage"], feed["kpis"]
     print(f"wrote {args.out}: {len(usage['cards'])} usage cards, {len(usage['burn'])} burn windows, "
-          f"{len(kpis['windows'])} kpi windows, {len(kpis['violations']['hourly'])} violation hours")
+          f"{len(kpis['tiles'])} KPI tiles, {len(kpis['notes'])} unavailable sources")
     return 0
 
 

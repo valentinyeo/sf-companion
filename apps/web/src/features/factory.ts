@@ -7,16 +7,12 @@ import type { AppMessage } from "../client/app/message.js";
 import type { AppModel } from "../client/app/model.js";
 import { windowKeys } from "../content/feed.js";
 import type {
-  BigTileValue,
+  KpiTileValue,
   BurnByWindowValue,
   FactoryFeedValue,
-  HourBucketValue,
   KpiStateValue,
-  KpiWindowValue,
-  MoreTileValue,
   ToneValue,
   UsageCardValue,
-  ViolationsValue,
   WindowKeyValue,
   WindowReadingValue,
 } from "../content/feed.js";
@@ -43,9 +39,6 @@ const signed = (value: number): string =>
   `${value >= 0 ? "+" : ""}${trimmed(value)}`;
 
 const percent = (value: number): string => `${value.toFixed(0)}%`;
-
-const hourLabel = (t: number): string =>
-  `${String(Math.floor(t / 3600) % 24).padStart(2, "0")}:00`;
 
 const ISO_PREFIX =
   /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})T(?<hour>\d{2}):(?<minute>\d{2})/u;
@@ -260,6 +253,7 @@ const usageSection = (
     [h.Class(classes(factoryStyles.section))],
     [
       h.h2([], ["Usage"]),
+      picker(windowKey, h),
       ...(feed.usage.cards.length === 0
         ? [h.p([], ["No plans yet."])]
         : [
@@ -277,7 +271,7 @@ const picker = (selected: WindowKeyValue, h: HtmlBuilder<AppMessage>): Html =>
   h.div(
     [
       h.Role("group"),
-      h.AriaLabel("KPI window"),
+      h.AriaLabel("Usage window"),
       h.Class(classes(factoryStyles.picker)),
     ],
     windowKeys.map((key) =>
@@ -299,208 +293,62 @@ const picker = (selected: WindowKeyValue, h: HtmlBuilder<AppMessage>): Html =>
     )
   );
 
-const bigTileRow = (tile: BigTileValue, h: HtmlBuilder<AppMessage>): Html =>
+const kpiTileRow = (tile: KpiTileValue, h: HtmlBuilder<AppMessage>): Html =>
   h.li(
     [h.Key(tile.id), h.Class(classes(factoryStyles.tile))],
     [
-      h.p([h.Class(classes(factoryStyles.tileLabel))], [tile.label]),
+      h.h3([h.Class(classes(factoryStyles.tileLabel))], [tile.label]),
       h.p([h.Class(classes(factoryStyles.tileValue))], [tile.display]),
-      ...(tile.sub === null
+      h.p([h.Class(classes(factoryStyles.small))], [tile.source]),
+      h.p([h.Class(classes(factoryStyles.meta))], [tile.window]),
+      ...tile.details
+        .slice(0, 2)
+        .map((detail) =>
+          h.p([h.Class(classes(factoryStyles.small))], [detail])
+        ),
+      ...(tile.state === null
         ? []
-        : [h.p([h.Class(classes(factoryStyles.small))], [tile.sub])]),
-      h.p(
-        [h.Class(classes(factoryStyles.meta))],
-        [
-          ...(tile.target === null ? [] : [`target ${tile.target}`]),
-          ...(tile.target === null || tile.state === null ? [] : ["·"]),
-          ...(tile.state === null
-            ? []
-            : [cue(tileStateWord(tile.state), tileStateLabel(tile.state), h)]),
-        ]
-      ),
-    ]
-  );
-
-const barLevels: readonly stylex.StyleXStyles[] = [
-  factoryStyles.bar,
-  factoryStyles.barLevel1,
-  factoryStyles.barLevel2,
-  factoryStyles.barLevel3,
-  factoryStyles.barLevel4,
-  factoryStyles.barLevel5,
-  factoryStyles.barLevel6,
-  factoryStyles.barLevel7,
-  factoryStyles.barLevel8,
-];
-
-const barLevel = (violations: number, maxPerHour: number): number =>
-  violations === 0
-    ? 0
-    : Math.min(8, Math.max(1, Math.ceil((violations / maxPerHour) * 8)));
-
-const barStyles = (
-  violations: number,
-  maxPerHour: number
-): readonly stylex.StyleXStyles[] => [
-  barLevels[barLevel(violations, maxPerHour)] ?? factoryStyles.bar,
-  violations === 0 ? factoryStyles.barQuiet : factoryStyles.barLit,
-];
-
-const hourLabels = (
-  hours: readonly HourBucketValue[],
-  h: HtmlBuilder<AppMessage>
-): readonly Html[] =>
-  hours.flatMap((bucket, index) =>
-    index % 4 === 0
-      ? [
-          h.span(
-            [
-              h.Key(`label-${String(bucket.t)}`),
-              h.Class(classes(factoryStyles.hourLabel)),
-            ],
-            [hourLabel(bucket.t)]
-          ),
-        ]
-      : []
-  );
-
-const chart = (
-  violations: ViolationsValue,
-  h: HtmlBuilder<AppMessage>
-): Html => {
-  const maxPerHour = Math.max(violations.top, 1);
-  const hours = violations.hourly;
-
-  return h.figure(
-    [h.Class(classes(factoryStyles.chartFigure))],
-    [
-      h.figcaption(
-        [h.Class(classes(factoryStyles.axis))],
-        [`Violations per hour, last 24h, scale 0 to ${String(maxPerHour)}`]
-      ),
-      ...(hours.length === 0
-        ? [
-            h.p(
-              [h.Class(classes(factoryStyles.small))],
-              ["No hourly readings."]
-            ),
-          ]
+        : [cue(tileStateWord(tile.state), tileStateLabel(tile.state), h)]),
+      ...(tile.details.length <= 2
+        ? []
         : [
-            h.div(
+            h.details(
+              [],
               [
-                h.Role("img"),
-                h.AriaLabel("Violations per hour, last 24 hours"),
-                h.Class(classes(factoryStyles.bars)),
-              ],
-              hours.map((bucket) =>
-                h.div(
-                  [
-                    h.Key(String(bucket.t)),
-                    h.Class(classes(factoryStyles.column)),
-                  ],
-                  [
-                    h.span(
-                      [h.Class(classes(factoryStyles.count))],
-                      [bucket.violations === 0 ? "" : String(bucket.violations)]
-                    ),
-                    h.div([
-                      h.Class(
-                        classes(...barStyles(bucket.violations, maxPerHour))
-                      ),
-                      h.Title(
-                        `${hourLabel(bucket.t)}: ${String(
-                          bucket.violations
-                        )} violations, ${String(bucket.runs)} runs`
-                      ),
-                    ]),
-                  ]
-                )
-              )
-            ),
-            h.div(
-              [h.Class(classes(factoryStyles.hourLabels))],
-              [...hourLabels(hours, h)]
+                h.summary([], ["Measurement details"]),
+                h.ul(
+                  [],
+                  tile.details.slice(2).map((detail) => h.li([], [detail]))
+                ),
+              ]
             ),
           ]),
     ]
   );
-};
-
-const moreRow = (
-  tiles: readonly MoreTileValue[],
-  h: HtmlBuilder<AppMessage>
-): Html =>
-  h.details(
-    [h.Class(classes(factoryStyles.details))],
-    [
-      h.summary([], ["More"]),
-      h.dl(
-        [h.Class(classes(factoryStyles.moreGrid))],
-        tiles.map((tile) =>
-          h.div(
-            [h.Key(tile.id), h.Class(classes(factoryStyles.moreRow))],
-            [
-              h.dt([], [tile.label]),
-              h.dd(
-                [h.Class(classes(factoryStyles.moreValue))],
-                [
-                  tile.sub === null
-                    ? tile.display
-                    : `${tile.display} · ${tile.sub}`,
-                ]
-              ),
-            ]
-          )
-        )
-      ),
-    ]
-  );
-
-const windowBody = (
-  numbers: KpiWindowValue,
-  violations: ViolationsValue,
-  h: HtmlBuilder<AppMessage>
-): readonly Html[] => [
-  ...(numbers.note === null
-    ? []
-    : [h.p([h.Class(classes(factoryStyles.small))], [numbers.note])]),
-  h.h3([], ["Output"]),
-  h.ul(
-    [h.Class(classes(factoryStyles.tiles))],
-    numbers.big.slice(0, 3).map((tile) => bigTileRow(tile, h))
-  ),
-  h.h3([], ["Waste"]),
-  h.ul(
-    [h.Class(classes(factoryStyles.tiles))],
-    numbers.big.slice(3).map((tile) => bigTileRow(tile, h))
-  ),
-  chart(violations, h),
-  moreRow(numbers.more, h),
-];
 
 const kpisSection = (
   feed: FactoryFeedValue,
-  windowKey: WindowKeyValue,
   h: HtmlBuilder<AppMessage>
-): Html => {
-  const numbers = feed.kpis.windows[windowKey];
-
-  return h.section(
+): Html =>
+  h.section(
     [h.Class(classes(factoryStyles.section))],
     [
-      h.h2([], ["KPIs"]),
-      picker(windowKey, h),
-      ...(numbers === undefined
-        ? [
-            h.p(
-              [h.Class(classes(factoryStyles.small))],
-              ["No numbers for this window."]
-            ),
-          ]
-        : windowBody(numbers, feed.kpis.violations, h)),
+      h.h2([], ["Output and waste"]),
+      h.p(
+        [h.Class(classes(factoryStyles.small))],
+        [
+          "Each metric uses its own source window. Usage buttons do not change these readings.",
+        ]
+      ),
+      h.ul(
+        [h.Class(classes(factoryStyles.tiles))],
+        feed.kpis.tiles.map((tile) => kpiTileRow(tile, h))
+      ),
+      ...feed.kpis.notes.map((note) =>
+        h.p([h.Class(classes(factoryStyles.small))], [note])
+      ),
     ]
   );
-};
 
 export const factoryView = (
   model: AppModel,
@@ -515,6 +363,6 @@ export const factoryView = (
         [numbersFrom(feed.generatedAt)]
       ),
       usageSection(feed, model.kpiWindow, h),
-      kpisSection(feed, model.kpiWindow, h),
+      kpisSection(feed, h),
     ],
   });

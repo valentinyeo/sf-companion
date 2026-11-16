@@ -3,32 +3,6 @@ import * as stylex from "@stylexjs/stylex";
 import { reader, state, surface } from "./tokens.stylex.js";
 
 export const factoryStyles = stylex.create({
-  axis: {
-    color: surface.muted,
-    fontFamily: reader.fontFamily,
-    fontSize: reader.fontLabel,
-  },
-  bar: {
-    backgroundColor: reader.codeInk,
-    minHeight: "1px",
-    width: "100%",
-  },
-  barLevel1: { height: "0.5rem" },
-  barLevel2: { height: "1rem" },
-  barLevel3: { height: "1.5rem" },
-  barLevel4: { height: "2rem" },
-  barLevel5: { height: "2.5rem" },
-  barLevel6: { height: "3rem" },
-  barLevel7: { height: "3.5rem" },
-  barLevel8: { height: "4rem" },
-  barLit: { backgroundColor: state.bad },
-  barQuiet: { backgroundColor: surface.line },
-  bars: {
-    blockSize: "4.75rem",
-    display: "grid",
-    gap: "1px",
-    gridTemplateColumns: "repeat(24, minmax(0, 1fr))",
-  },
   bigValue: {
     fontSize: reader.fontBig,
     marginBlock: 0,
@@ -63,23 +37,6 @@ export const factoryStyles = stylex.create({
     marginBlock: 0,
     paddingInlineStart: 0,
   },
-  chartFigure: {
-    marginBlock: reader.spaceSmall,
-    marginInline: 0,
-  },
-  column: {
-    alignItems: "stretch",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "flex-end",
-    minWidth: 0,
-  },
-  count: {
-    color: surface.muted,
-    fontSize: reader.fontLabel,
-    minHeight: "1lh",
-    textAlign: "center",
-  },
   cue: {
     fontSize: reader.fontTiny,
     whiteSpace: "nowrap",
@@ -91,18 +48,6 @@ export const factoryStyles = stylex.create({
   details: {
     fontSize: reader.fontSmall,
   },
-  hourLabel: {
-    color: surface.muted,
-    fontSize: reader.fontLabel,
-    overflow: "visible",
-    whiteSpace: "nowrap",
-  },
-  hourLabels: {
-    display: "grid",
-    gap: "1px",
-    gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
-    marginBlockStart: reader.spaceTight,
-  },
   meta: {
     color: surface.muted,
     display: "flex",
@@ -110,20 +55,6 @@ export const factoryStyles = stylex.create({
     fontSize: reader.fontTiny,
     gap: "0.5ch",
     marginBlock: 0,
-  },
-  moreGrid: {
-    display: "grid",
-    gap: reader.spaceTight,
-    margin: 0,
-  },
-  moreRow: {
-    display: "flex",
-    gap: "1ch",
-    justifyContent: "space-between",
-  },
-  moreValue: {
-    margin: 0,
-    textAlign: "end",
   },
   picker: {
     display: "flex",
@@ -162,6 +93,7 @@ export const factoryStyles = stylex.create({
     paddingBlockStart: reader.spaceSmall,
   },
   tile: {
+    alignContent: "start",
     borderBlockStartColor: surface.line,
     borderBlockStartStyle: "solid",
     borderBlockStartWidth: 1,
@@ -180,7 +112,7 @@ export const factoryStyles = stylex.create({
   tiles: {
     display: "grid",
     gap: reader.spaceSmall,
-    gridTemplateColumns: "repeat(auto-fit, minmax(18ch, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 32ch), 1fr))",
     listStyle: "none",
     marginBlock: reader.spaceTight,
     paddingInlineStart: 0,
