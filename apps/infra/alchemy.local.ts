@@ -11,6 +11,8 @@ if (allowedEmail === undefined || allowedEmail === "") {
   );
 }
 
+const serviceTokenId = process.env.SF_ACCESS_SERVICE_TOKEN_ID;
+
 class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   name: "sf-companion",
   rootDir: "../web",
@@ -28,7 +30,17 @@ class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   access: {
     name: "SF Companion",
     sessionDuration: "720h",
-    policies: [{ decision: "allow", include: [{ email: allowedEmail }] }],
+    policies: [
+      { decision: "allow", include: [{ email: allowedEmail }] },
+      ...(serviceTokenId === undefined || serviceTokenId === ""
+        ? []
+        : [
+            {
+              decision: "non_identity" as const,
+              include: [{ serviceToken: serviceTokenId }],
+            },
+          ]),
+    ],
   },
 }) {}
 

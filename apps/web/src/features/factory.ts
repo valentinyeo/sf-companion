@@ -374,7 +374,7 @@ const chart = (
     [
       h.figcaption(
         [h.Class(classes(factoryStyles.axis))],
-        [`ViolationsValue per hour, last 24h, scale 0 to ${String(maxPerHour)}`]
+        [`Violations per hour, last 24h, scale 0 to ${String(maxPerHour)}`]
       ),
       ...(hours.length === 0
         ? [
@@ -387,7 +387,7 @@ const chart = (
             h.div(
               [
                 h.Role("img"),
-                h.AriaLabel("ViolationsValue per hour, last 24 hours"),
+                h.AriaLabel("Violations per hour, last 24 hours"),
                 h.Class(classes(factoryStyles.bars)),
               ],
               hours.map((bucket) =>
