@@ -42,6 +42,9 @@ Code paths: apps/web/src/features/factory.ts, apps/web/src/client/app/update.ts
 """
 
 
+LIVE_ONLY = {"access-anonymous": "A live HTTPS request, so no browser page."}
+
+
 def fixture(name):
     return json.loads((FIXTURES / name).read_text())
 
@@ -74,7 +77,9 @@ class FixtureCase(unittest.TestCase):
             {"id": "usage", **selector.parse_feature(USAGE)},
         ]
 
-    def evaluate(self, *, traces, members, files=None, artifacts=None, runs=None):
+    def evaluate(
+        self, *, traces, members, files=None, artifacts=None, runs=None, live_only=None
+    ):
         return gate.evaluate_pull_request(
             fixture("pull-request.json"),
             files if files is not None else fixture("files.json"),
@@ -82,6 +87,7 @@ class FixtureCase(unittest.TestCase):
             artifacts if artifacts is not None else fixture("artifacts.json"),
             artifact(traces=traces, members=members),
             self.features,
+            LIVE_ONLY if live_only is None else live_only,
         )
 
 
@@ -108,6 +114,7 @@ class AppCodeTest(unittest.TestCase):
             fixture("artifacts.json"),
             None,
             [],
+            LIVE_ONLY,
         )
         self.assertEqual(report["outcome"], "no app code")
         self.assertEqual(report["problems"], [])
@@ -145,9 +152,29 @@ class PassTest(FixtureCase):
     def test_live_only_journey_needs_no_trace(self):
         traces = fixture("traces-live-only.json")
         problems = gate.check_traces(
-            ["access-anonymous"], traces, {"proof-head/traces.json": 128}
+            ["access-anonymous"], traces, {"proof-head/traces.json": 128}, LIVE_ONLY
         )
         self.assertEqual(problems, [])
+
+    def test_untraced_journey_outside_the_live_only_list_fails(self):
+        traces = {
+            "journeys": {},
+            "untraced": [{"journey": "factory-readings", "reason": ""}],
+        }
+        self.assertEqual(
+            gate.check_traces(["factory-readings"], traces, {}, LIVE_ONLY),
+            ["no trace or video for journey factory-readings"],
+        )
+
+    def test_untraced_live_only_journey_without_a_reason_fails(self):
+        traces = {
+            "journeys": {},
+            "untraced": [{"journey": "access-anonymous", "reason": ""}],
+        }
+        self.assertEqual(
+            gate.check_traces(["access-anonymous"], traces, {}, LIVE_ONLY),
+            ["no trace or video for journey access-anonymous"],
+        )
 
     def test_pass_fixture_covers_the_repository_feature_map(self):
         features = selector.read_features(FEATURE_DIR)
@@ -219,7 +246,10 @@ class FailTest(FixtureCase):
             "untraced": [],
         }
         problems = gate.check_traces(
-            ["factory-entry"], traces, {"proof-head/seeded-1280-light.png": 900}
+            ["factory-entry"],
+            traces,
+            {"proof-head/seeded-1280-light.png": 900},
+            LIVE_ONLY,
         )
         self.assertEqual(
             problems,
@@ -242,20 +272,43 @@ class ArtifactTest(unittest.TestCase):
         self.assertGreater(sizes["proof-base/result.json"], 0)
 
 
+def PROOF_ARGS(directory):
+    return SimpleNamespace(
+        proof_dir=directory,
+        journeys="factory-entry",
+        repo_path=str(REPO),
+        features_dir=str(Path(FEATURE_DIR).relative_to(REPO)),
+    )
+
+
 class ProofDirectoryTest(unittest.TestCase):
     def test_proof_directory_without_a_trace_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "result.json").write_text("{}")
-            context = SimpleNamespace(proof_dir=directory, journeys="factory-entry")
-            self.assertEqual(gate.proof(context), 1)
+            self.assertEqual(gate.proof(PROOF_ARGS(directory)), 1)
 
     def test_proof_directory_with_a_trace_passes(self):
         with tempfile.TemporaryDirectory() as directory:
             traces = fixture("traces-missing-member.json")
             Path(directory, "traces.json").write_text(json.dumps(traces))
             Path(directory, "seeded-1280-light.trace.zip").write_bytes(b"PK00")
-            context = SimpleNamespace(proof_dir=directory, journeys="factory-entry")
-            self.assertEqual(gate.proof(context), 0)
+            self.assertEqual(gate.proof(PROOF_ARGS(directory)), 0)
+
+
+class LiveOnlyTest(unittest.TestCase):
+    def test_live_only_list_comes_from_the_skill_not_the_artifact(self):
+        self.assertEqual(
+            gate.live_only_journeys(FEATURE_DIR),
+            {
+                "access-anonymous": "A live HTTPS request to yeoux.net with no cookies, "
+                "so there is no browser page to record."
+            },
+        )
+
+    def test_missing_live_only_list_is_an_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(gate.GateError):
+                gate.live_only_journeys(Path(directory, "features"))
 
 
 class StateTest(unittest.TestCase):

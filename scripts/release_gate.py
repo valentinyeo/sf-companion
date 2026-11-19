@@ -20,9 +20,10 @@ PROOF = "proof-head"
 TRACES = "traces.json"
 APP_CODE = ("apps/", "packages/")
 CONTENT = ("apps/web/content/")
-DEFAULT_REPO_PATH = "~/projects/sf-companion"
+DEFAULT_REPO_PATH = str(Path(__file__).resolve().parent.parent)
 DEFAULT_STATE_FILE = "~/.local/state/sf-companion/deployed-sha"
 DEFAULT_FEATURES = ".claude/skills/verify-sf-companion/features"
+LIVE_ONLY = "live-only.json"
 TRACE_SUFFIXES = (".trace.zip", ".webm")
 
 
@@ -128,6 +129,13 @@ def merged_in_range(pull_requests, commit_shas):
     return found
 
 
+def live_only_journeys(features_dir):
+    path = Path(features_dir).expanduser().parent / LIVE_ONLY
+    if not path.is_file():
+        raise GateError(f"{path} is missing, so no journey can be excused a trace")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def required_journeys(features, changed_paths):
     scope = selector.select_scope(changed_paths, features, [])
     return scope["journeys"], scope["features"]
@@ -166,22 +174,23 @@ def read_traces(archive_bytes):
     return None
 
 
-def check_traces(journeys, traces, members):
+def check_traces(journeys, traces, members, live_only):
     if traces is None:
         return [
             f"the run uploaded no {PROOF}/{TRACES}, so no journey has a recorded trace"
         ]
     recorded = traces.get("journeys") or {}
-    untraced = {
-        entry.get("journey"): entry.get("reason")
+    excused = {
+        entry.get("journey")
         for entry in traces.get("untraced") or []
+        if entry.get("journey") in live_only and entry.get("reason")
     }
     sizes = {name.rsplit("/", 1)[-1]: size for name, size in members.items()}
     problems = []
     for journey in journeys:
         names = recorded.get(journey) or []
         if not names:
-            if journey in untraced:
+            if journey in excused:
                 continue
             problems.append(f"no trace or video for journey {journey}")
             continue
@@ -196,7 +205,9 @@ def check_traces(journeys, traces, members):
     return problems
 
 
-def evaluate_pull_request(pull_request, files, runs, artifacts, archive, features):
+def evaluate_pull_request(
+    pull_request, files, runs, artifacts, archive, features, live_only
+):
     number = pull_request["number"]
     title = pull_request.get("title") or ""
     changed = [entry["filename"] for entry in files]
@@ -238,7 +249,7 @@ def evaluate_pull_request(pull_request, files, runs, artifacts, archive, feature
         ]
         return report
     traces = read_traces(archive)
-    problems = check_traces(journeys, traces, member_sizes(archive))
+    problems = check_traces(journeys, traces, member_sizes(archive), live_only)
     revision = (traces or {}).get("revision")
     if revision is not None and revision != report["head"]:
         problems.insert(
@@ -334,6 +345,7 @@ def release(args):
     features = selector.read_features(
         Path(args.repo_path).expanduser() / args.features_dir
     )
+    live_only = live_only_journeys(Path(args.repo_path).expanduser() / args.features_dir)
     reports = []
     for pull_request in merged:
         number = pull_request["number"]
@@ -356,7 +368,7 @@ def release(args):
                 archive = artifact_bytes(repository, artifact["id"], token)
         reports.append(
             evaluate_pull_request(
-                pull_request, files, runs, artifacts, archive, features
+                pull_request, files, runs, artifacts, archive, features, live_only
             )
         )
     print_report(reports)
@@ -390,7 +402,12 @@ def proof(args):
         for path in directory.rglob("*")
         if path.is_file()
     }
-    problems = check_traces(journeys, json.loads(traces_path.read_text()), members)
+    live_only = live_only_journeys(
+        Path(args.repo_path).expanduser() / args.features_dir
+    )
+    problems = check_traces(
+        journeys, json.loads(traces_path.read_text()), members, live_only
+    )
     if problems:
         for problem in problems:
             print(f"missing: {problem}", file=sys.stderr)

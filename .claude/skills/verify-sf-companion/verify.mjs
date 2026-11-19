@@ -49,7 +49,13 @@ const seededHubJourneys = [
 ];
 const runSeeded = [...seededJourneys, ...seededHubJourneys].some(wants);
 const runEmpty = ["factory-empty", "home-empty"].some(wants);
-const liveOnlyJourneys = new Set(["access-anonymous"]);
+const liveOnly = JSON.parse(
+  await readFile(
+    fileURLToPath(new URL("./live-only.json", import.meta.url)),
+    "utf8"
+  )
+);
+const liveOnlyJourneys = new Set(Object.keys(liveOnly));
 const runWindows = ["usage-window", "usage-burn", "usage-kpi-fixed"].some(
   wants
 );
@@ -86,10 +92,7 @@ function traceIndex() {
   ).filter((id) => journeys[id] === undefined);
   const untraced = expected
     .filter((id) => liveOnlyJourneys.has(id))
-    .map((id) => ({
-      journey: id,
-      reason: "live HTTP request, no browser context to record",
-    }));
+    .map((id) => ({ journey: id, reason: liveOnly[id] }));
   return {
     status: result.status,
     revision: result.revision,
