@@ -1,7 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Option } from "effect";
 import {
-  click,
   expect as expectElement,
   given,
   role,
@@ -239,7 +238,6 @@ describe("factory page", () => {
           expectElement(text(missing.reason)).toExist(),
           expectElement(text(missing.window)).toExist(),
           expectElement(text(missing.source)).toExist(),
-          click(role("button", { name: "30d" })),
           expectElement(text("£6.00")).toExist()
         );
       })
@@ -335,7 +333,7 @@ describe("factory page", () => {
         }
       })
   );
-  it.effect("shows the fixture plan card and KPI tile", () =>
+  it.effect("shows the fixture KPI tiles without the usage picker", () =>
     Effect.gen(function* showFixturePlan() {
       const feed = yield* decodeFeed(fixturePath, JSON.stringify(fixtureFeed));
       const route = SiteRoute.Factory();
@@ -343,13 +341,13 @@ describe("factory page", () => {
       scene(
         { update, view },
         given(initialModel({ items: [], route }, Option.some(feed))),
-        expectElement(text("Fixture Plan")).toExist(),
+        expectElement(role("heading", { name: "Usage" })).not.toExist(),
+        expectElement(role("group", { name: "Usage window" })).not.toExist(),
         expectElement(
           text(
             "Daily shipping data unavailable. This feed predates the daily collector."
           )
         ).toExist(),
-        expectElement(text("as of 28h ago")).toExist(),
         expectElement(text("29 / day · 87 / week")).toExist(),
         expectElement(
           text("Hypertask boards 15, 2060, 11514 · sectionChangedAt")
@@ -375,8 +373,9 @@ describe("factory page", () => {
         ).toExist(),
         expectElement(text("Board 15 / Product Lead, 1d: 29")).toExist(),
         expectElement(text("Numbers from 2026-11-15 00:41 UTC")).toExist(),
-        click(role("button", { name: "7d" })),
-        expectElement(text("29 / day · 87 / week")).toExist()
+        expectElement(
+          text("Usage has the plan cards, their burn windows and reset lines.")
+        ).toExist()
       );
     })
   );

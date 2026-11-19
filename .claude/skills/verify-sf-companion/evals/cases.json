@@ -31,6 +31,8 @@
     "usage-burn",
     "usage-cards",
     "usage-details",
+    "usage-empty",
+    "usage-entry",
     "usage-kpi-fixed",
     "usage-window"
   ],

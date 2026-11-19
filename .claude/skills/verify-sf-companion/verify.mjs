@@ -26,13 +26,50 @@ const journeys =
     : journeysArgument.slice("--journeys=".length).split(",").filter(Boolean);
 const selected = new Set(journeys);
 const allJourneys = selected.size === 0;
-const wants = (journey) => allJourneys || selected.has(journey);
+const routeSource = await readFile(
+  join(site, "apps/web/src/features/route.ts"),
+  "utf8"
+).catch(() => "");
+const declaredRoutes =
+  routeSource === ""
+    ? null
+    : new Set(
+        [...routeSource.matchAll(/^ {2}([A-Z][A-Za-z0-9]*):/gmu)].map(
+          (match) => match[1]
+        )
+      );
+const journeyRoutes = {
+  "usage-burn": "Usage",
+  "usage-cards": "Usage",
+  "usage-details": "Usage",
+  "usage-empty": "Usage",
+  "usage-entry": "Usage",
+  "usage-kpi-fixed": "Usage",
+  "usage-window": "Usage",
+};
+const absentJourneys = new Map(
+  Object.entries(journeyRoutes)
+    .filter(
+      ([journey, route]) =>
+        (allJourneys || selected.has(journey)) &&
+        declaredRoutes !== null &&
+        !declaredRoutes.has(route)
+    )
+    .map(([journey, route]) => [
+      journey,
+      `apps/web/src/features/route.ts declares no ${route} route on this revision, so there is no page to drive.`,
+    ])
+);
+const wants = (journey) =>
+  (allJourneys || selected.has(journey)) && !absentJourneys.has(journey);
+const usagePage = declaredRoutes === null || declaredRoutes.has("Usage");
 const shareToken = "verify-share-token";
 process.env.SF_SHARE_TOKEN = shareToken;
 const seededFactoryJourneys = [
   "factory-entry",
   "factory-layout",
   "factory-timestamp",
+  "usage-entry",
   "usage-cards",
   "usage-window",
   "usage-burn",
@@ -71,7 +108,12 @@ const seededJourneys = [
   ...shareJourneys,
 ];
 const runSeeded = seededJourneys.some(wants);
-const runEmpty = ["factory-empty", "home-empty", "not-found"].some(wants);
+const runEmpty = [
+  "factory-empty",
+  "usage-empty",
+  "home-empty",
+  "not-found",
+].some(wants);
 const runWindows = [
   "usage-window",
   "usage-burn",
@@ -99,6 +141,10 @@ const proof = process.env.PROOF_DIR;
 const fixture = fileURLToPath(new URL("./fixture.json", import.meta.url));
 const fixtureHub = fileURLToPath(new URL("./fixture-hub", import.meta.url));
 const result = {
+  skipped: [...absentJourneys.entries()].map(([journey, reason]) => ({
+    journey,
+    reason,
+  })),
   status: "running",
   cases: [],
   live: "skipped",
@@ -171,7 +217,7 @@ function assertJourneysRecorded(ids) {
   );
   const expected = (
     allJourneys ? ids : ids.filter((id) => selected.has(id))
-  ).filter((id) => !actionlessJourneys.has(id));
+  ).filter((id) => !(actionlessJourneys.has(id) || absentJourneys.has(id)));
   const missing = expected.filter((id) => !recorded.has(id));
   assert.deepEqual(
     missing,
@@ -348,7 +394,39 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       );
     }
     if (state === "seeded") {
+      if (wants("usage-entry")) {
+        const direct = await page.goto("/usage", { waitUntil: "networkidle" });
+        assert.equal(direct.status(), 200, `${id}: /usage status`);
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await page
+          .getByRole("link", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .waitFor();
+        await page.goto("/", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .waitFor();
+        await page
+          .getByRole("navigation", { name: "Primary navigation" })
+          .getByRole("link", { name: "Usage", exact: true })
+          .click();
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await record(
+          "usage: /usage answers directly and primary navigation reaches it",
+          "usage-entry"
+        );
+      }
       if (wants("factory-timestamp")) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
         await page.getByText(exportTime, { exact: true }).waitFor();
         await record(
           "factory: the export time prints in UTC",
@@ -356,6 +434,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (wants("usage-cards")) {
+        await page.goto("/usage", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
         const cards = [
           ["Claude Code", ["67%", "+13.2 vs pace · over pace"]],
           ["Codex", ["100%", "+21.5 vs pace · well over pace"]],
@@ -385,6 +467,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (wants("kpi-tiles")) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Factory", exact: true })
+          .waitFor();
         const tiles = [
           [
             "Tickets delivered",
@@ -420,10 +506,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (
-        runWindows ||
-        wants("factory-layout") ||
-        wants("kpi-details") ||
-        wants("usage-cards")
+        !runWindows &&
+        (wants("factory-layout") ||
+          wants("kpi-details") ||
+          wants("usage-cards"))
       ) {
         await page.screenshot({
           path: join(proof, `${id}-before.png`),
@@ -431,54 +517,92 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         });
       }
       if (runWindows) {
-        for (const window of ["3h", "6h", "12h", "24h", "7d", "30d", "1h"]) {
-          const button = page
-            .getByRole("group", { name: "Usage window" })
-            .getByRole("button", { name: window, exact: true });
-          await button.click();
+        if (usagePage) {
+          await page.goto("/usage", { waitUntil: "networkidle" });
           await page
-            .locator(`button[aria-pressed="true"]`)
-            .filter({ hasText: new RegExp(`^${window}$`, "u") })
+            .getByRole("heading", { name: "Usage", exact: true })
             .waitFor();
-          if (wants("usage-window")) {
-            await record(
-              `usage: choose ${window}; its button reports pressed`,
-              "usage-window"
-            );
-          }
-          if (wants("usage-burn") && window === "7d") {
+          await page.screenshot({
+            path: join(proof, `${id}-before.png`),
+            fullPage: true,
+          });
+          for (const window of ["3h", "6h", "12h", "24h", "7d", "30d", "1h"]) {
+            const button = page
+              .getByRole("group", { name: "Usage window" })
+              .getByRole("button", { name: window, exact: true });
+            await button.click();
             await page
-              .getByText("+14% · £7.00 in 7d on runners", { exact: true })
+              .locator(`button[aria-pressed="true"]`)
+              .filter({ hasText: new RegExp(`^${window}$`, "u") })
               .waitFor();
-            await record(
-              "usage: the 7d window changes burn to the 7d reading",
-              "usage-burn"
+            if (wants("usage-window")) {
+              await record(
+                `usage: choose ${window}; its button reports pressed`,
+                "usage-window"
+              );
+            }
+            if (wants("usage-burn") && window === "7d") {
+              await page
+                .getByText("+14% · £7.00 in 7d on runners", { exact: true })
+                .waitFor();
+              await record(
+                "usage: the 7d window changes burn to the 7d reading",
+                "usage-burn"
+              );
+            }
+            if (wants("usage-kpi-fixed") || wants("kpi-windows")) {
+              assert.equal(
+                await page
+                  .getByRole("heading", { name: "Output and waste" })
+                  .count(),
+                0,
+                `${id}: the usage page carried the KPI tiles`
+              );
+            }
+          }
+        }
+        if (wants("usage-kpi-fixed")) {
+          await page.goto("/factory", { waitUntil: "networkidle" });
+          await page
+            .getByRole("heading", { name: "Factory", exact: true })
+            .waitFor();
+          await page
+            .getByText("29 / day · 87 / week", { exact: true })
+            .waitFor();
+          await record(
+            "usage: the window buttons leave Factory's KPI reading fixed",
+            "usage-kpi-fixed"
+          );
+        }
+        if (wants("kpi-windows")) {
+          await page.goto("/factory", { waitUntil: "networkidle" });
+          await page
+            .getByRole("heading", { name: "Factory", exact: true })
+            .waitFor();
+          await widget("Tickets delivered")
+            .getByText("Rolling 24h and 7d", { exact: true })
+            .waitFor();
+          await widget("Drain-loop health")
+            .getByText("Rolling 45m", { exact: true })
+            .waitFor();
+          if (usagePage) {
+            assert.equal(
+              await page.getByRole("group", { name: "Usage window" }).count(),
+              0,
+              `${id}: the factory page carried the usage window buttons`
             );
           }
-          if (wants("usage-kpi-fixed")) {
-            await page
-              .getByText("29 / day · 87 / week", { exact: true })
-              .waitFor();
-            await record(
-              `usage: ${window} leaves the KPI reading fixed`,
-              "usage-kpi-fixed"
-            );
-          }
-          if (wants("kpi-windows")) {
-            await widget("Tickets delivered")
-              .getByText("Rolling 24h and 7d", { exact: true })
-              .waitFor();
-            await widget("Drain-loop health")
-              .getByText("Rolling 45m", { exact: true })
-              .waitFor();
-            await record(
-              `kpi: ${window} leaves every tile on its own window`,
-              "kpi-windows"
-            );
-          }
+          await record(
+            "kpi: Factory keeps every tile on its own window",
+            "kpi-windows"
+          );
         }
       }
       if (wants("usage-details")) {
+        await page.goto("/usage", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
         const card = widget("Claude Code");
         await card.getByText("Windows", { exact: true }).click();
         await card
@@ -490,6 +614,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (wants("kpi-details")) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Factory", exact: true })
+          .waitFor();
         const delivered = widget("Tickets delivered");
         const third = delivered.getByText(
           "Synthetic third measurement detail",
@@ -519,6 +647,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         wants("shipping-source") ||
         wants("shipping-omission")
       ) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Factory", exact: true })
+          .waitFor();
         await page
           .getByRole("heading", {
             name: "PRs shipped vs plan burn",
@@ -593,28 +725,51 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           );
         }
       }
-    } else if (wants("factory-empty")) {
-      await page
-        .getByText("No factory numbers yet.", { exact: true })
-        .waitFor();
-      assert.equal(
-        await page.getByRole("group", { name: "Usage window" }).count(),
-        0
-      );
-      assert.equal(
-        await page.getByRole("heading", { name: "Output and waste" }).count(),
-        0
-      );
-      assert.equal(
+    } else if (wants("factory-empty") || wants("usage-empty")) {
+      if (wants("factory-empty")) {
         await page
-          .getByRole("heading", { name: "PRs shipped vs plan burn" })
-          .count(),
-        0
-      );
-      await record(
-        "missing feed shows explicit empty state, not measured zeroes",
-        "factory-empty"
-      );
+          .getByText("No factory numbers yet.", { exact: true })
+          .waitFor();
+        assert.equal(
+          await page.getByRole("group", { name: "Usage window" }).count(),
+          0
+        );
+        assert.equal(
+          await page.getByRole("heading", { name: "Output and waste" }).count(),
+          0
+        );
+        assert.equal(
+          await page
+            .getByRole("heading", { name: "PRs shipped vs plan burn" })
+            .count(),
+          0
+        );
+        await record(
+          "missing feed shows explicit empty state, not measured zeroes",
+          "factory-empty"
+        );
+      }
+      if (wants("usage-empty")) {
+        const response = await page.goto("/usage", {
+          waitUntil: "networkidle",
+        });
+        assert.equal(response.status(), 200, `${id}: empty /usage status`);
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await page
+          .getByText("No usage numbers yet.", { exact: true })
+          .waitFor();
+        assert.equal(
+          await page.getByRole("group", { name: "Usage window" }).count(),
+          0,
+          `${id}: the empty usage page still showed window buttons`
+        );
+        await record(
+          "missing feed leaves Usage with an explicit empty line and no window buttons",
+          "usage-empty"
+        );
+      }
     }
     await page.screenshot({ path: join(proof, `${id}.png`), fullPage: true });
     await writeFile(

@@ -24,8 +24,10 @@ Rules for browser code under `apps/web/src/client/` and `apps/web/src/features/`
 | `src/features/route.ts` | The page route union and its Routers; URLs come from calling a Router as a printer |
 | `src/features/page.ts` | The page view; it composes the template's `reader.stylex.ts` and base sheet |
 | `src/features/hub.stylex.ts` | StyleX styles for the home and index rows only |
-| `src/features/factory.ts` | The `/factory` view: Usage cards, KPI tiles, the window picker, and the violations chart |
-| `src/features/factory.stylex.ts` | StyleX styles for the factory view only |
+| `src/features/factory.ts` | The `/factory` view: the PRs shipped versus plan burn chart, the KPI tiles, and the link to Usage |
+| `src/features/usage.ts` | The `/usage` view: plan cards, the burn window picker, and the Windows disclosure |
+| `src/features/cue.ts` | The state cue and the class helper shared by the factory and usage views |
+| `src/features/factory.stylex.ts` | StyleX styles for the factory and usage views |
 | `src/client/rat.css` | The template's base sheet: monospace type, 80ch measure, grid, focus ring |
 | `src/client/app/` | Model, Messages, named Commands, and `update` |
 | `src/client/entry.ts` | Browser runtime boot and hydration |

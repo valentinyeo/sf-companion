@@ -20,12 +20,17 @@ import {
   uploadItem,
 } from "./content/share.js";
 import { view } from "./features/page.js";
-import { factoryRouter, parseRoute, SiteRoute } from "./features/route.js";
+import {
+  factoryRouter,
+  parseRoute,
+  SiteRoute,
+  usageRouter,
+} from "./features/route.js";
 import type { SiteRouteValue } from "./features/route.js";
 
 export { renderDocument } from "foldkit/experimental/server";
 
-export const prerenderPaths = [factoryRouter()];
+export const prerenderPaths = [factoryRouter(), usageRouter()];
 
 const SECTIONS: readonly SectionValue[] = ["explorations", "reports"];
 
@@ -118,6 +123,7 @@ const itemsFor = (
         )
       ),
     NotFound: () => Effect.succeed([]),
+    Usage: () => Effect.succeed([]),
   });
 
 const renderRoute = Effect.fn("site.renderRoute")(function* renderRoute(
