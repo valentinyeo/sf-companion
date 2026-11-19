@@ -26,7 +26,9 @@ DEFAULT_FEATURES = ".claude/skills/verify-sf-companion/features"
 LIVE_ONLY = "live-only.json"
 TRACE_SUFFIXES = (".trace.zip", ".webm")
 TRACE_ENTRIES = ("trace.trace", "trace.network")
+ACTION_EVENTS = ("before", "after")
 WEBM = b"\x1aE\xdf\xa3"
+MIN_VIDEO_BYTES = 1024
 
 
 class GateError(Exception):
@@ -184,19 +186,38 @@ def head_traces(archive_bytes, names):
     return found
 
 
+def trace_events(data):
+    for line in data.decode("utf-8", "replace").splitlines():
+        line = line.strip()
+        if line == "":
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            yield event
+
+
 def usable_trace(name, data):
     if data == b"":
         return False
     if name.endswith(".webm"):
-        return data.startswith(WEBM)
+        return data.startswith(WEBM) and len(data) >= MIN_VIDEO_BYTES
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            entries = archive.namelist()
+            entries = [
+                entry
+                for entry in archive.namelist()
+                if entry in TRACE_ENTRIES or entry.endswith(".trace")
+            ]
+            for entry in entries:
+                for event in trace_events(archive.read(entry)):
+                    if event.get("type") in ACTION_EVENTS:
+                        return True
     except zipfile.BadZipFile:
         return False
-    return any(
-        entry in TRACE_ENTRIES or entry.endswith(".trace") for entry in entries
-    )
+    return False
 
 
 def read_traces(archive_bytes):
@@ -242,9 +263,15 @@ def check_traces(journeys, traces, found, live_only):
                 )
                 continue
             if not usable_trace(name, data):
-                problems.append(
-                    f"{name} for journey {journey} is not a readable trace or video"
-                )
+                if name.endswith(".webm"):
+                    problems.append(
+                        f"{name} for journey {journey} is not a readable video"
+                    )
+                else:
+                    problems.append(
+                        f"{name} for journey {journey} holds no recorded browser "
+                        "action, so it is not trace evidence"
+                    )
     return problems
 
 

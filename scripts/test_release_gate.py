@@ -16,7 +16,7 @@ FIXTURES = REPO / "scripts" / "fixtures" / "release-gate"
 WORKFLOW = REPO / ".github" / "workflows" / "pstack-verifier.yml"
 FEATURE_DIR = REPO / ".claude" / "skills" / "verify-sf-companion" / "features"
 LIVE_ONLY = {"access-anonymous": "A live HTTPS request, so no browser page."}
-WEBM = b"\x1aE\xdf\xa3\x01\x02"
+WEBM = b"\x1aE\xdf\xa3\x01\x02" + b"0" * 2048
 
 WORKBENCH = """# Factory
 
@@ -48,11 +48,14 @@ def fixture(name):
     return json.loads((FIXTURES / name).read_text())
 
 
-def trace_zip(entries=("trace.trace", "trace.network")):
+ACTION = json.dumps({"type": "before", "apiName": "page.goto", "time": 1}) + "\n"
+
+
+def trace_zip(events=ACTION):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
-        for entry in entries:
-            archive.writestr(entry, "{}")
+        archive.writestr("trace.trace", events)
+        archive.writestr("trace.network", "")
     return buffer.getvalue()
 
 
@@ -246,7 +249,8 @@ class FailTest(FixtureCase):
         )
         self.assertEqual(report["outcome"], "failed")
         self.assertIn(
-            "fake.trace.zip for journey factory-layout is not a readable trace or video",
+            "fake.trace.zip for journey factory-layout holds no recorded browser "
+            "action, so it is not trace evidence",
             report["problems"],
         )
 
@@ -384,6 +388,16 @@ class ProofDirectoryTest(unittest.TestCase):
             Path(directory, "traces.json").write_text(json.dumps(traces))
             Path(directory, "seeded-1280-light.trace.zip").write_bytes(trace_zip())
             self.assertEqual(gate.proof(proof_args(directory, "factory-entry")), 0)
+
+    def test_proof_directory_with_an_empty_recording_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            traces = {
+                "journeys": {"factory-entry": ["empty.trace.zip"]},
+                "untraced": [],
+            }
+            Path(directory, "traces.json").write_text(json.dumps(traces))
+            Path(directory, "empty.trace.zip").write_bytes(trace_zip(events=""))
+            self.assertEqual(gate.proof(proof_args(directory, "factory-entry")), 1)
 
     def test_proof_directory_with_a_one_byte_trace_fails(self):
         with tempfile.TemporaryDirectory() as directory:
