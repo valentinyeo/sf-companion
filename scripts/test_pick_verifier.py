@@ -19,6 +19,7 @@ class FamilyTest(unittest.TestCase):
         self.assertEqual(picker.family_of("x-ai/grok-4"), "xai")
         self.assertEqual(picker.family_of("meta-llama/llama-4"), "meta")
         self.assertEqual(picker.family_of("z-ai/glm-5"), "zai")
+        self.assertEqual(picker.family_of("cursor/composer-2.5"), "cursor")
         self.assertIsNone(picker.family_of("stealth/ox-alpha"))
         self.assertIsNone(picker.family_of(""))
 

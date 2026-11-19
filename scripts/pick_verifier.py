@@ -20,6 +20,7 @@ FAMILY_PATTERNS = (
     ("microsoft", (r"microsoft", r"\bphi-")),
     ("nvidia", (r"nvidia", r"nemotron")),
     ("amazon", (r"amazon", r"\bnova-")),
+    ("cursor", (r"cursor", r"composer")),
 )
 
 KNOWN_FAMILIES = tuple(family for family, _ in FAMILY_PATTERNS)

@@ -248,14 +248,25 @@ describe("the verify-skill evaluation", () => {
   });
 
   it("drives journeys that need no live gate", () => {
-    const evalPy = fileURLToPath(new URL("../.claude/skills/verify-sf-companion/evals/eval.py", import.meta.url));
+    const evalPy = fileURLToPath(
+      new URL(
+        "../.claude/skills/verify-sf-companion/evals/eval.py",
+        import.meta.url
+      )
+    );
+
     const casesJson = fileURLToPath(new URL("cases.json", folder));
-    const journeys = execSync(`python3 ${JSON.stringify(evalPy)} journeys --cases ${JSON.stringify(casesJson)}`, {
-      encoding: "utf-8",
-    })
+
+    const journeys = execSync(
+      `python3 ${JSON.stringify(evalPy)} journeys --cases ${JSON.stringify(casesJson)}`,
+      {
+        encoding: "utf-8",
+      }
+    )
       .trim()
       .split(",")
       .filter(Boolean);
+
     expect(journeys).not.toContain("access-anonymous");
     expect(new Set(journeys).size).toBe(journeys.length);
   });
