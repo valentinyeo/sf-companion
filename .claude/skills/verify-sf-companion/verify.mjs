@@ -26,7 +26,42 @@ const journeys =
     : journeysArgument.slice("--journeys=".length).split(",").filter(Boolean);
 const selected = new Set(journeys);
 const allJourneys = selected.size === 0;
-const wants = (journey) => allJourneys || selected.has(journey);
+const routeSource = await readFile(
+  join(site, "apps/web/src/features/route.ts"),
+  "utf8"
+).catch(() => "");
+const declaredRoutes =
+  routeSource === ""
+    ? null
+    : new Set(
+        [...routeSource.matchAll(/^ {2}([A-Z][A-Za-z0-9]*):/gmu)].map(
+          (match) => match[1]
+        )
+      );
+const journeyRoutes = {
+  "usage-burn": "Usage",
+  "usage-cards": "Usage",
+  "usage-details": "Usage",
+  "usage-empty": "Usage",
+  "usage-entry": "Usage",
+  "usage-kpi-fixed": "Usage",
+  "usage-window": "Usage",
+};
+const absentJourneys = new Map(
+  Object.entries(journeyRoutes)
+    .filter(
+      ([journey, route]) =>
+        (allJourneys || selected.has(journey)) &&
+        declaredRoutes !== null &&
+        !declaredRoutes.has(route)
+    )
+    .map(([journey, route]) => [
+      journey,
+      `apps/web/src/features/route.ts declares no ${route} route on this revision, so there is no page to drive.`,
+    ])
+);
+const wants = (journey) =>
+  (allJourneys || selected.has(journey)) && !absentJourneys.has(journey);
 const shareToken = "verify-share-token";
 process.env.SF_SHARE_TOKEN = shareToken;
 const seededFactoryJourneys = [
@@ -105,6 +140,10 @@ const proof = process.env.PROOF_DIR;
 const fixture = fileURLToPath(new URL("./fixture.json", import.meta.url));
 const fixtureHub = fileURLToPath(new URL("./fixture-hub", import.meta.url));
 const result = {
+  skipped: [...absentJourneys.entries()].map(([journey, reason]) => ({
+    journey,
+    reason,
+  })),
   status: "running",
   cases: [],
   live: "skipped",
@@ -177,7 +216,7 @@ function assertJourneysRecorded(ids) {
   );
   const expected = (
     allJourneys ? ids : ids.filter((id) => selected.has(id))
-  ).filter((id) => !actionlessJourneys.has(id));
+  ).filter((id) => !(actionlessJourneys.has(id) || absentJourneys.has(id)));
   const missing = expected.filter((id) => !recorded.has(id));
   assert.deepEqual(
     missing,

@@ -29,7 +29,7 @@ A full run drives every journey. To drive only the journeys a change touches, pa
 .claude/skills/verify-sf-companion/run.sh --journeys=factory-entry,shipping-chart
 ```
 
-Unknown ids fail before any install. The selected ids are recorded in `result.json`.
+Unknown ids fail before any install. The selected ids are recorded in `result.json`. A checkout that predates a page declares no route for it; those journeys are listed under `skipped` in `result.json` with the missing route as the reason, and every other journey still runs. The revision that adds the page always drives them.
 
 ## Doctor
 
