@@ -6,8 +6,10 @@ from pathlib import Path
 FOLDER = Path(".github") / "workflows"
 SCOPED = "pstack-verifier.yml"
 NIGHTLY = "nightly-journeys.yml"
+MAINTAIN = "verify-skill-maintain.yml"
 BROWSER = re.compile(r"verify-sf-companion/run\.sh|playwright|chromium", re.IGNORECASE)
 PULL_TRIGGERS = {"pull_request", "pull_request_target"}
+PINNED_SOURCE = re.compile(r"repository:\s*cursor/plugins\s*\n\s*ref:\s*([0-9a-f]{40})\s*$", re.MULTILINE)
 TRIGGER = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_-]*):")
 INLINE = re.compile(r"^on:\s*(.+?)\s*$")
 INLINE_VALUE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
@@ -50,7 +52,7 @@ def read(folder, name):
 def check_pull_requests(folder, workflows):
     errors = []
     for name, source in workflows.items():
-        if triggers(source) & PULL_TRIGGERS == set():
+        if name == MAINTAIN or triggers(source) & PULL_TRIGGERS == set():
             continue
         if name == NIGHTLY:
             errors.append(
@@ -110,6 +112,53 @@ def check_nightly(folder):
     return errors
 
 
+def check_maintain(folder):
+    source = read(folder, MAINTAIN)
+    if source is None:
+        return [
+            f"{MAINTAIN} is missing. Nothing then reviews the feature map against source on a schedule, so the map rots while every other check still passes. Fix: add `{FOLDER / MAINTAIN}` with `schedule` and `workflow_dispatch`, a pinned `cursor/plugins` checkout, and a full `.claude/skills/verify-sf-companion/run.sh` run."
+        ]
+    errors = []
+    found = triggers(source)
+    if "schedule" not in found:
+        errors.append(
+            f"{MAINTAIN} has no `schedule` trigger. A maintenance pass that only runs when a person dispatches it stops keeping the map honest the day the schedule is dropped. Fix: add `schedule` with a `cron` entry to its `on` block."
+        )
+    if "workflow_dispatch" not in found:
+        errors.append(
+            f"{MAINTAIN} has no `workflow_dispatch` trigger. Without it a person cannot re-run the pass by hand after a drift report. Fix: add `workflow_dispatch` to its `on` block."
+        )
+    if found & PULL_TRIGGERS:
+        errors.append(
+            f"{MAINTAIN} triggers on pull requests. Its full journey run and its drift review cost more than a pull request should pay and would block every change. Fix: keep `schedule` and `workflow_dispatch` as the only entries so heavy maintenance stays off pull requests."
+        )
+    if "refs/heads/main" not in source:
+        errors.append(
+            f"{MAINTAIN} never names `refs/heads/main`. A scheduled pass on a feature branch proves nothing about the default branch. Fix: guard the job with `github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'` and keep `workflow_dispatch` for the hand-started proof."
+        )
+    if "cancel-in-progress: true" not in source:
+        errors.append(
+            f"{MAINTAIN} never sets `cancel-in-progress: true`. A superseded pass then keeps a runner busy and its proof uploads beside the newer one. Fix: add `concurrency` with `cancel-in-progress: true`."
+        )
+    if PINNED_SOURCE.search(source) is None:
+        errors.append(
+            f"{MAINTAIN} checks out no `cursor/plugins` source pinned to a full 40-character commit. The pstack demands then follow a moving branch, so the same commit can pass one week and fail the next. Fix: check out `cursor/plugins` at a pinned `ref` and pass its plugin manifest to `scripts/pstack_pin_drift.py`."
+        )
+    if "verify-sf-companion/run.sh" not in source:
+        errors.append(
+            f"{MAINTAIN} never runs `verify-sf-companion/run.sh`. The pass then reviews the map without exercising the app it describes. Fix: run `.claude/skills/verify-sf-companion/run.sh` in a step and hand its proof to the review."
+        )
+    if "actions/upload-artifact" not in source:
+        errors.append(
+            f"{MAINTAIN} uploads no proof. A drift report then cannot be checked against what the journeys saw. Fix: upload the proof directory with `actions/upload-artifact` and `if: always()`."
+        )
+    if "verify map drift" not in source or "issues: write" not in source:
+        errors.append(
+            f"{MAINTAIN} does not record drift in one `verify map drift` issue with `issues: write`. Drift then fails a run nobody reads. Fix: grant `issues: write` and open or update one issue titled `verify map drift`."
+        )
+    return errors
+
+
 def check(root):
     folder = Path(root) / FOLDER
     if not folder.is_dir():
@@ -120,7 +169,7 @@ def check(root):
     for path in sorted(folder.iterdir()):
         if path.suffix in {".yml", ".yaml"} and path.is_file():
             workflows[path.name] = path.read_text(encoding="utf-8")
-    return check_pull_requests(folder, workflows) + check_nightly(folder)
+    return check_pull_requests(folder, workflows) + check_nightly(folder) + check_maintain(folder)
 
 
 def main():

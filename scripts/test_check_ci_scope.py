@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,6 +36,35 @@ jobs:
 """
 
 
+MAINTAIN = """name: Verify skill maintenance
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: verify-skill-maintain
+  cancel-in-progress: true
+jobs:
+  maintain:
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: cursor/plugins
+          ref: 0123456789abcdef0123456789abcdef01234567
+          path: pstack-source
+      - run: scripts/pstack_pin_drift.py --source pstack-source/pstack/.cursor-plugin/plugin.json
+      - run: .claude/skills/verify-sf-companion/run.sh --live
+      - run: echo "verify map drift"
+      - uses: actions/upload-artifact@v4
+        if: always()
+"""
+
+
 class ScopeTest(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
@@ -48,6 +78,7 @@ class ScopeTest(unittest.TestCase):
         self.write("ci.yml", CLEAN_CI)
         self.write("pstack-verifier.yml", VERIFIER + "steps:\n  - run: run.sh --journeys=$JOURNEYS\n")
         self.write("nightly-journeys.yml", NIGHTLY)
+        self.write("verify-skill-maintain.yml", MAINTAIN)
 
     def test_clean_setup_has_no_errors(self):
         self.clean()
@@ -126,6 +157,62 @@ class ScopeTest(unittest.TestCase):
         errors = scope.check(self.root)
         self.assertEqual(len(errors), 1)
         self.assertIn("nightly-journeys.yml", errors[0])
+
+    def test_maintain_on_pull_requests_is_rejected(self):
+        self.clean()
+        self.write("verify-skill-maintain.yml", MAINTAIN.replace("  workflow_dispatch:", "  workflow_dispatch:\n  pull_request:"))
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("pull requests", errors[0])
+
+    def test_maintain_without_a_schedule_is_rejected(self):
+        self.clean()
+        self.write("verify-skill-maintain.yml", MAINTAIN.replace("  schedule:\n    - cron: \"23 4 * * 1\"\n", ""))
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("schedule", errors[0])
+
+    def test_maintain_without_a_branch_guard_is_rejected(self):
+        self.clean()
+        self.write("verify-skill-maintain.yml", MAINTAIN.replace("    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'\n", ""))
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("refs/heads/main", errors[0])
+
+    def test_maintain_without_cancellation_is_rejected(self):
+        self.clean()
+        self.write("verify-skill-maintain.yml", MAINTAIN.replace("  cancel-in-progress: true\n", ""))
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("cancel-in-progress", errors[0])
+
+    def test_maintain_with_a_floating_pstack_source_is_rejected(self):
+        self.clean()
+        self.write("verify-skill-maintain.yml", MAINTAIN.replace("ref: 0123456789abcdef0123456789abcdef01234567", "ref: main"))
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("cursor/plugins", errors[0])
+
+    def test_maintain_without_the_journeys_is_rejected(self):
+        self.clean()
+        self.write("verify-skill-maintain.yml", MAINTAIN.replace("      - run: .claude/skills/verify-sf-companion/run.sh --live\n", ""))
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("run.sh", errors[0])
+
+    def test_maintain_without_a_drift_issue_is_rejected(self):
+        self.clean()
+        self.write("verify-skill-maintain.yml", MAINTAIN.replace("  issues: write\n", "").replace('echo "verify map drift"', 'echo "clean"'))
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("verify map drift", errors[0])
+
+    def test_missing_maintain_is_rejected(self):
+        self.clean()
+        (self.folder / "verify-skill-maintain.yml").unlink()
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("verify-skill-maintain.yml", errors[0])
 
     def test_missing_workflows_folder_is_rejected(self):
         self.assertEqual(len(scope.check(tempfile.mkdtemp())), 1)
