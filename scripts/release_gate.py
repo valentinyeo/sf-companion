@@ -25,6 +25,8 @@ DEFAULT_STATE_FILE = "~/.local/state/sf-companion/deployed-sha"
 DEFAULT_FEATURES = ".claude/skills/verify-sf-companion/features"
 LIVE_ONLY = "live-only.json"
 TRACE_SUFFIXES = (".trace.zip", ".webm")
+TRACE_ENTRIES = ("trace.trace", "trace.network")
+WEBM = b"\x1aE\xdf\xa3"
 
 
 class GateError(Exception):
@@ -161,9 +163,40 @@ def pick_artifact(artifacts):
     return None
 
 
-def member_sizes(archive_bytes):
+def trace_names(traces):
+    return {
+        name
+        for names in ((traces or {}).get("journeys") or {}).values()
+        for name in names
+    }
+
+
+def head_traces(archive_bytes, names):
+    found = {}
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
-        return {item.filename: item.file_size for item in archive.infolist()}
+        for member in archive.infolist():
+            parts = member.filename.split("/")
+            if PROOF not in parts:
+                continue
+            relative = "/".join(parts[parts.index(PROOF) + 1 :])
+            if relative in names:
+                found[relative] = archive.read(member)
+    return found
+
+
+def usable_trace(name, data):
+    if data == b"":
+        return False
+    if name.endswith(".webm"):
+        return data.startswith(WEBM)
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            entries = archive.namelist()
+    except zipfile.BadZipFile:
+        return False
+    return any(
+        entry in TRACE_ENTRIES or entry.endswith(".trace") for entry in entries
+    )
 
 
 def read_traces(archive_bytes):
@@ -178,17 +211,7 @@ def read_traces(archive_bytes):
         return json.loads(archive.read(candidates[0]))
 
 
-def head_members(members):
-    found = {}
-    for name, size in members.items():
-        parts = name.split("/")
-        if PROOF not in parts:
-            continue
-        found["/".join(parts[parts.index(PROOF) + 1 :])] = size
-    return found
-
-
-def check_traces(journeys, traces, members, live_only):
+def check_traces(journeys, traces, found, live_only):
     if traces is None:
         return [
             f"the run uploaded no single {PROOF}/{TRACES} (missing or duplicated), "
@@ -200,7 +223,6 @@ def check_traces(journeys, traces, members, live_only):
         for entry in traces.get("untraced") or []
         if entry.get("journey") in live_only and entry.get("reason")
     }
-    sizes = head_members(members)
     problems = []
     for journey in journeys:
         names = recorded.get(journey) or []
@@ -213,9 +235,15 @@ def check_traces(journeys, traces, members, live_only):
             if not name.endswith(TRACE_SUFFIXES):
                 problems.append(f"{name} for journey {journey} is not a trace or video")
                 continue
-            if sizes.get(name, 0) == 0:
+            data = found.get(name) or b""
+            if data == b"":
                 problems.append(
                     f"the proof artifact holds no {name} for journey {journey}"
+                )
+                continue
+            if not usable_trace(name, data):
+                problems.append(
+                    f"{name} for journey {journey} is not a readable trace or video"
                 )
     return problems
 
@@ -264,7 +292,9 @@ def evaluate_pull_request(
         ]
         return report
     traces = read_traces(archive)
-    problems = check_traces(journeys, traces, member_sizes(archive), live_only)
+    problems = check_traces(
+        journeys, traces, head_traces(archive, trace_names(traces)), live_only
+    )
     revision = (traces or {}).get("revision")
     if revision is not None and revision != report["head"]:
         problems.insert(
@@ -412,17 +442,16 @@ def proof(args):
         )
         return 1
     journeys = [value for value in (args.journeys or "").split(",") if value]
-    members = {
-        f"{PROOF}/{path.relative_to(directory).as_posix()}": path.stat().st_size
-        for path in directory.rglob("*")
-        if path.is_file()
-    }
+    traces = json.loads(traces_path.read_text())
+    found = {}
+    for name in trace_names(traces):
+        target = directory / name
+        if target.is_file():
+            found[name] = target.read_bytes()
     live_only = live_only_journeys(
         Path(args.repo_path).expanduser() / args.features_dir
     )
-    problems = check_traces(
-        journeys, json.loads(traces_path.read_text()), members, live_only
-    )
+    problems = check_traces(journeys, traces, found, live_only)
     if problems:
         for problem in problems:
             print(f"missing: {problem}", file=sys.stderr)
