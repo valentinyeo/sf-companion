@@ -1,0 +1,58 @@
+{
+  "journeys": [
+    "factory-entry",
+    "factory-layout",
+    "factory-readings",
+    "factory-shipping",
+    "factory-empty",
+    "usage-window",
+    "usage-burn",
+    "usage-kpi-fixed",
+    "usage-details",
+    "home-links",
+    "home-sections",
+    "home-empty",
+    "reports-index",
+    "reports-item",
+    "reports-scope",
+    "explorations-index",
+    "explorations-item",
+    "explorations-scope"
+  ],
+  "families": [
+    {
+      "family": "deepseek",
+      "provider": "opencode-go",
+      "model": "deepseek-v4.1-flash",
+      "secret": "OPENCODE_API_KEY"
+    },
+    {
+      "family": "openai",
+      "provider": "openrouter",
+      "model": "openai/gpt-6.1-sol",
+      "secret": "OPENROUTER_API_KEY"
+    }
+  ],
+  "cases": [
+    {
+      "id": "clean",
+      "patch": null,
+      "expect": "PASS"
+    },
+    {
+      "id": "kpi-zero",
+      "patch": "kpi-zero.patch",
+      "expect": "FAIL"
+    },
+    {
+      "id": "report-link-404",
+      "patch": "report-link-404.patch",
+      "expect": "FAIL"
+    },
+    {
+      "id": "mobile-overflow",
+      "patch": "chart-scroll-overflow.patch",
+      "expect": "FAIL"
+    }
+  ]
+}

@@ -179,6 +179,7 @@ Every hard rule this repo runs is a row here, and every row names the check that
 | Every user-facing feature has a verify feature file, and the map's coverage line matches source | `script:scripts/feature_coverage.py` | `pnpm check`, lefthook, CI |
 | The coverage check fails on a missing file, a dead feature, or a stale count | `script:scripts/test_feature_coverage.py` | `pnpm test`, CI |
 | Every journey runs nightly on `main` and keeps its proof | `script:scripts/check_ci_scope.py` | `pnpm check`, lefthook, CI |
+| The verify-skill evaluation keeps the clean case, every planted patch, and two model families, and never runs on pull requests | `test:scripts/rules.test.ts`, `script:scripts/check_ci_scope.py` | `pnpm check`, `pnpm test`, CI, the evaluation on dispatch and weekly on `main` |
 
 ### Code bans
 

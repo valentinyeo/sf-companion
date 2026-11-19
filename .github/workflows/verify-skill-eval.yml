@@ -1,0 +1,166 @@
+name: Verify-skill eval
+
+on:
+  schedule:
+    - cron: "43 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-skill-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      journeys: ${{ steps.matrix.outputs.journeys }}
+    steps:
+      - name: Check out the eval ref
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Plan the cells
+        id: matrix
+        run: |
+          set -euo pipefail
+          evals=.claude/skills/verify-sf-companion/evals
+          python3 "$evals/eval.py" matrix --cases "$evals/cases.json" >> "$GITHUB_OUTPUT"
+          journeys=$(python3 "$evals/eval.py" journeys --cases "$evals/cases.json")
+          printf 'journeys=%s\n' "$journeys" >> "$GITHUB_OUTPUT"
+
+  cell:
+    needs: prepare
+    if: needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    env:
+      RECORDS: ${{ runner.temp }}/records
+      PROMPT: |
+        You are reviewing one verification run of the Software Factory Companion, a small web app that shows factory readings and stored reports.
+
+        A helper drove the app in a real Chromium browser at 1280 and 390 wide, in light and dark system themes, first with seeded content and then with the factory feed removed. The evidence from that run is in this directory.
+
+        Read result.json first. Then open the screenshots and ARIA snapshots for the cases that matter, and the logs behind any failure. The run's own rules, feature map and gotchas are in skill/SKILL.md and skill/features/.
+
+        Do not run the app, install anything, start a server, or edit files.
+
+        Decide whether this run shows the app working for a person using it.
+
+        Finish with exactly one standalone line: PASS, PASS+NOTES, or FAIL.
+        - PASS: every case passed, the screenshots show the app working, and nothing looks wrong.
+        - PASS+NOTES: every case passed but a reviewer should know something you saw.
+        - FAIL: a case failed, a person would see something wrong, or the evidence is missing or does not support the result.
+
+        After that line, say what you read, what you saw, and your concrete findings. Plain and specific, no praise.
+    steps:
+      - name: Check out the eval ref
+        uses: actions/checkout@v4
+        with:
+          path: change
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use Node.js 24.18.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Enable corepack pnpm
+        run: corepack enable && corepack prepare pnpm@11.3.0 --activate
+      - name: Apply the case
+        working-directory: change
+        env:
+          PATCH: ${{ matrix.patch }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RECORDS"
+          if [[ -n "$PATCH" ]]; then
+            git apply --verbose ".claude/skills/verify-sf-companion/evals/patches/$PATCH"
+            git -c user.name=verifier -c user.email=verifier@users.noreply.github.com \
+              commit -am "app(web): adjust the factory view"
+          fi
+      - name: Drive the app
+        id: drive
+        continue-on-error: true
+        working-directory: change
+        env:
+          JOURNEYS: ${{ needs.prepare.outputs.journeys }}
+        run: |
+          set -euo pipefail
+          PROOF_DIR="$RUNNER_TEMP/proof" .claude/skills/verify-sf-companion/run.sh \
+            --journeys="$JOURNEYS" 2>&1 | tee "$RECORDS/drive.log"
+      - name: Keep the evaluation out of the response
+        if: always()
+        run: rm -rf "$GITHUB_WORKSPACE/change" "$RUNNER_TEMP/proof/skill/evals"
+      - name: Install pi
+        if: steps.drive.outcome == 'success' || steps.drive.outcome == 'failure'
+        run: npm install -g @earendil-works/pi-coding-agent@1.5.0
+      - name: Ask for a verdict
+        if: steps.drive.outcome == 'success' || steps.drive.outcome == 'failure'
+        working-directory: ${{ runner.temp }}/proof
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PROVIDER: ${{ matrix.provider }}
+          MODEL: ${{ matrix.model }}
+        run: |
+          set -euo pipefail
+          case "$PROVIDER" in
+            opencode-go) test -n "$OPENCODE_API_KEY" ;;
+            openrouter) test -n "$OPENROUTER_API_KEY" ;;
+            *) echo "No provider: $PROVIDER" >&2; exit 1 ;;
+          esac
+          printf '%s' "$PROMPT" > "$RECORDS/prompt.txt"
+          pi --provider "$PROVIDER" --model "$MODEL" --thinking low \
+            --no-extensions --no-mcp --no-skills --no-context-files \
+            --no-prompt-templates --no-themes --tools read,bash \
+            --no-session --mode json -p "$PROMPT" > "$RECORDS/verdict.jsonl"
+      - name: Keep the verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cell-${{ matrix.family }}-${{ matrix.case }}
+          path: |
+            ${{ runner.temp }}/records/verdict.jsonl
+            ${{ runner.temp }}/records/prompt.txt
+            ${{ runner.temp }}/records/drive.log
+          if-no-files-found: warn
+
+  tabulate:
+    needs: [prepare, cell]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the eval ref
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Collect the verdicts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/verdicts
+          pattern: cell-*
+      - name: Tabulate expected against actual
+        run: |
+          set -o pipefail
+          evals=.claude/skills/verify-sf-companion/evals
+          python3 "$evals/eval.py" tabulate --cases "$evals/cases.json" \
+            --records "$RUNNER_TEMP/verdicts" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --summary "$GITHUB_STEP_SUMMARY" \
+            --table "$RUNNER_TEMP/table.md"
+      - name: Keep the table
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: ${{ runner.temp }}/table.md
+          if-no-files-found: warn
