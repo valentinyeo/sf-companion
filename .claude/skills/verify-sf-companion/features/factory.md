@@ -26,7 +26,7 @@ Preconditions:
 
 - Direct entry. `page.goto('/factory')` must return 200 and show `getByRole('heading', {name: 'Factory', exact: true})`.
 - Identity. Require the `Software Factory Companion` link in Primary navigation and the color scheme the context asked for.
-- Navigation. Choose the site name, then `Factory` in `getByRole('navigation', {name: 'Primary navigation'})`. The Factory heading returns.
+- Navigation. Choose the site name, then `Open` in the Factory section of Home, then the site name again and `Factory` in `getByRole('navigation', {name: 'Primary navigation'})`. The Factory heading returns each time.
 - Export time. Require `Numbers from 2026-11-15 00:41 UTC`, exact.
 - Layout. Each case records the document width against the viewport; a horizontal overflow fails the case. Cases run at 1280×900 and 390×844, light and dark.
 - Proof. Read `seeded-1280-light.png`, `seeded-390-dark.png`, and the corresponding `empty-*` images and ARIA snapshots.

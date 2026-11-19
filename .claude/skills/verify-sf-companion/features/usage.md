@@ -28,7 +28,7 @@ Preconditions:
 
 - Run `../run.sh`. These actions run for each seeded viewport and color scheme. The fixture carries seven cards covering percent, credit, and no-reading modes.
 
-- Entry. `page.goto('/usage')` must return 200 and show `getByRole('heading', {name: 'Usage', exact: true})`, with the `Software Factory Companion` link in Primary navigation. Then choose the site name, then `Usage` in `getByRole('navigation', {name: 'Primary navigation'})`.
+- Entry. `page.goto('/usage')` must return 200 and show `getByRole('heading', {name: 'Usage', exact: true})`, with the `Software Factory Companion` link in Primary navigation. Then choose the site name, then `Usage` in `getByRole('navigation', {name: 'Primary navigation'})`. Then from Home choose `Open` in the Usage section, and from `/factory` choose the `Usage` link in the page body. Each one must land on the Usage heading.
 - Cards. Require headings `Claude Code`, `Codex`, `Grok`, `OpenCode`, `Vercel`, `DeepSeek`, and `OpenRouter`. Inside the Claude Code list item require `67%` and `+13.2 vs pace · over pace`. Inside Vercel require `$105.28 left`. Inside DeepSeek require `$11.28 left`. Inside OpenCode require `no reading`.
 - Baseline. Require `+2% · £0.00 in 1h on runners`. Capture `seeded-<width>-<theme>-before.png` on `/usage`.
 - Select. For each window, click `page.getByRole('group', {name: 'Usage window'}).getByRole('button', {name: window, exact: true})`. Require that button's `aria-pressed` to become `true`.
