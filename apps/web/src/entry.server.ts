@@ -38,17 +38,23 @@ const decodeSlug = (raw: string): string => {
   try {
     return decodeURIComponent(raw);
   } catch {
-    return "";
+    return raw;
   }
 };
 
 const itemTarget = (url: URL): Option.Option<ItemTarget> => {
   const parts = url.pathname.split("/");
-  const section = SECTIONS.find((candidate) => candidate === parts[1]);
 
-  return section === undefined || parts.length < 3
+  if (parts.length !== 3) {
+    return Option.none();
+  }
+
+  const section = SECTIONS.find((candidate) => candidate === parts[1]);
+  const slug = parts[2] === undefined ? "" : decodeSlug(parts[2]);
+
+  return section === undefined || slug === ""
     ? Option.none()
-    : Option.some({ section, slug: decodeSlug(parts.slice(2).join("/")) });
+    : Option.some({ section, slug });
 };
 
 const answerItem = (
