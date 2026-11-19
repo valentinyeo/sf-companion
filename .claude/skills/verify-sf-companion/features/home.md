@@ -4,7 +4,7 @@ Home is the hub front page: the site title, an Explorations section, a Reports s
 
 Covers: route:Home
 
-Code paths: apps/web/src/features/page.ts, apps/web/src/content/item.ts, apps/web/src/features/route.ts, apps/web/src/entry.server.ts
+Code paths: apps/web/src/features/page.ts, apps/web/src/content/item.ts, apps/web/src/content/hub.ts, apps/web/src/features/route.ts, apps/web/src/entry.server.ts
 
 ## Sub-features
 
@@ -32,6 +32,6 @@ Preconditions:
 
 ## Gotchas
 
-- Rows come from the hub content store. Local launches read `apps/web/content/hub/`, which stands in for the R2 bucket; a deployed Worker reads R2 through its `CONTENT` binding.
+- Rows come from the hub content store. Local launches read `apps/web/content/hub/`, which stands in for the R2 bucket; a deployed Worker reads R2 through its `CONTENT` binding. `apps/web/src/content/hub.ts` picks the store, and `apps/web/src/entry.server.ts` hands its list to the Home renderer, so a change to either one changes this page.
 - The seeded titles are synthetic. They are not client work.
 - Rows are ordered by item date, newest first, and the limit is five per section, so an older title is absent by design, not broken.

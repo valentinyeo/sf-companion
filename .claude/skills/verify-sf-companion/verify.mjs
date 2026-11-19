@@ -109,6 +109,11 @@ const seededJourneys = [
   ...seededHubJourneys,
   ...shareJourneys,
 ];
+const sparseJourneys = [
+  "shipping-missing",
+  "kpi-unavailable",
+  "usage-no-plans",
+];
 const runSeeded = seededJourneys.some(wants);
 const runEmpty = [
   "factory-empty",
@@ -116,6 +121,7 @@ const runEmpty = [
   "home-empty",
   "not-found",
 ].some(wants);
+const runSparse = sparseJourneys.some(wants);
 const runWindows = [
   "usage-window",
   "usage-burn",
@@ -136,6 +142,12 @@ const expectedNotFound = "/no-such-page";
 let expectingMissingPage = false;
 const exportTime = "Numbers from 2026-11-15 00:41 UTC";
 const shippingCostWindow = "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC";
+const shippingUnavailable =
+  "Daily shipping data unavailable. This feed predates the daily collector.";
+const kpiUnavailableNotes = [
+  "Cost per delivered ticket unavailable. Dated deliveries are blocked by HYCI-9390. Not a measured zero.",
+  "Escapes unavailable. The exporter login cannot read all three boards. Not a measured zero.",
+];
 const { chromium, request } = await import(
   pathToFileURL(playwrightModule).href
 );
@@ -273,6 +285,13 @@ async function stop(child) {
   }
 }
 
+function sparseFeed(raw) {
+  const feed = JSON.parse(raw);
+  feed.usage.cards = [];
+  delete feed.kpis.shipping;
+  return `${JSON.stringify(feed, null, 2)}\n`;
+}
+
 async function freePort() {
   const server = createServer();
   await new Promise((resolve, reject) => {
@@ -342,6 +361,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
     page
       .getByRole("listitem")
       .filter({ has: page.getByRole("heading", { name, exact: true }) });
+  const homeSection = (name) =>
+    page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name, exact: true }) });
   async function record(action, journey = null) {
     const dimensions = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
@@ -383,6 +406,21 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           exact: true,
         })
         .waitFor();
+      await homeSection("Factory")
+        .getByRole("link", { name: "Open", exact: true })
+        .click();
+      await page
+        .getByRole("heading", { name: "Factory", exact: true })
+        .waitFor();
+      await page
+        .getByRole("link", { name: "Software Factory Companion", exact: true })
+        .click();
+      await page
+        .getByRole("heading", {
+          name: "Software Factory Companion",
+          exact: true,
+        })
+        .waitFor();
       await page
         .getByRole("navigation", { name: "Primary navigation" })
         .getByRole("link", { name: "Factory", exact: true })
@@ -391,7 +429,7 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         .getByRole("heading", { name: "Factory", exact: true })
         .waitFor();
       await record(
-        "navigate home, then choose Factory in primary navigation",
+        "navigate home, open Factory from the Home section, then choose Factory in primary navigation",
         "factory-entry"
       );
     }
@@ -422,8 +460,29 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await page
           .getByRole("heading", { name: "Usage", exact: true })
           .waitFor();
+        await page.goto("/", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .waitFor();
+        await homeSection("Usage")
+          .getByRole("link", { name: "Open", exact: true })
+          .click();
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("main")
+          .getByRole("link", { name: "Usage", exact: true })
+          .click();
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
         await record(
-          "usage: /usage answers directly and primary navigation reaches it",
+          "usage: /usage answers directly, and primary navigation, the Home section, and the Factory link all reach it",
           "usage-entry"
         );
       }
@@ -727,7 +786,63 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           );
         }
       }
-    } else if (wants("factory-empty") || wants("usage-empty")) {
+    } else if (state === "sparse") {
+      if (wants("shipping-missing")) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", {
+            name: "PRs shipped vs plan burn",
+            exact: true,
+          })
+          .waitFor();
+        await page.getByText(shippingUnavailable, { exact: true }).waitFor();
+        assert.equal(
+          await page
+            .getByRole("region", { name: "Daily shipping and burn chart" })
+            .count(),
+          0,
+          `${id}: a feed with no shipping block still drew a chart`
+        );
+        await record(
+          "factory: a feed with no shipping block says so instead of drawing an empty chart",
+          "shipping-missing"
+        );
+      }
+      if (wants("kpi-unavailable")) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Output and waste", exact: true })
+          .waitFor();
+        for (const note of kpiUnavailableNotes) {
+          await page.getByText(note, { exact: true }).waitFor();
+        }
+        await record(
+          "factory: a KPI metric that cannot be measured prints its reason, not a zero",
+          "kpi-unavailable"
+        );
+      }
+      if (wants("usage-no-plans")) {
+        const response = await page.goto("/usage", {
+          waitUntil: "networkidle",
+        });
+        assert.equal(response.status(), 200, `${id}: /usage status`);
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await page.getByText("No plans yet.", { exact: true }).waitFor();
+        assert.equal(
+          await page
+            .getByRole("heading", { name: "Claude Code", exact: true })
+            .count(),
+          0,
+          `${id}: a feed with no plan cards still drew a card`
+        );
+        await record(
+          "usage: a feed with no plan cards says so instead of an empty list",
+          "usage-no-plans"
+        );
+      }
+    } else if (state === "empty") {
       if (wants("factory-empty")) {
         await page
           .getByText("No factory numbers yet.", { exact: true })
@@ -1409,8 +1524,11 @@ try {
   journeyIds = await featureJourneyIds();
   await assertFeatureGates(journeyIds);
   browser = await chromium.launch();
-  for (const state of ["seeded", "empty"]) {
-    if (state === "seeded" ? !runSeeded : !runEmpty) continue;
+  for (const state of ["seeded", "empty", "sparse"]) {
+    const wanted = { empty: runEmpty, seeded: runSeeded, sparse: runSparse }[
+      state
+    ];
+    if (!wanted) continue;
     const feed = join(site, "apps/web/content/feed/factory.json");
     const hub = join(site, "apps/web/content/hub");
     await mkdir(join(site, "apps/web/content/feed"), { recursive: true });
@@ -1418,6 +1536,8 @@ try {
     if (state === "seeded") {
       await copyFile(fixture, feed);
       await cp(fixtureHub, hub, { recursive: true });
+    } else if (state === "sparse") {
+      await writeFile(feed, sparseFeed(await readFile(fixture, "utf8")));
     } else {
       await rm(feed, { force: true });
     }
