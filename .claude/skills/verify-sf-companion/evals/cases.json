@@ -1,6 +1,7 @@
 {
   "journeys": [
     "explorations-index",
+    "explorations-index-empty",
     "explorations-item",
     "explorations-scope",
     "factory-empty",
@@ -19,6 +20,7 @@
     "kpi-windows",
     "not-found",
     "reports-index",
+    "reports-index-empty",
     "reports-item",
     "reports-scope",
     "share-auth",
