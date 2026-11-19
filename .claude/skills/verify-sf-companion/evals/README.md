@@ -15,7 +15,7 @@ This folder proves that `verify-sf-companion` catches real regressions and does 
 | `report-link-404` | `patches/report-link-404.patch` | a report row on the home page opens a missing object and answers 404 | FAIL |
 | `mobile-overflow` | `patches/chart-scroll-overflow.patch` | the shipping chart loses its scroll container and pushes the 390 wide page sideways | FAIL |
 
-Families come from `scripts/pick_verifier.py` and the PR verifier: DeepSeek Flash on `opencode-go`, and OpenAI `openai/gpt-6.1-sol` on `openrouter`. Each family judges every case, so one family's blind spot does not pass for proof.
+Families come from `scripts/pick_verifier.py` and the PR verifier: DeepSeek Flash on `opencode-go`, and OpenAI `openai/gpt-6.1-sol` on `vercel-ai-gateway`. Each family judges every case, so one family's blind spot does not pass for proof.
 
 ## One cell
 

@@ -35,14 +35,14 @@ OTHER_VERIFIERS = (
     {
         "family": "openai",
         "model": "openai/gpt-6.1-sol",
-        "provider": "openrouter",
-        "secret": "OPENROUTER_API_KEY",
+        "provider": "vercel-ai-gateway",
+        "secret": "AI_GATEWAY_API_KEY",
     },
     {
         "family": "google",
         "model": "google/gemini-3.7-flash",
-        "provider": "openrouter",
-        "secret": "OPENROUTER_API_KEY",
+        "provider": "vercel-ai-gateway",
+        "secret": "AI_GATEWAY_API_KEY",
     },
 )
 
