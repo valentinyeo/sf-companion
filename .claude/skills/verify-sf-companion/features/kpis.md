@@ -9,7 +9,7 @@ Code paths: apps/web/src/features/factory.ts, apps/web/src/content/feed.ts, apps
 ## Sub-features
 
 - `kpi-tiles` shows all seven tiles with their displays, sources, and state cues.
-- `kpi-windows` keeps every tile's own measurement window, and the Factory page holds no usage window buttons.
+- `kpi-windows` keeps every tile's own measurement window; on a revision with `/usage`, Factory holds no usage window buttons.
 - `kpi-details` expands a tile's Measurement details disclosure.
 
 ## How to get to it (user POV)

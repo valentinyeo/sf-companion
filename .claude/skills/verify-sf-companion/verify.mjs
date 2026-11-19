@@ -62,6 +62,7 @@ const absentJourneys = new Map(
 );
 const wants = (journey) =>
   (allJourneys || selected.has(journey)) && !absentJourneys.has(journey);
+const usagePage = declaredRoutes === null || declaredRoutes.has("Usage");
 const shareToken = "verify-share-token";
 process.env.SF_SHARE_TOKEN = shareToken;
 const seededFactoryJourneys = [
@@ -516,46 +517,48 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         });
       }
       if (runWindows) {
-        await page.goto("/usage", { waitUntil: "networkidle" });
-        await page
-          .getByRole("heading", { name: "Usage", exact: true })
-          .waitFor();
-        await page.screenshot({
-          path: join(proof, `${id}-before.png`),
-          fullPage: true,
-        });
-        for (const window of ["3h", "6h", "12h", "24h", "7d", "30d", "1h"]) {
-          const button = page
-            .getByRole("group", { name: "Usage window" })
-            .getByRole("button", { name: window, exact: true });
-          await button.click();
+        if (usagePage) {
+          await page.goto("/usage", { waitUntil: "networkidle" });
           await page
-            .locator(`button[aria-pressed="true"]`)
-            .filter({ hasText: new RegExp(`^${window}$`, "u") })
+            .getByRole("heading", { name: "Usage", exact: true })
             .waitFor();
-          if (wants("usage-window")) {
-            await record(
-              `usage: choose ${window}; its button reports pressed`,
-              "usage-window"
-            );
-          }
-          if (wants("usage-burn") && window === "7d") {
+          await page.screenshot({
+            path: join(proof, `${id}-before.png`),
+            fullPage: true,
+          });
+          for (const window of ["3h", "6h", "12h", "24h", "7d", "30d", "1h"]) {
+            const button = page
+              .getByRole("group", { name: "Usage window" })
+              .getByRole("button", { name: window, exact: true });
+            await button.click();
             await page
-              .getByText("+14% · £7.00 in 7d on runners", { exact: true })
+              .locator(`button[aria-pressed="true"]`)
+              .filter({ hasText: new RegExp(`^${window}$`, "u") })
               .waitFor();
-            await record(
-              "usage: the 7d window changes burn to the 7d reading",
-              "usage-burn"
-            );
-          }
-          if (wants("usage-kpi-fixed") || wants("kpi-windows")) {
-            assert.equal(
+            if (wants("usage-window")) {
+              await record(
+                `usage: choose ${window}; its button reports pressed`,
+                "usage-window"
+              );
+            }
+            if (wants("usage-burn") && window === "7d") {
               await page
-                .getByRole("heading", { name: "Output and waste" })
-                .count(),
-              0,
-              `${id}: the usage page carried the KPI tiles`
-            );
+                .getByText("+14% · £7.00 in 7d on runners", { exact: true })
+                .waitFor();
+              await record(
+                "usage: the 7d window changes burn to the 7d reading",
+                "usage-burn"
+              );
+            }
+            if (wants("usage-kpi-fixed") || wants("kpi-windows")) {
+              assert.equal(
+                await page
+                  .getByRole("heading", { name: "Output and waste" })
+                  .count(),
+                0,
+                `${id}: the usage page carried the KPI tiles`
+              );
+            }
           }
         }
         if (wants("usage-kpi-fixed")) {
@@ -582,13 +585,15 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           await widget("Drain-loop health")
             .getByText("Rolling 45m", { exact: true })
             .waitFor();
-          assert.equal(
-            await page.getByRole("group", { name: "Usage window" }).count(),
-            0,
-            `${id}: the factory page carried the usage window buttons`
-          );
+          if (usagePage) {
+            assert.equal(
+              await page.getByRole("group", { name: "Usage window" }).count(),
+              0,
+              `${id}: the factory page carried the usage window buttons`
+            );
+          }
           await record(
-            "kpi: Factory keeps every tile on its own window and holds no usage buttons",
+            "kpi: Factory keeps every tile on its own window",
             "kpi-windows"
           );
         }
