@@ -34,6 +34,8 @@ jobs:
         run: scripts/check-feed-rebuilds.sh
       - name: Test factory KPI exporter
         run: python3 -m unittest discover -s tools -p "test_factory*.py" -v
+      - name: Test verifier scripts
+        run: python3 -m unittest discover -s scripts -p "test_*.py" -v
       - name: Check and test
         run: pnpm turbo run check test build --concurrency=2
       - name: Upload Turbo run summaries

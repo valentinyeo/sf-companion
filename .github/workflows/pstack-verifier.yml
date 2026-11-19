@@ -1,0 +1,264 @@
+name: Pstack verifier
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pstack-verifier-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pstack-verifier:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PR_BODY: ${{ github.event.pull_request.body }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      RECORDS: ${{ github.workspace }}/records
+    steps:
+      - name: Check out the change
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          path: change
+          persist-credentials: false
+      - name: Check out the base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          path: base
+          persist-credentials: false
+      - name: Use Node.js 24.18.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Enable corepack pnpm
+        run: corepack enable && corepack prepare pnpm@11.3.0 --activate
+      - name: Pick a verifier family no author used
+        id: pick
+        working-directory: change
+        run: |
+          set -euo pipefail
+          mkdir -p "$RECORDS"
+          printf '%s' "$PR_BODY" > "$RECORDS/pr-body.txt"
+          python3 scripts/pick_verifier.py --body-file "$RECORDS/pr-body.txt" > "$RECORDS/pick.json"
+          cat "$RECORDS/pick.json"
+          for field in status family provider model secret reason; do
+            value=$(jq -r --arg field "$field" '.[$field] // ""' "$RECORDS/pick.json")
+            printf '%s=%s\n' "$field" "$value" >> "$GITHUB_OUTPUT"
+          done
+      - name: Select the touched journeys
+        id: scope
+        if: steps.pick.outputs.status == 'ok'
+        run: |
+          set -euo pipefail
+          git -C change diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RECORDS/diff.txt"
+          python3 change/scripts/select_verifier_scope.py \
+            --features-dir change/.claude/skills/verify-sf-companion/features \
+            --diff-list "$RECORDS/diff.txt" \
+            --pr-body-file "$RECORDS/pr-body.txt" > "$RECORDS/scope.json"
+          cat "$RECORDS/scope.json"
+          {
+            printf 'status=%s\n' "$(jq -r '.status' "$RECORDS/scope.json")"
+            printf 'features=%s\n' "$(jq -r '.features | join(", ")' "$RECORDS/scope.json")"
+            printf 'journeys=%s\n' "$(jq -r '.journeys | join(",")' "$RECORDS/scope.json")"
+            printf 'repro=%s\n' "$(jq -r '.repro | join(", ")' "$RECORDS/scope.json")"
+            printf 'live=%s\n' "$(jq -r 'if (.journeys | index("access-anonymous")) then "true" else "false" end' "$RECORDS/scope.json")"
+            printf 'digest=%s\n' "$(jq -r '.journeys | join(",")' "$RECORDS/scope.json" | sha256sum | cut -c1-16)"
+            printf 'reason=%s\n' "$(jq -r '.reason // ""' "$RECORDS/scope.json")"
+            printf 'changed=%s\n' "$(jq -r '.changedPaths' "$RECORDS/scope.json")"
+          } >> "$GITHUB_OUTPUT"
+      - name: Drive both checkouts with the head helper
+        if: steps.scope.outputs.status == 'ok'
+        run: rsync -a --delete change/.claude/skills/verify-sf-companion/ base/.claude/skills/verify-sf-companion/
+      - name: Restore the cached base proof
+        id: cache-base
+        if: steps.scope.outputs.status == 'ok'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/proof-base
+          key: pstack-verifier-base-${{ github.event.pull_request.base.sha }}-${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}
+      - name: Run the base journeys
+        id: base
+        if: steps.scope.outputs.status == 'ok' && steps.cache-base.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          JOURNEYS: ${{ steps.scope.outputs.journeys }}
+          LIVE: ${{ steps.scope.outputs.live }}
+        run: |
+          set -euo pipefail
+          options=("--journeys=$JOURNEYS")
+          if [[ "$LIVE" == "true" ]]; then options+=("--live"); fi
+          PROOF_DIR="$GITHUB_WORKSPACE/proof-base" base/.claude/skills/verify-sf-companion/run.sh "${options[@]}"
+      - name: Save the passing base proof
+        if: steps.scope.outputs.status == 'ok' && steps.cache-base.outputs.cache-hit != 'true' && steps.base.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/proof-base
+          key: pstack-verifier-base-${{ github.event.pull_request.base.sha }}-${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}
+      - name: Run the head journeys
+        id: head
+        if: steps.scope.outputs.status == 'ok'
+        continue-on-error: true
+        env:
+          JOURNEYS: ${{ steps.scope.outputs.journeys }}
+          LIVE: ${{ steps.scope.outputs.live }}
+        run: |
+          set -euo pipefail
+          options=("--journeys=$JOURNEYS")
+          if [[ "$LIVE" == "true" ]]; then options+=("--live"); fi
+          PROOF_DIR="$GITHUB_WORKSPACE/proof-head" change/.claude/skills/verify-sf-companion/run.sh "${options[@]}"
+      - name: Install pi
+        if: steps.scope.outputs.status == 'ok'
+        run: npm install -g @earendil-works/pi-coding-agent@1.5.0
+      - name: Independent verification
+        id: verifier
+        if: steps.scope.outputs.status == 'ok'
+        continue-on-error: true
+        working-directory: change
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PROVIDER: ${{ steps.pick.outputs.provider }}
+          MODEL: ${{ steps.pick.outputs.model }}
+          FAMILY: ${{ steps.pick.outputs.family }}
+          FEATURES: ${{ steps.scope.outputs.features }}
+          JOURNEYS: ${{ steps.scope.outputs.journeys }}
+          PROMPT: |
+            You are the independent verifier for pull request ${{ github.event.pull_request.number }} "${{ github.event.pull_request.title }}" in valentinyeo/sf-companion. You did not write this change. You are ${{ steps.pick.outputs.family }} ${{ steps.pick.outputs.model }}.
+
+            Touched features: ${{ steps.scope.outputs.features }}.
+            Journeys: ${{ steps.scope.outputs.journeys }}.
+            Repro journeys from the PR body: ${{ steps.scope.outputs.repro }}.
+            Base checkout: ${{ github.workspace }}/base at ${{ github.event.pull_request.base.sha }}.
+            Head checkout: ${{ github.workspace }}/change at ${{ github.event.pull_request.head.sha }}.
+
+            This workflow already drove both checkouts with .claude/skills/verify-sf-companion/run.sh for exactly those journeys, in a real Chromium browser at 1280 and 390 wide, light and dark. Do not run run.sh, do not build, and do not start a server. The proofs are the evidence:
+            - base proof: ${{ github.workspace }}/proof-base
+            - head proof: ${{ github.workspace }}/proof-head
+
+            Each proof holds result.json, one PNG screenshot and one ARIA snapshot per case, per-case JSON action logs, and the install, build, and dev logs.
+
+            Do this:
+            1. Read both result.json files and compare every selected journey, case by case. Look at the head PNG screenshots and ARIA snapshots, not only the status fields. Read the head logs when a case failed.
+            2. Make one adversarial attempt beyond the happy path with bash only, in /tmp/verifier-break: copy .claude/skills/verify-sf-companion/fixture.json, corrupt or stretch a value, and check what the feed contract in apps/web/src/content/feed.ts does with it, or probe the cheapest boundary this diff touches. A few commands, no install, no server, no browser. Never edit tracked files in the checkouts; the job fails if you do.
+            3. Finish with exactly one standalone line: PASS, PASS+NOTES, or FAIL.
+               - PASS: head passes every selected journey, the screenshots show it working, and nothing regressed against base.
+               - PASS+NOTES: head passes but a reviewer should know something you saw.
+               - FAIL: head fails a journey, misbehaves for a user, or the evidence is missing or untrustworthy. A FAIL needs an executable reproduction.
+
+            After the verdict line, say what you ran, what you saw on base and on head, and your concrete findings. Plain and specific, no praise.
+        run: |
+          set -o pipefail
+          case "$PROVIDER" in
+            opencode-go) test -n "$OPENCODE_API_KEY" ;;
+            openrouter) test -n "$OPENROUTER_API_KEY" ;;
+            *) echo "No verifier provider: $PROVIDER" >&2; exit 1 ;;
+          esac
+          pi --provider "$PROVIDER" --model "$MODEL" --thinking low \
+            --no-extensions --no-mcp --no-skills --no-context-files \
+            --no-prompt-templates --no-themes --tools read,bash \
+            --no-session --mode json -p "$PROMPT" > "$RECORDS/verifier.jsonl"
+      - name: Keep the change checkout clean
+        id: clean
+        if: steps.scope.outputs.status == 'ok'
+        run: git -C change diff --exit-code
+      - name: Upload the proofs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verifier-proofs
+          path: |
+            proof-base
+            proof-head
+          if-no-files-found: ignore
+      - name: Upload the run records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verifier-records
+          path: |
+            records/verifier.jsonl
+            records/pick.json
+            records/scope.json
+            records/diff.txt
+            records/pr-body.txt
+          if-no-files-found: ignore
+      - name: Post the independent verdict
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          PICK_FILE: ${{ github.workspace }}/records/pick.json
+          SCOPE_FILE: ${{ github.workspace }}/records/scope.json
+          TRACE_FILE: ${{ github.workspace }}/records/verifier.jsonl
+          BASE_PROOF: ${{ github.workspace }}/proof-base
+          HEAD_PROOF: ${{ github.workspace }}/proof-head
+          JOURNEYS_LABEL: ${{ steps.scope.outputs.journeys }}
+          CLEAN_OUTCOME: ${{ steps.clean.outcome }}
+        with:
+          script: |
+            const fs = require("fs");
+            const readJson = (file) => {
+              try {
+                return JSON.parse(fs.readFileSync(file, "utf8"));
+              } catch {
+                return null;
+              }
+            };
+            const readText = (file) => {
+              try {
+                return fs.readFileSync(file, "utf8");
+              } catch {
+                return "";
+              }
+            };
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const head = readJson(`${process.env.HEAD_PROOF}/result.json`);
+            const pick = readJson(process.env.PICK_FILE);
+            const scope = readJson(process.env.SCOPE_FILE);
+            const headSha = context.payload.pull_request.head.sha;
+            const baseSha = context.payload.pull_request.base.sha;
+            const model = pick && pick.status === "ok" ? `${pick.family} ${pick.model} via ${pick.provider}` : "none";
+            let verdict = "FAIL";
+            let detail = "";
+            const facts = `Model: ${model}\nHead: ${headSha}\nBase: ${baseSha}\nJourneys: ${process.env.JOURNEYS_LABEL || "none"}\nRun: ${run}`;
+            if (pick === null || pick.status !== "ok") {
+              detail = `No verifier model ran. ${(pick && pick.reason) || "The model picker produced no result."}`;
+            } else if (scope === null || scope.status !== "ok") {
+              detail = `No verifier ran. ${(scope && scope.reason) || "The journey selector produced no result."}`;
+            } else {
+              const events = readText(process.env.TRACE_FILE).split("\n").filter(Boolean).flatMap((line) => {
+                try {
+                  return [JSON.parse(line)];
+                } catch {
+                  return [];
+                }
+              });
+              const messages = events.filter((event) => event.type === "message_end" && event.message && event.message.role === "assistant");
+              const last = messages.at(-1);
+              const text = last ? (last.message.content || []).filter((part) => part.type === "text").map((part) => part.text).join("\n") : "";
+              const match = text.match(/^(PASS\+NOTES|PASS|FAIL)\s*$/m);
+              if (match === null) {
+                detail = `The verifier returned no verdict line. Response:\n\n${text.slice(-3000) || "(empty trace)"}`;
+              } else {
+                verdict = match[1];
+                detail = text.slice(0, 12000);
+              }
+            }
+            const headState = head === null ? "missing" : head.status;
+            const completed = pick !== null && pick.status === "ok" && scope !== null && scope.status === "ok";
+            const dirty = completed && process.env.CLEAN_OUTCOME !== "success";
+            const note = dirty ? "\n\nThe verifier changed a tracked file; see the job log." : "";
+            const body = `pstack-verifier: ${verdict}\n\n${detail}${note}\n\n${facts}`;
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            if (verdict === "FAIL") core.setFailed("pstack-verifier: FAIL");
+            if (completed && headState !== "passed") core.setFailed(`Head proof is ${headState}, not passed`);
+            if (dirty) core.setFailed("The verifier changed a tracked file");

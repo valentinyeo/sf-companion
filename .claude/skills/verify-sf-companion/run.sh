@@ -1,11 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ $# -gt 1 || ( $# -eq 1 && "$1" != --live ) ]]; then
-  echo "Usage: $0 [--live]" >&2
-  exit 2
-fi
+live=
+journeys=
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --live) live=--live ;;
+    --journeys=?*) journeys=${1#--journeys=} ;;
+    *) echo 'Usage: $0 [--live] [--journeys=a,b]' >&2; exit 2 ;;
+  esac
+  shift
+done
 skill=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo=$(cd "$skill/../../.." && pwd)
+if [[ ",$journeys," == *,access-anonymous,* && -z $live ]]; then
+  echo 'The access-anonymous journey needs --live' >&2
+  exit 2
+fi
+if [[ -n $journeys ]]; then
+  known=$(sed -n 's/^- `\([a-z0-9][a-z0-9-]*\)`.*/\1/p' "$skill"/features/*.md | sort -u)
+  IFS=, read -r -a requested <<< "$journeys"
+  for journey in "${requested[@]}"; do
+    if ! grep -qxF -- "$journey" <<< "$known"; then
+      echo "Unknown journey: $journey" >&2
+      echo "Known journeys: $(tr '\n' ' ' <<< "$known")" >&2
+      exit 2
+    fi
+  done
+fi
 if [[ -n ${PROOF_DIR:-} ]]; then
   [[ "$PROOF_DIR" = /* ]] || { echo 'PROOF_DIR must be absolute' >&2; exit 2; }
   mkdir -- "$PROOF_DIR"
@@ -41,7 +62,10 @@ cp -R "$skill" "$PROOF_DIR/skill"
 (cd "$scratch/site" && pnpm install --frozen-lockfile --ignore-scripts) > "$PROOF_DIR/install.log" 2>&1
 pnpm --dir "$scratch/tools" add --save-exact --ignore-scripts playwright@1.65.1 > "$PROOF_DIR/tools.log" 2>&1
 pnpm --dir "$scratch/tools" exec playwright install chromium >> "$PROOF_DIR/tools.log" 2>&1
-node "$skill/verify.mjs" "$scratch/site" "$scratch/tools/node_modules/playwright/index.mjs" "${1:-}" &
+options=()
+[[ -n $live ]] && options+=("$live")
+[[ -n $journeys ]] && options+=("--journeys=$journeys")
+node "$skill/verify.mjs" "$scratch/site" "$scratch/tools/node_modules/playwright/index.mjs" "${options[@]}" &
 runner=$!
 wait "$runner"
 runner=

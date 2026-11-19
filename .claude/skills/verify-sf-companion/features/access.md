@@ -6,6 +6,8 @@ Anonymous visitors to the deployed Factory page are sent to Cloudflare Access be
 
 - `access-anonymous` redirects an unauthenticated request to Access login.
 
+Code paths: apps/web/src/website.ts, apps/web/src/entry.server.ts
+
 ## How to get to it (user POV)
 
 - Open `https://yeoux.net/factory/` in a browser without an authenticated session.

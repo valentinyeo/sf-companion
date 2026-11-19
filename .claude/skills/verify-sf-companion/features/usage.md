@@ -9,6 +9,8 @@ Usage buttons change the burn window without changing factory output readings. D
 - `usage-kpi-fixed` preserves each KPI's own measurement window.
 - `usage-details` expands Windows and Measurement details.
 
+Code paths: apps/web/src/features/factory.ts, apps/web/src/client/app/model.ts, apps/web/src/client/app/message.ts, apps/web/src/client/app/update.ts
+
 ## How to get to it (user POV)
 
 - Open Factory with a feed present.
