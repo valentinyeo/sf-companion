@@ -98,6 +98,10 @@ def check_nightly(folder):
         errors.append(
             f"{NIGHTLY} never sets `cancel-in-progress: true`. A superseded nightly then keeps a runner busy and its files upload beside the newer proof. Fix: add `concurrency` with `cancel-in-progress: true`."
         )
+    if "--journeys=" in source:
+        errors.append(
+            f"{NIGHTLY} narrows its run with `--journeys`. A nightly that drives a subset leaves the journeys it dropped driven by nobody, and the map then claims coverage no run checks. Fix: run `.claude/skills/verify-sf-companion/run.sh --live` with no journey selector."
+        )
     if "actions/upload-artifact" not in source:
         errors.append(
             f"{NIGHTLY} uploads no proof. A failed case then leaves nothing to read, and the run only says something broke. Fix: upload the `PROOF_DIR` directory with `actions/upload-artifact` and `if: always()`."
