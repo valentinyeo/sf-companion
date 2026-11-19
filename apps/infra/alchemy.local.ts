@@ -1,6 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import { localState } from "alchemy/State";
+import { Redacted } from "effect";
 import * as Effect from "effect/Effect";
 
 const allowedEmail = process.env.SF_ACCESS_EMAIL;
@@ -13,10 +14,16 @@ if (allowedEmail === undefined || allowedEmail === "") {
 
 const serviceTokenId = process.env.SF_ACCESS_SERVICE_TOKEN_ID;
 
-const factoryPageRoutesOnYeouxNetBesideYeouxSiteAstroAssets = [
-  { pattern: "yeoux.net/factory*", zoneName: "yeoux.net" },
-  { pattern: "yeoux.net/assets/*", zoneName: "yeoux.net" },
-];
+const shareToken = process.env.SF_SHARE_TOKEN;
+
+const allOfYeouxNet = [{ pattern: "yeoux.net/*", zoneName: "yeoux.net" }];
+
+const content = Cloudflare.R2.Bucket.lookup({ name: "yeoux-site-content" });
+
+const shareBindings =
+  shareToken === undefined || shareToken === ""
+    ? { CONTENT: content }
+    : { CONTENT: content, SHARE_TOKEN: Redacted.make(shareToken) };
 
 const excludeListThatAlsoRebuildsOnGitignoredHourlyFeed = [
   "**/node_modules/**",
@@ -26,7 +33,8 @@ const excludeListThatAlsoRebuildsOnGitignoredHourlyFeed = [
 class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   name: "sf-companion",
   rootDir: "../web",
-  routes: factoryPageRoutesOnYeouxNetBesideYeouxSiteAstroAssets,
+  routes: allOfYeouxNet,
+  env: shareBindings,
   memo: {
     include: [
       "src/**",

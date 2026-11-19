@@ -4,6 +4,15 @@ import { defineConfig } from "vite";
 import { stylexPlugin } from "./stylex.js";
 
 export default defineConfig({
+  environments: {
+    ssr: {
+      build: {
+        rolldownOptions: {
+          external: ["cloudflare:workers"],
+        },
+      },
+    },
+  },
   plugins: [
     stylexPlugin(),
     foldkit({

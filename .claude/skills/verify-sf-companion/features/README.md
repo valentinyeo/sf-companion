@@ -1,9 +1,12 @@
 # Companion verification map
 
-Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json`, through the same build-time feed file as production.
+Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json` for the factory feed and `../fixture-hub/` for the hub content store, through the same files production reads.
 
 ## Features
 
+- [Home](home.md) covers the hub front page, both sections, and an empty hub.
+- [Explorations](explorations.md) covers the explorations index and one stored item.
+- [Reports](reports.md) covers the reports index and one stored report.
 - [Factory readings and empty state](factory.md) covers navigation, plan readings, KPI provenance, and a missing feed.
 - [Usage windows and details](usage.md) covers every window button, changed burn readings, fixed KPI readings, and disclosures.
 - [Anonymous access gate](access.md) covers the optional live Cloudflare Access redirect.
@@ -12,4 +15,4 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 
 Require successful builds and eight passing browser cases in `result.json`. Every browser case saves its actions, dimensions, ARIA snapshot, and screenshot. Any console error, uncaught browser error, failed local response, or horizontal overflow fails verification. Failed runs retain partial evidence and return a nonzero exit code. Do not call skipped checks verified.
 
-The app also has Home, Explorations, Reports, and entry reader routes. This initial map covers the factory goal. It does not claim entry content, Copy link, authenticated production access, or deployed build parity.
+The map covers Home, Explorations, Reports, and Factory. Stored items are served as the bytes kept in the content store, so the map does not claim site-styled item pages, authenticated production access, or deployed build parity.

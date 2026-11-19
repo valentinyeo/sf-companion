@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -13,6 +13,7 @@ const { chromium, request } = await import(
 );
 const proof = process.env.PROOF_DIR;
 const fixture = fileURLToPath(new URL("./fixture.json", import.meta.url));
+const fixtureHub = fileURLToPath(new URL("./fixture-hub", import.meta.url));
 const result = { status: "running", cases: [], live: "skipped" };
 const children = new Set();
 
@@ -236,6 +237,7 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         "missing feed shows explicit empty state, not measured zeroes"
       );
     }
+    await driveHub(page, state, record, id);
     await page.screenshot({ path: join(proof, `${id}.png`), fullPage: true });
     await writeFile(
       join(proof, `${id}.aria.txt`),
@@ -253,6 +255,73 @@ async function drive(browser, state, width, colorScheme, baseURL) {
   } finally {
     await context.close();
     await writeFile(join(proof, `${id}.json`), JSON.stringify(entry, null, 2));
+  }
+}
+
+async function driveHub(page, state, record, id) {
+  await page.goto("/", { waitUntil: "networkidle" });
+  await page
+    .getByRole("heading", { name: "Software Factory Companion", exact: true })
+    .waitFor();
+  await page
+    .getByRole("heading", { name: "Explorations", exact: true })
+    .waitFor();
+  await page.getByRole("heading", { name: "Reports", exact: true }).waitFor();
+  await record("hub: open home and see both sections");
+  if (state === "seeded") {
+    await page
+      .getByRole("link", { name: "Client pricing review", exact: true })
+      .waitFor();
+    await page
+      .getByRole("link", { name: "Motion study", exact: true })
+      .waitFor();
+    await page.getByRole("link", { name: "All 2", exact: true }).waitFor();
+    await page.screenshot({
+      path: join(proof, `hub-home-${id}.png`),
+      fullPage: true,
+    });
+    await page
+      .getByRole("navigation", { name: "Primary navigation" })
+      .getByRole("link", { name: "Reports", exact: true })
+      .click();
+    await page.getByRole("heading", { name: "Reports", exact: true }).waitFor();
+    await page.getByText("2 items.", { exact: false }).waitFor();
+    await page.getByText("ezyfit · 2026-10-30", { exact: true }).waitFor();
+    await page.getByText("yeo-ux · 2026-11-12", { exact: true }).waitFor();
+    await record(
+      "hub: reports index lists both report rows with project and date"
+    );
+    await page.screenshot({
+      path: join(proof, `hub-${id}.png`),
+      fullPage: true,
+    });
+    const item = await page.goto("/reports/4b7c1d2e-client-pricing.html", {
+      waitUntil: "networkidle",
+    });
+    assert.equal(item.status(), 200);
+    await page
+      .getByText("Fixture client pricing body.", { exact: true })
+      .waitFor();
+    await record("hub: open one report and read the stored artefact body");
+    await page.goto("/explorations", { waitUntil: "networkidle" });
+    await page.getByText("1 items.", { exact: false }).waitFor();
+    await page
+      .getByRole("link", { name: "Motion study", exact: true })
+      .waitFor();
+    assert.equal(
+      await page
+        .getByRole("link", { name: "Retainer summary", exact: true })
+        .count(),
+      0
+    );
+    await record("hub: explorations index keeps reports off its list");
+  } else {
+    await page.getByText("No explorations yet.", { exact: true }).waitFor();
+    await page.getByText("No reports yet.", { exact: true }).waitFor();
+    await page.goto("/reports", { waitUntil: "networkidle" });
+    await page.getByText("0 items.", { exact: false }).waitFor();
+    await page.getByText("No reports yet.", { exact: true }).waitFor();
+    await record("hub: empty hub says so instead of inventing entries");
   }
 }
 
@@ -278,9 +347,15 @@ try {
   browser = await chromium.launch();
   for (const state of ["seeded", "empty"]) {
     const feed = join(site, "apps/web/content/feed/factory.json");
+    const hub = join(site, "apps/web/content/hub");
     await mkdir(join(site, "apps/web/content/feed"), { recursive: true });
-    if (state === "seeded") await copyFile(fixture, feed);
-    else await rm(feed);
+    await rm(hub, { recursive: true, force: true });
+    if (state === "seeded") {
+      await copyFile(fixture, feed);
+      await cp(fixtureHub, hub, { recursive: true });
+    } else {
+      await rm(feed);
+    }
     const build = start(
       ["--filter", "@sf-companion/web", "build"],
       `${state}-build.log`
