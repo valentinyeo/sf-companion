@@ -1,6 +1,6 @@
 # Companion verification map
 
-Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json`, through the same build-time feed file as production.
+Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json`, through the same build-time feed file as production. Every sub-feature id is a journey id: `run.sh --journeys=<ids>` drives only those journeys. Each feature file lists the source files it covers on its `Code paths:` line, so a diff selects its journeys.
 
 ## Features
 
@@ -10,6 +10,6 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 
 ## Proof rules
 
-Require successful builds and eight passing browser cases in `result.json`. Every browser case saves its actions, dimensions, ARIA snapshot, and screenshot. Any console error, uncaught browser error, failed local response, or horizontal overflow fails verification. Failed runs retain partial evidence and return a nonzero exit code. Do not call skipped checks verified.
+Require successful builds and eight passing browser cases in `result.json` for a full run. A scoped run passes only the cases its journeys drive. Every browser case saves its actions, dimensions, ARIA snapshot, and screenshot. Any console error, uncaught browser error, failed local response, or horizontal overflow fails verification. Failed runs retain partial evidence and return a nonzero exit code. Do not call skipped checks verified.
 
 The app also has Home, Explorations, Reports, and entry reader routes. This initial map covers the factory goal. It does not claim entry content, Copy link, authenticated production access, or deployed build parity.

@@ -7,13 +7,45 @@ import { createServer } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const [site, playwrightModule, live] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const positional = args.filter((value) => !value.startsWith("--"));
+const [site, playwrightModule] = positional;
+const live = args.includes("--live");
+const journeysArgument = args.find((value) => value.startsWith("--journeys="));
+const journeys =
+  journeysArgument === undefined
+    ? []
+    : journeysArgument.slice("--journeys=".length).split(",").filter(Boolean);
+const selected = new Set(journeys);
+const allJourneys = selected.size === 0;
+const wants = (journey) => allJourneys || selected.has(journey);
+const seededJourneys = [
+  "factory-entry",
+  "factory-layout",
+  "factory-readings",
+  "factory-shipping",
+  "usage-window",
+  "usage-burn",
+  "usage-kpi-fixed",
+  "usage-details",
+];
+const runSeeded = seededJourneys.some(wants);
+const runEmpty = wants("factory-empty");
+const runWindows = ["usage-window", "usage-burn", "usage-kpi-fixed"].some(
+  wants
+);
+const runLive = wants("access-anonymous");
 const { chromium, request } = await import(
   pathToFileURL(playwrightModule).href
 );
 const proof = process.env.PROOF_DIR;
 const fixture = fileURLToPath(new URL("./fixture.json", import.meta.url));
-const result = { status: "running", cases: [], live: "skipped" };
+const result = {
+  status: "running",
+  cases: [],
+  live: "skipped",
+  journeys: allJourneys ? "all" : [...selected].sort(),
+};
 const children = new Set();
 
 function start(args, logName) {
@@ -139,82 +171,104 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       colorScheme === "dark"
     );
     await record("doctor: load /factory and confirm app identity");
-    await page
-      .getByRole("link", { name: "Software Factory Companion", exact: true })
-      .click();
-    await page
-      .getByRole("heading", { name: "Software Factory Companion", exact: true })
-      .waitFor();
-    await page
-      .getByRole("navigation", { name: "Primary navigation" })
-      .getByRole("link", { name: "Factory", exact: true })
-      .click();
-    await page.getByRole("heading", { name: "Factory", exact: true }).waitFor();
-    await record("navigate home, then choose Factory in primary navigation");
+    if (wants("factory-entry")) {
+      await page
+        .getByRole("link", { name: "Software Factory Companion", exact: true })
+        .click();
+      await page
+        .getByRole("heading", {
+          name: "Software Factory Companion",
+          exact: true,
+        })
+        .waitFor();
+      await page
+        .getByRole("navigation", { name: "Primary navigation" })
+        .getByRole("link", { name: "Factory", exact: true })
+        .click();
+      await page
+        .getByRole("heading", { name: "Factory", exact: true })
+        .waitFor();
+      await record("navigate home, then choose Factory in primary navigation");
+    }
     if (state === "seeded") {
-      await page
-        .getByRole("heading", { name: "Fixture Plan", exact: true })
-        .waitFor();
-      await page
-        .getByText("Numbers from 2026-11-15 00:41 UTC", { exact: true })
-        .waitFor();
-      await page.getByText("29 / day · 87 / week", { exact: true }).waitFor();
-      await page
-        .getByText("+2% · £0.00 in 1h on runners", { exact: true })
-        .waitFor();
-      await page.screenshot({
-        path: join(proof, `${id}-before.png`),
-        fullPage: true,
-      });
-      for (const window of ["3h", "6h", "12h", "24h", "7d", "30d", "1h"]) {
-        const button = page
-          .getByRole("group", { name: "Usage window" })
-          .getByRole("button", { name: window, exact: true });
-        await button.click();
+      if (wants("factory-readings")) {
         await page
-          .locator(`button[aria-pressed="true"]`)
-          .filter({ hasText: new RegExp(`^${window}$`, "u") })
+          .getByRole("heading", { name: "Fixture Plan", exact: true })
           .waitFor();
-        if (window === "7d")
-          await page
-            .getByText("+14% · £7.00 in 7d on runners", { exact: true })
-            .waitFor();
+        await page
+          .getByText("Numbers from 2026-11-15 00:41 UTC", { exact: true })
+          .waitFor();
         await page.getByText("29 / day · 87 / week", { exact: true }).waitFor();
-        await record(
-          `choose ${window}; selected window changes, KPI stays fixed`
-        );
+        await page
+          .getByText("+2% · £0.00 in 1h on runners", { exact: true })
+          .waitFor();
       }
-      await page.getByText("Windows", { exact: true }).click();
-      await page
-        .getByText("Weekly 67%", { exact: true })
-        .waitFor({ state: "visible" });
-      await record("open Windows and read Weekly 67%");
-      await page.getByText("Measurement details", { exact: true }).click();
-      await page
-        .getByText("Synthetic third measurement detail", { exact: true })
-        .waitFor({ state: "visible" });
-      await record("open Measurement details and read third detail");
-      await page
-        .getByRole("heading", { name: "PRs shipped vs plan burn", exact: true })
-        .waitFor();
-      const chart = page.getByRole("region", {
-        name: "Daily shipping and burn chart",
-      });
-      await chart
-        .getByRole("rowheader", { name: "2026-11-15", exact: true })
-        .waitFor();
-      await chart
-        .getByRole("rowheader", { name: "2026-11-14", exact: true })
-        .waitFor();
-      const newest = chart.getByRole("row").filter({
-        has: page.getByRole("rowheader", { name: "2026-11-15", exact: true }),
-      });
-      await newest.getByText("2 PRs", { exact: true }).click();
-      await newest
-        .getByText("GitHub search · fleet mergedAt", { exact: true })
-        .waitFor();
-      await record("expand one shipping source inside the chart");
-    } else {
+      if (runWindows || wants("factory-readings")) {
+        await page.screenshot({
+          path: join(proof, `${id}-before.png`),
+          fullPage: true,
+        });
+      }
+      if (runWindows) {
+        for (const window of ["3h", "6h", "12h", "24h", "7d", "30d", "1h"]) {
+          const button = page
+            .getByRole("group", { name: "Usage window" })
+            .getByRole("button", { name: window, exact: true });
+          await button.click();
+          await page
+            .locator(`button[aria-pressed="true"]`)
+            .filter({ hasText: new RegExp(`^${window}$`, "u") })
+            .waitFor();
+          if (window === "7d")
+            await page
+              .getByText("+14% · £7.00 in 7d on runners", { exact: true })
+              .waitFor();
+          await page
+            .getByText("29 / day · 87 / week", { exact: true })
+            .waitFor();
+          await record(
+            `choose ${window}; selected window changes, KPI stays fixed`
+          );
+        }
+      }
+      if (wants("usage-details")) {
+        await page.getByText("Windows", { exact: true }).click();
+        await page
+          .getByText("Weekly 67%", { exact: true })
+          .waitFor({ state: "visible" });
+        await record("open Windows and read Weekly 67%");
+        await page.getByText("Measurement details", { exact: true }).click();
+        await page
+          .getByText("Synthetic third measurement detail", { exact: true })
+          .waitFor({ state: "visible" });
+        await record("open Measurement details and read third detail");
+      }
+      if (wants("factory-shipping")) {
+        await page
+          .getByRole("heading", {
+            name: "PRs shipped vs plan burn",
+            exact: true,
+          })
+          .waitFor();
+        const chart = page.getByRole("region", {
+          name: "Daily shipping and burn chart",
+        });
+        await chart
+          .getByRole("rowheader", { name: "2026-11-15", exact: true })
+          .waitFor();
+        await chart
+          .getByRole("rowheader", { name: "2026-11-14", exact: true })
+          .waitFor();
+        const newest = chart.getByRole("row").filter({
+          has: page.getByRole("rowheader", { name: "2026-11-15", exact: true }),
+        });
+        await newest.getByText("2 PRs", { exact: true }).click();
+        await newest
+          .getByText("GitHub search · fleet mergedAt", { exact: true })
+          .waitFor();
+        await record("expand one shipping source inside the chart");
+      }
+    } else if (wants("factory-empty")) {
       await page
         .getByText("No factory numbers yet.", { exact: true })
         .waitFor();
@@ -277,10 +331,11 @@ try {
   ).trim();
   browser = await chromium.launch();
   for (const state of ["seeded", "empty"]) {
+    if (state === "seeded" ? !runSeeded : !runEmpty) continue;
     const feed = join(site, "apps/web/content/feed/factory.json");
     await mkdir(join(site, "apps/web/content/feed"), { recursive: true });
     if (state === "seeded") await copyFile(fixture, feed);
-    else await rm(feed);
+    else await rm(feed, { force: true });
     const build = start(
       ["--filter", "@sf-companion/web", "build"],
       `${state}-build.log`
@@ -328,7 +383,7 @@ export default mergeConfig(config, {
       await stop(dev);
     }
   }
-  if (live === "--live") {
+  if (live && runLive) {
     const context = await request.newContext();
     try {
       const response = await context.get("https://yeoux.net/factory/", {
