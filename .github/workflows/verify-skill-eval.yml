@@ -1,6 +1,8 @@
 name: Verify-skill eval
 
 on:
+  push:
+    branches: [eval/planted-bug]
   schedule:
     - cron: "43 4 * * 1"
   workflow_dispatch:
@@ -14,7 +16,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
