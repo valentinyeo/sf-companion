@@ -84,11 +84,13 @@ const seededFactoryJourneys = [
 ];
 const seededHubJourneys = [
   "explorations-index",
+  "explorations-index-trailing-slash",
   "explorations-item",
   "explorations-scope",
   "home-links",
   "home-sections",
   "reports-index",
+  "reports-index-trailing-slash",
   "reports-item",
   "reports-scope",
   "items-serve",
@@ -900,6 +902,25 @@ async function driveItems(page, record, id) {
       "items-invalid"
     );
   }
+  if (wants("items-invalid-slug")) {
+    for (const path of ["/reports/a/b", "/reports/%24"]) {
+      const rejected = await page.request.get(path);
+      assert.equal(
+        rejected.status(),
+        400,
+        `${id}: ${path} answered ${rejected.status()}, not 400`
+      );
+      assert.deepEqual(
+        await rejected.json(),
+        { error: "Invalid slug" },
+        `${id}: ${path} body`
+      );
+    }
+    await record(
+      "items: a slug holding a slash answers 400",
+      "items-invalid-slug"
+    );
+  }
 }
 
 async function driveHub(page, state, record, id) {
@@ -1032,6 +1053,29 @@ async function driveHub(page, state, record, id) {
         "reports-index"
       );
     }
+    if (wants("reports-index-trailing-slash")) {
+      const trailing = await page.request.get("/reports/");
+      assert.equal(
+        trailing.status(),
+        200,
+        `${id}: /reports/ answered ${trailing.status()}, not the index`
+      );
+      const body = await trailing.text();
+      assert.match(
+        body,
+        /10 items\./u,
+        `${id}: /reports/ served no reports index`
+      );
+      assert.match(
+        body,
+        /Client pricing review/u,
+        `${id}: /reports/ served no reports index`
+      );
+      await record(
+        "hub: the reports index keeps its trailing slash",
+        "reports-index-trailing-slash"
+      );
+    }
     if (wants("reports-scope")) {
       if (!wants("reports-index")) {
         await page.goto("/reports", { waitUntil: "networkidle" });
@@ -1084,6 +1128,29 @@ async function driveHub(page, state, record, id) {
       await record(
         "hub: explorations index lists every note with its date",
         "explorations-index"
+      );
+    }
+    if (wants("explorations-index-trailing-slash")) {
+      const trailing = await page.request.get("/explorations/");
+      assert.equal(
+        trailing.status(),
+        200,
+        `${id}: /explorations/ answered ${trailing.status()}, not the index`
+      );
+      const body = await trailing.text();
+      assert.match(
+        body,
+        /10 items\./u,
+        `${id}: /explorations/ served no explorations index`
+      );
+      assert.match(
+        body,
+        /Motion study/u,
+        `${id}: /explorations/ served no explorations index`
+      );
+      await record(
+        "hub: the explorations index keeps its trailing slash",
+        "explorations-index-trailing-slash"
       );
     }
     if (wants("explorations-scope")) {

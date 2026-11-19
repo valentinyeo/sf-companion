@@ -9,6 +9,7 @@ Code paths: apps/web/src/content/hub.ts, apps/web/src/content/item.ts, apps/web/
 ## Sub-features
 
 - `reports-index` lists every report with its project and date.
+- `reports-index-trailing-slash` serves the same index at `/reports/` with the trailing slash.
 - `reports-item` opens one stored report from its index row.
 - `reports-scope` keeps exploration items off the index.
 
@@ -25,6 +26,7 @@ Preconditions:
 - Run `../run.sh`. `fixture-hub/` supplies ten reports and ten explorations.
 
 - Index. Choose Reports in Primary navigation. Require the `Reports` heading and `10 items.`, plus the rows `yeo-ux · 2026-11-12` and `ezyfit · 2026-10-30`.
+- Trailing slash. `GET /reports/` must answer 200 with the `Reports` heading and `10 items.`, not a 400.
 - Item. Choose the `Client pricing review` row. Require `Fixture client pricing body.` at HTTP 200 and no site navigation. Save `hub-report-item-<case>.png` and `hub-report-item-<case>.aria.txt`.
 - Scope. Require no `Motion study` link on the index.
 - Empty. In the empty launch, require `No reports yet.` and `0 items.`

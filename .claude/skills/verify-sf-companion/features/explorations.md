@@ -9,6 +9,7 @@ Code paths: apps/web/src/content/hub.ts, apps/web/src/content/item.ts, apps/web/
 ## Sub-features
 
 - `explorations-index` lists every exploration with its project and date.
+- `explorations-index-trailing-slash` serves the same index at `/explorations/` with the trailing slash.
 - `explorations-item` opens one stored exploration from its index row.
 - `explorations-scope` keeps report items off the index.
 
@@ -25,6 +26,7 @@ Preconditions:
 - Run `../run.sh`. `fixture-hub/` supplies ten explorations and ten reports.
 
 - Index. Choose Explorations in Primary navigation. Require the `Explorations` heading, `10 items.`, and the row `Motion study` with `2026-11-05`.
+- Trailing slash. `GET /explorations/` must answer 200 with the `Explorations` heading and `10 items.`, not a 400.
 - Item. Choose the `Motion study` row. Require `Fixture motion body.` at HTTP 200 and no site navigation. Save `hub-exploration-item-<case>.png` and `hub-exploration-item-<case>.aria.txt`.
 - Scope. Require no `Client pricing review` and no `Retainer summary` link on the index.
 - Empty. In the empty launch, require `No explorations yet.` and `0 items.`
