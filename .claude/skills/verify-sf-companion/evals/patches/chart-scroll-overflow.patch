@@ -1,0 +1,12 @@
+diff --git a/apps/web/src/features/factory.stylex.ts b/apps/web/src/features/factory.stylex.ts
+index 3a746e9..e700705 100644
+--- a/apps/web/src/features/factory.stylex.ts
++++ b/apps/web/src/features/factory.stylex.ts
+@@ -37,7 +37,6 @@ export const factoryStyles = stylex.create({
+   chartRow: { display: "table-row" },
+   chartScroll: {
+     maxWidth: "100%",
+-    overflowX: "auto",
+   },
+   chartTable: {
+     display: "table",

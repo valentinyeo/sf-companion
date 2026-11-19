@@ -1,0 +1,16 @@
+diff --git a/apps/web/src/features/factory.ts b/apps/web/src/features/factory.ts
+index 3fb3b41..389d9fa 100644
+--- a/apps/web/src/features/factory.ts
++++ b/apps/web/src/features/factory.ts
+@@ -299,7 +299,10 @@ const kpiTileRow = (tile: KpiTileValue, h: HtmlBuilder<AppMessage>): Html =>
+     [h.Key(tile.id), h.Class(classes(factoryStyles.tile))],
+     [
+       h.h3([h.Class(classes(factoryStyles.tileLabel))], [tile.label]),
+-      h.p([h.Class(classes(factoryStyles.tileValue))], [tile.display]),
++      h.p(
++        [h.Class(classes(factoryStyles.tileValue))],
++        [tile.state === null ? "0" : tile.display]
++      ),
+       h.p([h.Class(classes(factoryStyles.small))], [tile.source]),
+       h.p([h.Class(classes(factoryStyles.meta))], [tile.window]),
+       ...tile.details

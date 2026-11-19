@@ -1,0 +1,18 @@
+diff --git a/apps/web/src/features/page.ts b/apps/web/src/features/page.ts
+index b3987c7..9269028 100644
+--- a/apps/web/src/features/page.ts
++++ b/apps/web/src/features/page.ts
+@@ -79,7 +79,12 @@ const itemRow = (item: ItemValue, h: HtmlBuilder<AppMessage>): Html =>
+       h.a(
+         [
+           h.Class(className(hubStyles.title)),
+-          h.Href(entryPath(item.section, item.slug)),
++          h.Href(
++            entryPath(
++              item.section,
++              item.section === "reports" ? item.slug.slice(0, -5) : item.slug
++            )
++          ),
+         ],
+         [item.title]
+       ),
