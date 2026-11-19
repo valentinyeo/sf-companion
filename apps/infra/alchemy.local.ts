@@ -16,14 +16,26 @@ const serviceTokenId = process.env.SF_ACCESS_SERVICE_TOKEN_ID;
 
 const shareToken = process.env.SF_SHARE_TOKEN;
 
-const allOfYeouxNet = [{ pattern: "yeoux.net/*", zoneName: "yeoux.net" }];
+if (shareToken === undefined || shareToken === "") {
+  throw new Error(
+    "Set SF_SHARE_TOKEN to the yeoshare upload token, or publishing breaks."
+  );
+}
+
+const hubRoutes = [
+  "yeoux.net/",
+  "yeoux.net/explorations*",
+  "yeoux.net/reports*",
+  "yeoux.net/factory*",
+  "yeoux.net/assets/*",
+].map((pattern) => ({ pattern, zoneName: "yeoux.net" }));
 
 const content = Cloudflare.R2.Bucket.lookup({ name: "yeoux-site-content" });
 
-const shareBindings =
-  shareToken === undefined || shareToken === ""
-    ? { CONTENT: content }
-    : { CONTENT: content, SHARE_TOKEN: Redacted.make(shareToken) };
+const shareBindings = {
+  CONTENT: content,
+  SHARE_TOKEN: Redacted.make(shareToken),
+};
 
 const excludeListThatAlsoRebuildsOnGitignoredHourlyFeed = [
   "**/node_modules/**",
@@ -33,7 +45,7 @@ const excludeListThatAlsoRebuildsOnGitignoredHourlyFeed = [
 class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   name: "sf-companion",
   rootDir: "../web",
-  routes: allOfYeouxNet,
+  routes: hubRoutes,
   env: shareBindings,
   memo: {
     include: [
