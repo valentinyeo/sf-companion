@@ -11,6 +11,7 @@ PULL_TRIGGERS = {"pull_request", "pull_request_target"}
 TRIGGER = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_-]*):")
 INLINE = re.compile(r"^on:\s*(.+?)\s*$")
 INLINE_VALUE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+QUOTING = re.compile(r"[\"'\\]")
 
 
 def inline_triggers(value):
@@ -98,9 +99,9 @@ def check_nightly(folder):
         errors.append(
             f"{NIGHTLY} never sets `cancel-in-progress: true`. A superseded nightly then keeps a runner busy and its files upload beside the newer proof. Fix: add `concurrency` with `cancel-in-progress: true`."
         )
-    if "--journeys=" in source:
+    if "--journeys" in QUOTING.sub("", source):
         errors.append(
-            f"{NIGHTLY} narrows its run with `--journeys`. A nightly that drives a subset leaves the journeys it dropped driven by nobody, and the map then claims coverage no run checks. Fix: run `.claude/skills/verify-sf-companion/run.sh --live` with no journey selector."
+            f"{NIGHTLY} narrows its run with `--journeys`, quoted or not. A nightly that drives a subset leaves the journeys it dropped driven by nobody, and the map then claims coverage no run checks. Fix: run `.claude/skills/verify-sf-companion/run.sh --live` with no journey selector."
         )
     if "actions/upload-artifact" not in source:
         errors.append(
