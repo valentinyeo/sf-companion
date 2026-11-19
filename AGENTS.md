@@ -153,6 +153,70 @@ Why lives in `AGENTS.md` / `VISION.md`. The stack and hooks are the enforceable 
 
 If a hook fails, fix the failure. Do not disable the fence.
 
+## Rule table
+
+Every hard rule this repo runs is a row here, and every row names the check that fails when the rule breaks. `scripts/check-rule-table` reads this section, resolves each named check, and fails when one is missing. The sections above keep the reason and the shape; guidance that no run can fail, such as test design, naming, and review judgement, is guidance rather than a rule and does not appear here.
+
+### The gate
+
+| Rule | Enforced by | Where it runs |
+| --- | --- | --- |
+| The commit gate runs `pnpm check` and `pnpm test` | `pnpm:check`, `pnpm:test` | Lefthook pre-commit, CI job `checks` |
+| The lockfile matches every manifest | `pnpm:lockfile:check` | `pnpm check`, lefthook, CI |
+| Every env var is declared in `.env.schema` | `pnpm:env:check` | `pnpm check`, lefthook, CI |
+| TypeScript errors and Effect errors and warnings fail the run | `pnpm:typecheck` | `pnpm check`, lefthook, CI |
+| Formatting is Oxfmt's | `pnpm:lint` | `pnpm check`, lefthook, CI |
+| Dependencies are pinned to one exact version | `script:scripts/check-exact-pins` | `pnpm check`, CI |
+| No commit skips the hooks (`--no-verify`, `git commit -n`, `LEFTHOOK=0`, `core.hooksPath`) | `test:scripts/rules.test.ts` | `pnpm test`, CI, the Pi, Cursor, and Claude Code hooks that call the policy |
+| A numbers-only feed refresh rebuilds the site | `script:scripts/check-feed-rebuilds.sh` | CI job `checks` |
+
+### Code bans
+
+| Rule | Enforced by | Where it runs |
+| --- | --- | --- |
+| No comments in code | `lint:no-comments/no-comments` | `pnpm check`, lefthook, CI |
+| Every tool directive carries its reason after `--` | `lint:no-comments/directive-reason` | `pnpm check`, lefthook, CI |
+| Tests drive Effects through `it.effect` and `it.layer`, never `Effect.run*` | `lint:effect-tests/no-manual-effect-runtime-in-tests` | `pnpm check`, CI |
+| Every type assertion carries a one-line `SAFETY:` invariant | `lint:anti-slop/require-safety-comment-for-type-assertion` | `pnpm check`, CI |
+| Values are parsed at their boundary, never widened and then asserted | `lint:anti-slop/no-widen-then-assert` | `pnpm check`, CI |
+| Hot pink marks the focus ring and copy controls, nothing else | `test:scripts/rules.test.ts` | `pnpm test`, CI |
+
+### Architecture bans
+
+| Rule | Enforced by | Where it runs |
+| --- | --- | --- |
+| One contract, every surface: no hand-rolled `Rpc`, `HttpApi`, `Tool`, or `Toolkit` | `lint:rat-stack-boundaries/no-hand-rolled-surface` | `pnpm check`, CI |
+| Dependency direction: `apps/cli` → `packages/core` → `packages/capability` → Effect and XState | `lint:rat-stack-boundaries/no-cross-layer-imports` | `pnpm check`, CI |
+| Provider adapters stay out of core | `lint:rat-stack-boundaries/no-core-adapters` | `pnpm check`, CI |
+| Browser modules import contracts, never handler modules | `lint:rat-stack-boundaries/no-browser-server-imports` | `pnpm check`, CI |
+| Features never reach transport | `lint:rat-stack-boundaries/no-feature-transport` | `pnpm check`, CI |
+| Server code holds no browser globals | `lint:rat-stack-boundaries/no-browser-globals-on-server` | `pnpm check`, CI |
+| Devtools stay out of production | `lint:rat-stack-boundaries/no-devtools-in-production` | `pnpm check`, CI |
+| Code snippets and Shiki stay build-only | `lint:rat-stack-boundaries/no-code-snippets-in-runtime` | `pnpm check`, CI |
+| A contract binding is named after its contract | `lint:rat-stack-patterns/contract-binding-matches-name` | `pnpm check`, CI |
+| No module-level mutable state in runtime source | `lint:rat-stack-patterns/no-module-level-mutable-state` | `pnpm check`, CI |
+| Pools and connections are built inside the acquire body | `lint:rat-stack-patterns/acquire-release-constructs-in-acquire-body` | `pnpm check`, CI |
+| Machines report through `watchActor` | `lint:rat-stack-patterns/watch-effect-actors` | `pnpm check`, CI |
+| Hex comes from `effect/encoding`, never `toString(16)` and `padStart` | `lint:rat-stack-patterns/no-hand-rolled-hex` | `pnpm check`, CI |
+
+### App rules
+
+| Rule | Enforced by | Where it runs |
+| --- | --- | --- |
+| Entry and feed files decode against their Effect Schema, or the page and the build fail | `test:apps/web/test/pages.test.ts` | `pnpm test`, CI |
+| The factory exporter owns every display string; the view prints it and decides nothing | `test:apps/web/test/factory.test.ts` | `pnpm test`, CI |
+| No Tailwind, UI kits, or chart libraries in the web app | `test:scripts/rules.test.ts` | `pnpm test`, CI |
+
+## Emergency: revert first
+
+A bad change on `main` is reverted before anyone diagnoses it.
+
+1. Revert it now. Branch from `main`, run `git revert <sha>` on the offending commit or merge commit, and open a normal pull request that names the incident. The revert is the only change in that PR.
+2. Merge it through the same required check as every other change. A revert buys speed by removing the bad change, not by skipping the gate, and a revert still runs `pnpm check` and `pnpm test` in lefthook and CI.
+3. Fix forward on the normal verified path: a new pull request, the full gate, and the independent verifier. Diagnose after the revert is on `main`, never before it.
+4. No skip lane: no direct push to `main`, no `--no-verify`, no admin merge, no hand-edit of a shared branch, no emergency exception to the fence.
+5. Record it in the revert pull request: the bad commit, what users saw, the check that should have caught it, and the new check that now does.
+
 ## Source-first Effect / XState work
 
 Before writing, reviewing, or refactoring Effect or XState code, read the installed Effect package's `AGENTS.md` first, for example `packages/core/node_modules/effect/AGENTS.md`. It ships with the installed version, so it is never stale. Then inspect vendored source for the pinned versions. Populate mirrors:
@@ -200,8 +264,8 @@ A child project replaces this section on day one with its own product rules. The
 - No comments in code. `no-comments/no-comments` (`scripts/oxlint-plugin-no-comments.ts`) bans them, after Lauren Tan's Dune rule: agents copy comments, and a comment that explains a workaround spreads the workaround. Say it in a name, a type, a test, a commit message, or the Brain. Two kinds survive: tool directives, with the reason inline after `--`, and a one-line `SAFETY:` invariant above a type assertion. TypeScript's `@ts-expect-error`, `@ts-ignore`, and `@ts-nocheck` count as directives here; `typescript/ban-ts-comment` decides which may stay, so write `// @ts-expect-error -- <reason>`. `--fix` deletes prose, so move anything a comment knows into a name, a test, the commit, or the Brain before running it. Plain JS files keep JSDoc blocks made only of type tags (`@param {string} command`), because that is their type syntax; Ultracite's JSDoc description rules are off for the same reason. Credit for borrowed code lives in `PROVENANCE.md`.
 - Diagnostic overrides are targeted and explained: `// @effect-diagnostics-next-line <rule>:off -- <reason>`. File-level overrides exist only at projection boundaries (`packages/capability/src/to-toolkit.ts`, `packages/capability/src/to-code-mode.ts`, `packages/capability/src/to-rpc.ts`) and in process-spawning test files.
 - Lint overrides follow the same rule: `// oxlint-disable-next-line <rule> -- <reason>`. Every type assertion carries a one-line `SAFETY:` comment naming the invariant it relies on. `unicorn/throw-new-error` is off because `Schema.TaggedError(...)` looks like a throw to it. Anti-slop overrides exist only where a type is erased on purpose (the projections in `packages/capability`, the sandbox RPC boundary, the lint plugin's AST walker); anywhere else, parse the value at its boundary with Effect `Schema`.
-- `no-comments/directive-reason` (`scripts/oxlint-plugin-no-comments.ts`) enforces the reason: every `oxlint-disable*` or `eslint-disable*` comment without text after `--` fails lint.
-- Hot pink is the only accent. `--accent` (#ff1493) marks borders, rules and focus rings; `--accent-text` (#c8006e, 5.7:1 on white) is the only pink text. Use it for at most one thing per screen, plus focus. News chrome uses no pink. The allowed selectors cover `:focus-visible` and copy controls; links, headings, tables and tier cells never use it. `apps/site/test/accent.test.ts` holds the allowed selectors.
+- `no-comments/directive-reason` (`scripts/oxlint-plugin-no-comments.ts`) enforces the reason: every `oxlint-disable*`, `eslint-disable*`, `@effect-diagnostics`, `@ts-ignore`, and `@ts-expect-error` comment without text after `--` fails lint.
+- Hot pink is the only accent. `--accent` (#ff1493) marks borders, rules and focus rings; `--accent-text` (#c8006e, 5.7:1 on white) is the only pink text. Use it for at most one thing per screen, plus focus. News chrome uses no pink. The allowed selectors cover `:focus-visible` and copy controls; links, headings, tables and tier cells never use it. `scripts/rules.test.ts` reads the app's styles and fails any selector outside that list that reaches for the accent tokens.
 - Pins stay exact. A vendored dependency carries a matching `minimumReleaseAgeExclude` entry and a removal rule in `vendor/README.md`.
 
 ## Architecture

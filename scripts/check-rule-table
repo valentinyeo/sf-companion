@@ -1,0 +1,297 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+AGENTS = "AGENTS.md"
+OXLINT = "oxlint.config.ts"
+CI = ".github/workflows/ci.yml"
+PACKAGE = "package.json"
+
+RULE_HEADING = "## Rule table"
+EMERGENCY_HEADING = "## Emergency: revert first"
+COLUMNS = ["Rule", "Enforced by", "Where it runs"]
+
+EMERGENCY_REQUIREMENTS = [
+    (re.compile(r"git revert", re.IGNORECASE), "the revert command"),
+    (re.compile(r"pull request", re.IGNORECASE), "the revert lands as a pull request"),
+    (re.compile(r"no skip lane", re.IGNORECASE), "the no skip lane promise"),
+    (re.compile(r"no direct push", re.IGNORECASE), "the ban on pushing to main"),
+    (re.compile(r"normal verified path|same required check", re.IGNORECASE), "the fix following normal verification"),
+]
+
+CHECK_TOKEN = re.compile(r"`([a-z][a-z-]*):([^`]+)`")
+HEADING = re.compile(r"^## ")
+ANY_HEADING = re.compile(r"^#{1,3} ")
+
+
+def read(root, name):
+    path = Path(root) / name
+    if not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8")
+
+
+def section(lines, heading):
+    start = None
+    for index, line in enumerate(lines):
+        if line.strip() == heading:
+            start = index + 1
+            break
+    if start is None:
+        return None
+    body = []
+    for line in lines[start:]:
+        if HEADING.match(line):
+            break
+        body.append(line)
+    return body
+
+
+def cells(row):
+    stripped = row.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return None
+    return [cell.strip() for cell in stripped[1:-1].split("|")]
+
+
+def tables(lines):
+    found = []
+    current = []
+    for line in lines + [""]:
+        row = cells(line)
+        if row is None:
+            if current:
+                found.append(current)
+            current = []
+            continue
+        if all(re.fullmatch(r":?-{2,}:?", cell) for cell in row):
+            continue
+        current.append(row)
+    return found
+
+
+def plugin_paths(root, oxlint_source):
+    sources = {}
+    for name, specifier in re.findall(
+        r"\{\s*name:\s*\"([^\"]+)\",\s*specifier:\s*\"([^\"]+)\"", oxlint_source
+    ):
+        sources[name] = specifier
+    for specifier in re.findall(r"^\s*\"(\./[^\"]+)\",\s*$", oxlint_source, re.MULTILINE):
+        source = read(root, specifier.lstrip("./"))
+        declared = re.search(r"meta:\s*\{\s*name:\s*\"([^\"]+)\"", source or "")
+        if declared is not None:
+            sources[declared.group(1)] = specifier
+    return sources
+
+
+def severity_of(oxlint_source, name):
+    pattern = re.compile(
+        r"\""
+        + re.escape(name)
+        + r"\"\s*:\s*(?:\"(error|warn|off)\"|\[\s*\"(error|warn)\"|\[\s*\"(off)\")"
+    )
+    match = pattern.search(oxlint_source)
+    if match is None:
+        return None
+    return match.group(1) or match.group(2) or match.group(3)
+
+
+def check_lint(root, oxlint_source, value, rule):
+    named = severity_of(oxlint_source, value)
+    if named is None:
+        return [
+            f"`{value}` is named as the check for \"{rule}\" but oxlint.config.ts never sets it. A rule that is not configured never runs. Fix: register `{value}` in oxlint.config.ts, or point the row at a check that exists."
+        ]
+    if named == "off":
+        return [
+            f"`{value}` is set to \"off\" in oxlint.config.ts, so the row for \"{rule}\" names a check that cannot fail. Fix: turn the rule back on, or delete the row and the rule it claims to enforce."
+        ]
+    plugin, _, rule_name = value.partition("/")
+    sources = plugin_paths(root, oxlint_source)
+    source_name = sources.get(plugin)
+    if source_name is None:
+        return [
+            f"`{value}` is configured but its plugin \"{plugin}\" has no jsPlugins entry in oxlint.config.ts. Fix: add the plugin to jsPlugins, or point the row at a rule from a registered plugin."
+        ]
+    path = source_name[2:] if source_name.startswith("./") else source_name
+    source = read(root, path)
+    if source is None:
+        return [
+            f"`{value}` names plugin file `{path}`, which is missing. Fix: restore the plugin file or point the row at a rule that exists."
+        ]
+    if f"\"{rule_name}\":" not in source and f"'{rule_name}':" not in source:
+        return [
+            f"`{value}` is configured but `{path}` does not define \"{rule_name}\". Fix: add the rule to the plugin, or point the row at a rule the plugin defines."
+        ]
+    return []
+
+
+def check_script(root, value, rule):
+    path = Path(root) / value
+    if not path.is_file():
+        return [
+            f"`{value}` is named as the check for \"{rule}\" but the file is missing. Fix: add the script, or point the row at a check that exists."
+        ]
+    if not os.access(path, os.X_OK):
+        return [
+            f"`{value}` is not executable, so nothing can run it as a gate. Fix: run `chmod +x {value}`."
+        ]
+    first = path.read_text(encoding="utf-8").split("\n", 1)[0]
+    if not first.startswith("#!"):
+        return [
+            f"`{value}` has no shebang line, so it only runs with an explicit interpreter. Fix: start the file with a shebang such as `#!/usr/bin/env python3`."
+        ]
+    return []
+
+
+def check_pnpm(root, source, value, rule):
+    manifest = json.loads(source)
+    if value not in manifest.get("scripts", {}):
+        return [
+            f"`pnpm {value}` is named as the check for \"{rule}\" but {PACKAGE} has no `{value}` script. Fix: add the script to {PACKAGE}, or point the row at a check that exists."
+        ]
+    return []
+
+
+def check_ci(root, source, value, rule):
+    lines = source.split("\n")
+    wanted = re.compile(r"^\s*-\s*name:\s*\"?" + re.escape(value) + r"\"?\s*$")
+    found = any(wanted.match(line) for line in lines)
+    if not found:
+        return [
+            f"CI step \"{value}\" is named as the check for \"{rule}\" but {CI} has no step with that name. Fix: add the step, or point the row at a check that exists."
+        ]
+    return []
+
+
+def check_test(root, package_source, ci_source, value, rule):
+    path = Path(root) / value
+    if not path.is_file():
+        return [
+            f"`{value}` is named as the check for \"{rule}\" but the test file is missing. Fix: add the test, or point the row at a check that exists."
+        ]
+    app_test = re.fullmatch(r"apps/[^/]+/test/.+\.test\.ts", value)
+    if app_test is not None:
+        return []
+    if value in package_source or value in (ci_source or ""):
+        return []
+    return [
+        f"`{value}` is named as the check for \"{rule}\" but no runner selects it: it is outside apps/*/test and no {PACKAGE} script or CI step names it. Fix: wire the test into `pnpm test` or a CI step, or point the row at a check that exists."
+    ]
+
+
+def resolve(root, kind, value, rule, oxlint_source, package_source, ci_source):
+    if kind == "lint":
+        return check_lint(root, oxlint_source, value, rule)
+    if kind == "script":
+        return check_script(root, value, rule)
+    if kind == "pnpm":
+        return check_pnpm(root, package_source, value, rule)
+    if kind == "ci":
+        return check_ci(root, ci_source, value, rule)
+    if kind == "test":
+        return check_test(root, package_source, ci_source, value, rule)
+    return [
+        f"\"{rule}\" names check `{kind}:{value}`, a kind this checker does not know. Fix: use lint:, script:, pnpm:, ci:, or test: — and add the kind to scripts/check-rule-table if a new source of checks is real."
+    ]
+
+
+def check(root):
+    errors = []
+    agents = read(root, AGENTS)
+    if agents is None:
+        return [f"{AGENTS} is missing, so no rule table can exist. Fix: restore {AGENTS}."]
+    oxlint_source = read(root, OXLINT)
+    if oxlint_source is None:
+        return [f"{OXLINT} is missing, so every lint rule in the table is unverifiable. Fix: restore {OXLINT}."]
+    package_source = read(root, PACKAGE)
+    if package_source is None:
+        return [f"{PACKAGE} is missing, so no script or test check can be verified. Fix: restore {PACKAGE}."]
+    ci_source = read(root, CI)
+    if ci_source is None:
+        return [f"{CI} is missing, so no CI step can be verified. Fix: restore {CI}."]
+
+    lines = agents.split("\n")
+    rule_lines = section(lines, RULE_HEADING)
+    if rule_lines is None:
+        errors.append(
+            f"{AGENTS} has no \"{RULE_HEADING}\" section. Fix: add the section, with the table columns Rule, Enforced by, Where it runs."
+        )
+    emergency_lines = section(lines, EMERGENCY_HEADING)
+    if emergency_lines is None:
+        errors.append(
+            f"{AGENTS} has no \"{EMERGENCY_HEADING}\" section. Fix: write the revert-first policy, naming git revert, the pull request it lands in, and the ban on a skip lane and a direct push."
+        )
+    else:
+        policy = " ".join(emergency_lines)
+        for pattern, wanted in EMERGENCY_REQUIREMENTS:
+            if pattern.search(policy) is None:
+                errors.append(
+                    f"\"{EMERGENCY_HEADING}\" never names {wanted}. A policy without it leaves a shortcut open. Fix: state it in that section."
+                )
+
+    rows = 0
+    checks = 0
+    if rule_lines is not None:
+        parsed = tables(rule_lines)
+        if parsed == []:
+            errors.append(
+                f"\"{RULE_HEADING}\" holds no table. Fix: write the table with the columns Rule, Enforced by, Where it runs."
+            )
+        for table in parsed:
+            header = table[0]
+            if header != COLUMNS:
+                errors.append(
+                    f"A table under \"{RULE_HEADING}\" has the header {' | '.join(header)} instead of {' | '.join(COLUMNS)}. Fix: restore the three columns."
+                )
+                continue
+            for row in table[1:]:
+                if len(row) != len(COLUMNS):
+                    errors.append(
+                        f"The row {' | '.join(row)} has {len(row)} cells instead of {len(COLUMNS)}. Fix: give each row a rule, its check, and where it runs."
+                    )
+                    continue
+                name, enforced, where = row
+                rows += 1
+                if name == "" or where == "":
+                    errors.append(
+                        f"The row \"{name}\" leaves its rule or its Where it runs cell empty. Fix: name the rule and where the check runs."
+                    )
+                found = CHECK_TOKEN.findall(enforced)
+                if found == []:
+                    errors.append(
+                        f"The row \"{name}\" names no check in its Enforced by cell. A rule with no check is a wish. Fix: name one as `lint:`, `script:`, `pnpm:`, `ci:`, or `test:` and prove it exists."
+                    )
+                    continue
+                for kind, value in found:
+                    checks += 1
+                    errors.extend(
+                        resolve(
+                            root,
+                            kind,
+                            value,
+                            name,
+                            oxlint_source,
+                            package_source,
+                            ci_source,
+                        )
+                    )
+    if errors:
+        return errors
+    print(f"rule table: {rows} rules, {checks} checks, all resolved")
+    return []
+
+
+def main():
+    root = Path(__file__).resolve().parent.parent
+    errors = check(root)
+    for error in errors:
+        print(error, file=sys.stderr)
+    return 1 if errors else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

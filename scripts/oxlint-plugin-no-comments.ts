@@ -277,7 +277,7 @@ const noComments = defineRule({
 });
 
 const disableDirectivePattern =
-  /^(?:oxlint|eslint)-disable(?:-next-line|-line)?\b/u;
+  /^(?:(?:oxlint|eslint)-disable(?:-next-line|-line)?|@effect-diagnostics|@ts-(?:expect-error|ignore|nocheck))\b/u;
 
 const reasonPattern = /\s--\s+\S/u;
 
@@ -302,11 +302,11 @@ const directiveReason = defineRule({
   meta: {
     docs: {
       description:
-        "Require a reason after -- on every oxlint-disable and eslint-disable directive.",
+        "Require a reason after -- on every tool directive: oxlint and eslint disables, @effect-diagnostics, and the TypeScript expect-error, ignore, and nocheck comments.",
     },
     messages: {
       reason:
-        "This lint override has no reason after --. An unexplained override hides the invariant that makes it safe. Fix: write `// oxlint-disable-next-line <rule> -- <reason>` and name the invariant or boundary.",
+        "This tool directive has no reason after --. An unexplained override hides the invariant that makes it safe. Fix: write `// <directive> -- <reason>` and name the invariant or boundary.",
     },
     type: "problem",
   },
