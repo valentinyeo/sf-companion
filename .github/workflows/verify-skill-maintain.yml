@@ -107,14 +107,23 @@ jobs:
           name: maintain-records
           path: ${{ runner.temp }}/records
           if-no-files-found: ignore
-      - name: Record the drift
+      - name: Decide the drift
+        id: decide
         if: always()
-        uses: actions/github-script@v7
         env:
           PSTACK_OUTCOME: ${{ steps.pstack.outcome }}
           JOURNEYS_OUTCOME: ${{ steps.journeys.outcome }}
           REVIEW_OUTCOME: ${{ steps.review.outcome }}
           CLEAN_OUTCOME: ${{ steps.clean.outcome }}
+          RECORDS: ${{ runner.temp }}/records
+        run: |
+          set -euo pipefail
+          mkdir -p "$RECORDS"
+          scripts/drift_decision.py > "$RECORDS/decision.json"
+      - name: Record the drift
+        if: always()
+        uses: actions/github-script@v7
+        env:
           RECORDS: ${{ runner.temp }}/records
         with:
           script: |
@@ -126,44 +135,30 @@ jobs:
                 return "";
               }
             };
-            const events = read(`${process.env.RECORDS}/review.jsonl`)
-              .split("\n")
-              .filter(Boolean)
-              .flatMap((line) => {
-                try {
-                  return [JSON.parse(line)];
-                } catch {
-                  return [];
-                }
-              });
-            const messages = events.filter((event) => event.type === "message_end" && event.message && event.message.role === "assistant");
-            const last = messages.at(-1);
-            const review = last
-              ? (last.message.content || []).filter((part) => part.type === "text").map((part) => part.text).join("\n")
-              : "";
-            const verdict = review.match(/^VERDICT: (CLEAN|DRIFT)\s*$/m);
-            const pstackDrift = process.env.PSTACK_OUTCOME !== "success";
-            const mapDrift = verdict === null || verdict[1] === "DRIFT";
-            const dirty = process.env.CLEAN_OUTCOME !== "success";
-            const drift = pstackDrift || mapDrift || dirty;
+            const decision = (() => {
+              try {
+                return JSON.parse(read(`${process.env.RECORDS}/decision.json`));
+              } catch {
+                return { drift: true, verdict: null, text: "", reasons: ["The drift decision could not be read."] };
+              }
+            })();
             const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const pstack = read(`${process.env.RECORDS}/pstack.md`).trim() || "The pstack pin check produced no output.";
-            const findings = verdict === null
-              ? `The review returned no verdict line. Response:\n\n${review.slice(-4000) || "(empty trace)"}`
-              : review.slice(0, 20000);
+            const reasons = decision.reasons.length === 0 ? ["Clean."] : decision.reasons;
             const body = [
               "The weekly review of `.claude/skills/verify-sf-companion` against the app source, a full journey run, and the pinned pstack source.",
               "",
               `Run: ${run}`,
               `Commit: ${process.env.HEAD_SHA}`,
-              `Journeys: ${process.env.JOURNEYS_OUTCOME}`,
               "",
               "## pstack pin",
               pstack,
               "",
+              "## Decision",
+              ...reasons.map((reason) => `- ${reason}`),
+              "",
               "## Feature map",
-              findings,
-              ...(dirty ? ["", "The review changed a tracked file. See the job log."] : []),
+              decision.text.slice(0, 20000) || "(the review produced no text)",
             ].join("\n");
             const title = "verify map drift";
             const open = await github.paginate(github.rest.issues.listForRepo, {
@@ -172,7 +167,7 @@ jobs:
               per_page: 100,
             });
             const existing = open.find((issue) => issue.title === title);
-            if (drift) {
+            if (decision.drift) {
               const issue = existing === undefined
                 ? (await github.rest.issues.create({ ...context.repo, title, body })).data
                 : (await github.rest.issues.update({ ...context.repo, issue_number: existing.number, body })).data;

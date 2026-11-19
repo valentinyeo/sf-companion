@@ -181,6 +181,7 @@ Every hard rule this repo runs is a row here, and every row names the check that
 | Every journey runs nightly on `main` and keeps its proof | `script:scripts/check_ci_scope.py` | `pnpm check`, lefthook, CI |
 | The verify map is reviewed against the app source and every journey on a weekly schedule, drift fails the run, and one `verify map drift` issue holds the findings | `script:scripts/check_ci_scope.py`, `script:scripts/test_check_ci_scope.py` | `pnpm check`, lefthook, CI |
 | The verify skill's recorded `pstack:` version matches the pinned pstack source the weekly pass reads | `script:scripts/pstack_pin_drift.py`, `script:scripts/test_pstack_pin_drift.py` | `verify-skill-maintain` workflow, weekly |
+| A failed maintenance run, review, or pstack pin never reports the map clean | `script:scripts/drift_decision.py`, `script:scripts/test_drift_decision.py` | `pnpm test`, CI, `verify-skill-maintain` workflow |
 
 ### Code bans
 
