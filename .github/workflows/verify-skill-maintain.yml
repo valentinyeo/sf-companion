@@ -119,7 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RECORDS"
-          scripts/drift_decision.py > "$RECORDS/decision.json"
+          scripts/maintain_verdict.py > "$RECORDS/decision.json"
       - name: Record the drift
         if: always()
         uses: actions/github-script@v7
