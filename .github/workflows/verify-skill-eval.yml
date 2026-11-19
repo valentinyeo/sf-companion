@@ -45,7 +45,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     env:
-      RECORDS: ${{ runner.temp }}/records
+      RECORDS: ${{ github.workspace }}/records
       PROMPT: |
         You are reviewing one verification run of the Software Factory Companion, a small web app that shows factory readings and stored reports.
 
@@ -130,9 +130,9 @@ jobs:
         with:
           name: cell-${{ matrix.family }}-${{ matrix.case }}
           path: |
-            ${{ runner.temp }}/records/verdict.jsonl
-            ${{ runner.temp }}/records/prompt.txt
-            ${{ runner.temp }}/records/drive.log
+            ${{ github.workspace }}/records/verdict.jsonl
+            ${{ github.workspace }}/records/prompt.txt
+            ${{ github.workspace }}/records/drive.log
           if-no-files-found: warn
 
   tabulate:
