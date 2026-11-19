@@ -39,7 +39,9 @@ Each journey records its own actions, tagged with its id. Before the run starts,
 
 ## Evidence
 
-Each case saves a full-page PNG, an ARIA snapshot, and a JSON action/result log. Browser console errors, uncaught page errors, failed local responses, or horizontal document overflow fail the run. `result.json` records the revision, matrix results, and overall status. Build and development logs survive failures too. Read the images before claiming visual quality; automated layout checks do not judge appearance.
+Each case saves a full-page PNG, an ARIA snapshot, a Playwright trace (`.trace.zip`), and a JSON action/result log. Open a trace with `pnpm exec playwright show-trace <file>`; it replays every action with its DOM snapshot. `traces.json` names the trace files that cover each journey and lists the journeys a browser cannot trace, such as the live `access-anonymous` request. Browser console errors, uncaught page errors, failed local responses, or horizontal document overflow fail the run. `result.json` records the revision, matrix results, and overall status. Build and development logs survive failures too. Read the images before claiming visual quality; automated layout checks do not judge appearance.
+
+A deploy needs this evidence: `scripts/release_gate.py` fails when a journey a pulled-in feature changed has no trace or video.
 
 For the optional anonymous live boundary check:
 

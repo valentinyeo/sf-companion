@@ -17,4 +17,6 @@ Require successful builds and eight passing browser cases in `result.json` for a
 
 Every action in `result.json` names the journey it drove. `verify.mjs` refuses to start when this map lists a sub-feature id that `verify.mjs` never gates with `wants("<id>")`, and it fails a run when a requested journey records no action. A listed journey with no evidence is a failed run, never a skipped check.
 
+Every case also saves a Playwright trace, and `traces.json` names the trace files that cover each journey. A release needs that trace or video for each journey of every changed feature, and `scripts/release_gate.py` fails when one is missing. Only the live `access-anonymous` request has no browser context, so it is listed as untraced rather than claimed as recorded.
+
 The map covers Home, Explorations, Reports, and Factory. Stored items are served as the bytes kept in the content store, so the map does not claim site-styled item pages, authenticated production access, or deployed build parity.

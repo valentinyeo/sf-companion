@@ -1,0 +1,10 @@
+{
+  "workflow_runs": [
+    {
+      "id": 44559011423,
+      "head_sha": "head12",
+      "conclusion": "failure",
+      "html_url": "https://github.com/valentinyeo/sf-companion/actions/runs/44559011423"
+    }
+  ]
+}

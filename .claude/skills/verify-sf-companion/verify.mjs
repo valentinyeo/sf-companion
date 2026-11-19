@@ -67,6 +67,36 @@ const result = {
   journeys: allJourneys ? "all" : [...selected].sort(),
 };
 const children = new Set();
+let journeyIds = [];
+
+function traceIndex() {
+  const journeys = {};
+  for (const entry of result.cases) {
+    if (entry.trace === undefined) continue;
+    for (const action of entry.actions) {
+      if (action.journey === null) continue;
+      journeys[action.journey] ??= [];
+      if (!journeys[action.journey].includes(entry.trace)) {
+        journeys[action.journey].push(entry.trace);
+      }
+    }
+  }
+  const expected = (
+    allJourneys ? journeyIds : journeyIds.filter((id) => selected.has(id))
+  ).filter((id) => journeys[id] === undefined);
+  const untraced = expected
+    .filter((id) => liveOnlyJourneys.has(id))
+    .map((id) => ({
+      journey: id,
+      reason: "live HTTP request, no browser context to record",
+    }));
+  return {
+    status: result.status,
+    revision: result.revision,
+    journeys,
+    untraced,
+  };
+}
 
 async function featureJourneyIds() {
   const directory = fileURLToPath(new URL("./features/", import.meta.url));
@@ -200,9 +230,11 @@ async function drive(browser, state, width, colorScheme, baseURL) {
     viewport: { width, height: width === 390 ? 844 : 900 },
     colorScheme,
   });
+  const trace = `${id}.trace.zip`;
+  await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
   page.setDefaultNavigationTimeout(120000);
-  const entry = { id, status: "running", actions: [], errors: [] };
+  const entry = { id, status: "running", actions: [], errors: [], trace };
   result.cases.push(entry);
   page.on("console", (message) => {
     if (message.type() === "error") entry.errors.push(message.text());
@@ -407,6 +439,13 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       .catch(() => {});
     throw error;
   } finally {
+    const traced = await context.tracing
+      .stop({ path: join(proof, trace) })
+      .then(
+        () => true,
+        () => false
+      );
+    if (!traced) delete entry.trace;
     await context.close();
     await writeFile(join(proof, `${id}.json`), JSON.stringify(entry, null, 2));
   }
@@ -640,7 +679,7 @@ try {
   result.revision = (
     await readFile(join(proof, "revision.txt"), "utf8")
   ).trim();
-  const journeyIds = await featureJourneyIds();
+  journeyIds = await featureJourneyIds();
   await assertFeatureGates(journeyIds);
   browser = await chromium.launch();
   for (const state of ["seeded", "empty"]) {
@@ -740,4 +779,8 @@ export default mergeConfig(config, {
   await browser?.close();
   await Promise.all([...children].map(stop));
   await writeFile(join(proof, "result.json"), JSON.stringify(result, null, 2));
+  await writeFile(
+    join(proof, "traces.json"),
+    JSON.stringify(traceIndex(), null, 2)
+  );
 }
