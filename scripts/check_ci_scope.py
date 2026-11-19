@@ -8,7 +8,13 @@ SCOPED = "pstack-verifier.yml"
 NIGHTLY = "nightly-journeys.yml"
 BROWSER = re.compile(r"verify-sf-companion/run\.sh|playwright|chromium", re.IGNORECASE)
 PULL_TRIGGERS = {"pull_request", "pull_request_target"}
-TRIGGER = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_-]*):\s*(?:#.*)?$")
+TRIGGER = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_-]*):")
+INLINE = re.compile(r"^on:\s*(.+?)\s*$")
+INLINE_VALUE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+
+
+def inline_triggers(value):
+    return set(INLINE_VALUE.findall(value.split("#", 1)[0]))
 
 
 def triggers(source):
@@ -16,7 +22,11 @@ def triggers(source):
     inside = False
     for line in source.split("\n"):
         if not inside:
-            if re.fullmatch(r"on:\s*", line):
+            match = INLINE.match(line)
+            if match is not None:
+                found.update(inline_triggers(match.group(1)))
+                inside = True
+            elif re.fullmatch(r"on:\s*", line):
                 inside = True
             continue
         if line.strip() == "" or line.lstrip().startswith("#"):

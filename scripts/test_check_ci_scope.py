@@ -53,6 +53,13 @@ class ScopeTest(unittest.TestCase):
         self.clean()
         self.assertEqual(scope.check(self.root), [])
 
+    def test_inline_pull_request_trigger_cannot_hide_a_browser(self):
+        self.clean()
+        self.write("smoke.yml", "on: [pull_request]\njobs:\n  x:\n    steps:\n      - run: pnpm exec playwright test\n")
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("playwright", errors[0])
+
     def test_browser_on_pull_requests_is_rejected(self):
         self.clean()
         self.write("ci.yml", CLEAN_CI + "steps:\n  - uses: actions/setup-node\n  - run: pnpm exec playwright test\n")
@@ -109,6 +116,10 @@ class ScopeTest(unittest.TestCase):
     def test_trigger_reader_finds_block_and_inline_keys(self):
         self.assertEqual(scope.triggers("on:\n  push:\n  schedule:\n"), {"push", "schedule"})
         self.assertEqual(scope.triggers("on:\n  workflow_dispatch:\nconcurrency:\n  group: x\n"), {"workflow_dispatch"})
+        self.assertEqual(scope.triggers("on: [pull_request, push]\n"), {"pull_request", "push"})
+        self.assertEqual(scope.triggers("on: pull_request\n"), {"pull_request"})
+        self.assertEqual(scope.triggers("on: {pull_request: {}}\n"), {"pull_request"})
+        self.assertEqual(scope.triggers("on:\n  pull_request: {}\n"), {"pull_request"})
 
 
 if __name__ == "__main__":
