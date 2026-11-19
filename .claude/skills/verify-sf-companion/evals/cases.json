@@ -45,9 +45,9 @@
     },
     {
       "family": "openai",
-      "provider": "openrouter",
+      "provider": "vercel-ai-gateway",
       "model": "openai/gpt-6.1-sol",
-      "secret": "OPENROUTER_API_KEY"
+      "secret": "AI_GATEWAY_API_KEY"
     }
   ],
   "cases": [
