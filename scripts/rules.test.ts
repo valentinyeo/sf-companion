@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off -- This test reads the repository's own styles and policy with Node tooling.
+import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,7 +51,6 @@ const EvalCase = Schema.Struct({
 const EvalCases = Schema.Struct({
   cases: Schema.Array(EvalCase),
   families: Schema.Array(EvalFamily),
-  journeys: Schema.Array(Schema.String),
 });
 
 const WebManifest = Schema.Struct({
@@ -248,8 +248,16 @@ describe("the verify-skill evaluation", () => {
   });
 
   it("drives journeys that need no live gate", () => {
-    expect(spec.journeys).not.toContain("access-anonymous");
-    expect(new Set(spec.journeys).size).toBe(spec.journeys.length);
+    const evalPy = fileURLToPath(new URL("../.claude/skills/verify-sf-companion/evals/eval.py", import.meta.url));
+    const casesJson = fileURLToPath(new URL("cases.json", folder));
+    const journeys = execSync(`python3 ${JSON.stringify(evalPy)} journeys --cases ${JSON.stringify(casesJson)}`, {
+      encoding: "utf-8",
+    })
+      .trim()
+      .split(",")
+      .filter(Boolean);
+    expect(journeys).not.toContain("access-anonymous");
+    expect(new Set(journeys).size).toBe(journeys.length);
   });
 
   it("stays off pull requests and cancels superseded runs", () => {
