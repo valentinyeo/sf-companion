@@ -4,7 +4,7 @@ Coverage: 15 of 15 features across 11 files.
 
 `scripts/feature_coverage.py` derives every user-facing feature from source — the route union, the hub sections, the factory sections, the share handlers, and the deployed Website — and fails when a feature has no file here, a file covers a feature the source no longer has, or the coverage line above goes stale.
 
-Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json` for the factory feed and `../fixture-hub/` for the hub content store, through the same files production reads. The fixture holds 30 days of shipping data, all seven KPI tiles, seven usage cards, and every usage window; the hub store holds ten items per section. A third launch, `sparse`, writes a copy of the same fixture with `usage.cards` emptied and `kpis.shipping` dropped, so the unavailability states are driven on a real feed rather than on a missing file. Every sub-feature id is a journey id: `run.sh --journeys=<ids>` drives only those journeys. Each feature file lists the source files it covers on its `Code paths:` line, so a diff selects its journeys, and its `Covers:` line names the features the coverage check counts.
+Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json` for the factory feed and `../fixture-hub/` for the hub content store, through the same files production reads. The fixture holds 30 days of shipping data, all seven KPI tiles, eight KPI notes, seven usage cards, every usage window, and five shipping notes; the hub store holds ten items per section. Those counts are the production floor in the Scale section below. A third launch, `sparse`, writes a copy of the same fixture with `usage.cards` emptied and `kpis.shipping` dropped, so the unavailability states are driven on a real feed rather than on a missing file. Every sub-feature id is a journey id: `run.sh --journeys=<ids>` drives only those journeys. Each feature file lists the source files it covers on its `Code paths:` line, so a diff selects its journeys, and its `Covers:` line names the features the coverage check counts.
 
 ## Features
 
@@ -28,4 +28,24 @@ A journey for a page the checkout does not declare sits in `result.json` under `
 
 Every browser case also saves a Playwright trace, and `traces.json` names the trace files that cover each journey. A release needs that trace or video for each journey of every changed feature, and `scripts/release_gate.py` fails when one is missing, when the trace holds no recorded browser action, or when its case log never drove that journey. The live `access-anonymous` request and the share journeys run with no browser page, so they are listed as untraced with a reason rather than claimed as recorded.
 
-The map covers Home, Explorations, Reports, Items, Factory, Usage, KPI tiles, Shipping, Empty states, Access, and Share. Stored items are served as the bytes kept in the content store, so the map does not claim site-styled item pages, authenticated production access, or deployed build parity.
+## Scale
+
+The journeys start at the size production runs at, not at a toy size, so a journey that passes here still has the list lengths, chart rows and note counts a user meets. Production counts were measured on 2026-11-19 by the orchestrator against the live site. The Fixture column is what `../fixture.json` and `../fixture-hub/` hold today. `scripts/check_fixture_scale.py` reads this table and fails when a fixture count falls below its production count, when the Fixture column no longer matches the fixture, or when a row is missing.
+
+| Measure            | Production | Fixture |
+| ------------------ | ---------- | ------- |
+| Hub reports        | 9          | 10      |
+| Hub explorations   | 1          | 10      |
+| Usage cards        | 7          | 7       |
+| Usage burn windows | 7          | 7       |
+| KPI tiles          | 4          | 7       |
+| KPI notes          | 8          | 8       |
+| Shipping days      | 30         | 30      |
+| Shipping omissions | 2          | 2       |
+| Shipping notes     | 5          | 5       |
+
+Re-measure after production changes:
+
+1. Hub: open https://yeoux.net/reports/ and https://yeoux.net/explorations/ with an Access session and count the listed rows.
+2. Feed: count the file the deployed build carries, `apps/web/content/feed/factory.json`, with `scripts/check_fixture_scale.py --measure --feed <path>`. Pass `--hub-index <path>` as well to count an exported hub index instead of reading the pages by hand.
+3. Write the new counts into the Production column and the new date into the paragraph above, then grow the fixture until the check passes.

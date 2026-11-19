@@ -65,7 +65,7 @@ The helper stops only process groups it started and removes its disposable check
 
 - `run.sh` launches the verification from any working directory, in full or for the journeys named by `--journeys`.
 - `verify.mjs` builds and drives the disposable copy. Invoke it through `run.sh`, which supplies its isolated dependencies and paths.
-- `fixture.json` is synthetic build input, not live factory data. It holds 30 days of shipping rows, all seven KPI tiles, seven usage cards, and every usage window. The sparse launch writes a copy of it with `usage.cards` emptied and `kpis.shipping` dropped, so it stays the one feed fixture to keep current.
+- `fixture.json` is synthetic build input, not live factory data. It holds 30 days of shipping rows, all seven KPI tiles, eight KPI notes, seven usage cards, every usage window, and five shipping notes, which is the production scale recorded in the [feature map](features/README.md#scale). The sparse launch writes a copy of it with `usage.cards` emptied and `kpis.shipping` dropped, so it stays the one feed fixture to keep current.
 - `fixture-hub/` is a synthetic hub content store laid out like the R2 bucket: `index.json` lists object keys with their metadata, and each object file sits under its `x/` or `r/` prefix. It holds ten items per section.
 - `scripts/feature_coverage.py` derives the real feature list from source and fails when a feature lacks a file here or the coverage line in `features/README.md` goes stale. Run `scripts/feature_coverage.py --write` after adding or removing a feature.
 

@@ -27,7 +27,7 @@ Code paths: apps/web/src/features/factory.ts, apps/web/src/features/usage.ts, ap
 
 Preconditions:
 
-- Run `../run.sh`. The helper removes the bundled feed and the hub store for the empty launch, then rebuilds. For the sparse launch it writes `fixture.json` with `usage.cards` emptied and `kpis.shipping` dropped, and keeps the rest of the feed, including its two KPI unavailability notes.
+- Run `../run.sh`. The helper removes the bundled feed and the hub store for the empty launch, then rebuilds. For the sparse launch it writes `fixture.json` with `usage.cards` emptied and `kpis.shipping` dropped, and keeps the rest of the feed, including its KPI unavailability notes.
 
 - Factory. Require `No factory numbers yet.`, no `Output and waste` heading, and no `PRs shipped vs plan burn` heading.
 - Usage. Open `/usage` and require `No usage numbers yet.` and no `Usage window` group.
@@ -43,4 +43,4 @@ Preconditions:
 - The empty launch removes the feed file rather than emptying its numbers. A zeroed feed is a different, measured state.
 - `shipping-missing` and `usage-no-plans` drop one block from a real feed; they do not zero a reading. A zeroed reading is what `kpi-zero`-style bugs look like, and it must fail.
 - The 404 status is expected for `not-found`; the case recorder ignores that one response and its browser console line, and fails on any other error status.
-- Missing KPI numbers print as unavailability notes from `kpis.notes` in the feed, not as zeroes. `kpi-unavailable` drives the two the fixture ships.
+- Missing KPI numbers print as unavailability notes from `kpis.notes` in the feed, not as zeroes. `kpi-unavailable` drives the two the feature map names.

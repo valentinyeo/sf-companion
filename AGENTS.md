@@ -142,6 +142,10 @@ A deploy proves the change it ships. `scripts/release_gate.py` reads the SHA in 
 - `~/.local/bin/sf-companion-feed` runs the gate before `alchemy deploy` and writes the deployed SHA to the state file after the login gate passes. Both lines are host-side; the repository only ships the gate they call.
 - `python3 scripts/release_gate.py --proof-dir <dir> --journeys=<ids>` checks one local proof directory instead of GitHub, and needs no token.
 
+### Fixture scale
+
+The journeys run against a fixture the size of production, so a passing journey still meets the list lengths, chart rows and note counts a user meets. `features/README.md` under the verify skill records the production count beside the fixture count for each measure, with the date it was measured, and `scripts/check_fixture_scale.py` fails when a fixture count falls below production, when the table drifts from the fixture, or when a measure has no row. Grow the fixture rather than lowering the floor; lower it only with a fresh measurement and a new date.
+
 ## Release the ratstack package
 
 - `.github/workflows/ratstack-publish.yml` publishes `ratstack` to npm with trusted publishing (OIDC). No npm token exists in the repo or its secrets.
@@ -199,6 +203,7 @@ Every hard rule this repo runs is a row here, and every row names the check that
 | The verify skill's recorded `pstack:` version matches the pinned pstack source the weekly pass reads | `script:scripts/pstack_pin_drift.py`, `script:scripts/test_pstack_pin_drift.py` | `verify-skill-maintain` workflow, weekly |
 | A failed maintenance run, review, or pstack pin never reports the map clean | `script:scripts/maintain_verdict.py`, `script:scripts/test_maintain_verdict.py` | `pnpm test`, CI, `verify-skill-maintain` workflow |
 | The verify-skill evaluation keeps the clean case, every planted patch, and two model families, and never runs on pull requests | `test:scripts/rules.test.ts`, `script:scripts/check_ci_scope.py` | `pnpm check`, `pnpm test`, CI, the evaluation on dispatch and weekly on `main` |
+| The journey fixture holds at least the scale production runs at, and the map's Scale table matches the fixture | `script:scripts/check_fixture_scale.py`, `script:scripts/test_check_fixture_scale.py` | `pnpm check`, `pnpm test`, CI job `checks` |
 
 ### Code bans
 
