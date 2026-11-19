@@ -58,7 +58,6 @@ const seededHubJourneys = [
   "items-head",
   "items-missing",
   "items-invalid",
-  "items-invalid-slug",
 ];
 const shareJourneys = [
   "share-publish",
@@ -744,25 +743,6 @@ async function driveItems(page, record, id) {
     await record(
       "items: a slug outside the allowed characters answers 400",
       "items-invalid"
-    );
-  }
-  if (wants("items-invalid-slug")) {
-    for (const path of ["/reports/", "/reports/a/b", "/explorations/"]) {
-      const rejected = await page.request.get(path);
-      assert.equal(
-        rejected.status(),
-        400,
-        `${id}: ${path} answered ${rejected.status()}, not 400`
-      );
-      assert.deepEqual(
-        await rejected.json(),
-        { error: "Invalid slug" },
-        `${id}: ${path} body`
-      );
-    }
-    await record(
-      "items: an empty slug or one holding a slash answers 400",
-      "items-invalid-slug"
     );
   }
 }

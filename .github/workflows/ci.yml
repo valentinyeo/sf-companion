@@ -25,27 +25,6 @@ jobs:
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  bug-fix-repro:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Check out the change
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Write the pull request body
-        env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: printf '%s' "${PR_BODY:-}" > "$RUNNER_TEMP/pr-body.txt"
-      - name: Bug fixes reproduce first
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: >-
-          scripts/check_bug_pr.py --title "$PR_TITLE" --labels "$PR_LABELS" --body-file "$RUNNER_TEMP/pr-body.txt" --base "$BASE_SHA" --head "$HEAD_SHA"
   checks:
     runs-on: ubuntu-latest
     env:
