@@ -3,7 +3,13 @@
   "kpis": {
     "notes": [
       "Cost per delivered ticket unavailable. Dated deliveries are blocked by HYCI-9390. Not a measured zero.",
-      "Escapes unavailable. The exporter login cannot read all three boards. Not a measured zero."
+      "Escapes unavailable. The exporter login cannot read all three boards. Not a measured zero.",
+      "Lead time unavailable. First exit from Todo and Done-move history are not exposed; waiting for HYCI-9390. Not a measured zero.",
+      "Rework unavailable. Runner logs exist, but a dated Done cohort and Done-to-Doing transition history do not; waiting for HYCI-9390. Not a measured zero.",
+      "Workers in flight vs slots unavailable. Live chat counts cannot establish each coordinator's running count, cap or top shortfall reason. Not a measured zero.",
+      "Verifier first-pass rate unavailable. The verifier transcript holds no dated verdicts in this window. Not a measured zero.",
+      "Chat identity sync unavailable. The exporter login cannot read the identity roster. Not a measured zero.",
+      "Drain-loop health unavailable. The loop log holds no tick receipts, so a running count cannot be read. Not a measured zero."
     ],
     "tiles": [
       {
@@ -84,7 +90,13 @@
       }
     ],
     "shipping": {
-      "notes": ["Quota points are observed rises, not tokens."],
+      "notes": [
+        "GitHub mergedAt · fleet repos",
+        "30 UTC dates, newest first; today to export time. Bars start at zero; each column has its own maximum. Usage window buttons do not change this chart.",
+        "Quota points are observed rises, not tokens. Plans have different quotas; do not add their points. Resets add no burn. Gaps over 6h are excluded; measured values may undercount daily use.",
+        "Vercel, DeepSeek and OpenRouter daily history is unavailable in these sources.",
+        "£ and £/PR cover only the advisor's attributed priced subset, not the total bill. £/PR compares same-day fleet output, not the cost of an individual PR. Open days have no final cost."
+      ],
       "omissions": [
         {
           "plan": "grok",
