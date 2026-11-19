@@ -16,7 +16,20 @@ FIXTURES = REPO / "scripts" / "fixtures" / "release-gate"
 WORKFLOW = REPO / ".github" / "workflows" / "pstack-verifier.yml"
 FEATURE_DIR = REPO / ".claude" / "skills" / "verify-sf-companion" / "features"
 LIVE_ONLY = {"access-anonymous": "A live HTTPS request, so no browser page."}
-WEBM = b"\x1aE\xdf\xa3\x01\x02" + b"0" * 2048
+EBML_HEADER = (
+    b"\x1aE\xdf\xa3"
+    b"\x9f"
+    b"\x42\x86\x81\x01"
+    b"\x42\xf7\x81\x01"
+    b"\x42\xf2\x81\x04"
+    b"\x42\xf3\x81\x08"
+    b"\x42\x82\x84webm"
+    b"\x42\x87\x81\x04"
+    b"\x42\x85\x81\x02"
+)
+WEBM = EBML_HEADER + b"0" * 2048
+FRAME = json.dumps({"type": "screencast-frame", "sha1": "ab", "width": 1}) + "\n"
+NOT_AN_EVENT = json.dumps({"type": "not-an-event"}) + "\n"
 
 WORKBENCH = """# Factory
 
@@ -68,7 +81,28 @@ def trace_members(traces):
     return {name: trace_zip() for name in names}
 
 
-def artifact(*, traces=None, members=(), invalid_trace=False, extra_manifest=False):
+def case_log(journeys):
+    actions = [{"action": "drive", "journey": journey} for journey in journeys]
+    return json.dumps({"id": "case", "actions": actions})
+
+
+def journeys_by_member(traces):
+    recorded = {}
+    for journey, names in ((traces or {}).get("journeys") or {}).items():
+        for name in names:
+            recorded.setdefault(name, []).append(journey)
+    return recorded
+
+
+def artifact(
+    *,
+    traces=None,
+    members=(),
+    invalid_trace=False,
+    extra_manifest=False,
+    records=None,
+    member_data=None,
+):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("proof-base/result.json", "{}")
@@ -77,11 +111,19 @@ def artifact(*, traces=None, members=(), invalid_trace=False, extra_manifest=Fal
         if extra_manifest:
             archive.writestr("proof-head/nested/proof-head/traces.json", "{}")
         for name in members:
-            if invalid_trace and name.endswith(".trace.zip"):
+            if member_data and name in member_data:
+                data = member_data[name]
+            elif invalid_trace and name.endswith(".trace.zip"):
                 data = b"x"
             else:
                 data = trace_zip() if name.endswith(".trace.zip") else b"PK00"
             archive.writestr(f"proof-head/{name}", data)
+        for name, journeys in (
+            journeys_by_member(traces) if records is None else records
+        ).items():
+            archive.writestr(
+                f"proof-head/{gate.case_log_name(name)}", case_log(journeys)
+            )
     return buffer.getvalue()
 
 
@@ -111,6 +153,8 @@ class FixtureCase(unittest.TestCase):
         runs=None,
         invalid_trace=False,
         extra_manifest=False,
+        records=None,
+        member_data=None,
     ):
         return gate.evaluate_pull_request(
             fixture("pull-request.json"),
@@ -122,6 +166,8 @@ class FixtureCase(unittest.TestCase):
                 members=members,
                 invalid_trace=invalid_trace,
                 extra_manifest=extra_manifest,
+                records=records,
+                member_data=member_data,
             ),
             self.features,
             LIVE_ONLY,
@@ -197,14 +243,33 @@ class PassTest(FixtureCase):
     def test_live_only_journey_needs_no_trace(self):
         traces = fixture("traces-live-only.json")
         problems = gate.check_traces(
-            ["access-anonymous"], traces, {}, LIVE_ONLY
+            ["access-anonymous"], traces, {}, LIVE_ONLY, {}
         )
         self.assertEqual(problems, [])
 
     def test_video_counts_as_evidence(self):
         traces = {"journeys": {"factory-entry": ["case.webm"]}, "untraced": []}
         self.assertEqual(
-            gate.check_traces(["factory-entry"], traces, {"case.webm": WEBM}, LIVE_ONLY),
+            gate.check_traces(
+                ["factory-entry"],
+                traces,
+                {"case.webm": WEBM},
+                LIVE_ONLY,
+                {"case.webm": {"factory-entry"}},
+            ),
+            [],
+        )
+
+    def test_a_trace_with_only_a_screencast_frame_is_evidence(self):
+        traces = {"journeys": {"factory-entry": ["case.trace.zip"]}, "untraced": []}
+        self.assertEqual(
+            gate.check_traces(
+                ["factory-entry"],
+                traces,
+                {"case.trace.zip": trace_zip(FRAME)},
+                LIVE_ONLY,
+                {"case.trace.zip": {"factory-entry"}},
+            ),
             [],
         )
 
@@ -254,6 +319,89 @@ class FailTest(FixtureCase):
             report["problems"],
         )
 
+    def test_a_zip_with_a_zero_byte_trace_member_is_not_evidence(self):
+        traces = {"journeys": {"factory-entry": ["empty.trace.zip"]}, "untraced": []}
+        report = self.evaluate(
+            traces=traces,
+            members=["empty.trace.zip"],
+            member_data={"empty.trace.zip": trace_zip("")},
+        )
+        self.assertEqual(report["outcome"], "failed")
+        self.assertIn(
+            "empty.trace.zip for journey factory-entry holds no recorded browser "
+            "action, so it is not trace evidence",
+            report["problems"],
+        )
+
+    def test_a_trace_of_json_that_holds_no_event_is_not_evidence(self):
+        traces = {"journeys": {"factory-entry": ["case.trace.zip"]}, "untraced": []}
+        report = self.evaluate(
+            traces=traces,
+            members=["case.trace.zip"],
+            member_data={"case.trace.zip": trace_zip(NOT_AN_EVENT)},
+        )
+        self.assertEqual(report["outcome"], "failed")
+        self.assertIn(
+            "case.trace.zip for journey factory-entry holds no recorded browser "
+            "action, so it is not trace evidence",
+            report["problems"],
+        )
+
+    def test_a_trace_that_recorded_another_journey_fails(self):
+        traces = fixture("traces-pass.json")
+        members = trace_members(traces)
+        records = journeys_by_member(traces)
+        records["empty-1280-light.trace.zip"] = ["home-empty"]
+        report = self.evaluate(traces=traces, members=members, records=records)
+        self.assertEqual(report["outcome"], "failed")
+        self.assertIn(
+            "empty-1280-light.trace.zip for journey factory-empty recorded no "
+            "action for that journey",
+            report["problems"],
+        )
+
+    def test_a_trace_without_its_case_log_fails(self):
+        traces = fixture("traces-pass.json")
+        report = self.evaluate(
+            traces=traces, members=trace_members(traces), records={}
+        )
+        self.assertEqual(report["outcome"], "failed")
+        self.assertIn(
+            "seeded-1280-light.trace.zip for journey factory-entry has no case log "
+            "of its own, so it cannot be tied to that journey",
+            report["problems"],
+        )
+
+    def test_a_video_without_a_readable_header_fails(self):
+        traces = {"journeys": {"factory-entry": ["case.webm"]}, "untraced": []}
+        report = self.evaluate(
+            traces=traces,
+            members=["case.webm"],
+            member_data={"case.webm": b"\x1aE\xdf\xa3" + b"0" * 2048},
+        )
+        self.assertEqual(report["outcome"], "failed")
+        self.assertIn(
+            "case.webm for journey factory-entry is not a readable video",
+            report["problems"],
+        )
+
+    def test_a_case_log_that_is_not_a_case_log_is_no_tie(self):
+        traces = {"journeys": {"factory-entry": ["case.trace.zip"]}, "untraced": []}
+        records = {"case.trace.zip": None}
+        self.assertEqual(
+            gate.check_traces(
+                ["factory-entry"],
+                traces,
+                {"case.trace.zip": trace_zip()},
+                LIVE_ONLY,
+                records,
+            ),
+            [
+                "case.trace.zip for journey factory-entry has no case log of its "
+                "own, so it cannot be tied to that journey"
+            ],
+        )
+
     def test_artifact_without_a_trace_index_fails(self):
         report = self.evaluate(traces=None)
         self.assertEqual(report["outcome"], "failed")
@@ -297,7 +445,7 @@ class FailTest(FixtureCase):
             "untraced": [{"journey": "factory-readings", "reason": ""}],
         }
         self.assertEqual(
-            gate.check_traces(["factory-readings"], traces, {}, LIVE_ONLY),
+            gate.check_traces(["factory-readings"], traces, {}, LIVE_ONLY, {}),
             ["no trace or video for journey factory-readings"],
         )
 
@@ -307,7 +455,7 @@ class FailTest(FixtureCase):
             "untraced": [{"journey": "access-anonymous", "reason": ""}],
         }
         self.assertEqual(
-            gate.check_traces(["access-anonymous"], traces, {}, LIVE_ONLY),
+            gate.check_traces(["access-anonymous"], traces, {}, LIVE_ONLY, {}),
             ["no trace or video for journey access-anonymous"],
         )
 
@@ -328,7 +476,11 @@ class FailTest(FixtureCase):
         }
         self.assertEqual(
             gate.check_traces(
-                ["factory-entry"], traces, {"seeded-1280-light.png": b"png"}, LIVE_ONLY
+                ["factory-entry"],
+                traces,
+                {"seeded-1280-light.png": b"png"},
+                LIVE_ONLY,
+                {},
             ),
             ["seeded-1280-light.png for journey factory-entry is not a trace or video"],
         )
@@ -350,6 +502,7 @@ class FailTest(FixtureCase):
             traces,
             gate.head_traces(archive, gate.trace_names(traces)),
             LIVE_ONLY,
+            {},
         )
         self.assertEqual(
             problems,
@@ -387,7 +540,21 @@ class ProofDirectoryTest(unittest.TestCase):
             traces = fixture("traces-missing-member.json")
             Path(directory, "traces.json").write_text(json.dumps(traces))
             Path(directory, "seeded-1280-light.trace.zip").write_bytes(trace_zip())
+            Path(directory, "seeded-1280-light.json").write_text(
+                case_log(["factory-entry"])
+            )
             self.assertEqual(gate.proof(proof_args(directory, "factory-entry")), 0)
+
+    def test_proof_directory_with_a_trace_of_another_journey_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            traces = fixture("traces-missing-member.json")
+            Path(directory, "traces.json").write_text(json.dumps(traces))
+            Path(directory, "seeded-1280-light.trace.zip").write_bytes(trace_zip())
+            Path(directory, "seeded-1280-light.json").write_text(
+                case_log(["home-links"])
+            )
+            self.assertEqual(gate.proof(proof_args(directory, "factory-entry")), 1)
+    
 
     def test_proof_directory_with_an_empty_recording_fails(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -397,6 +564,7 @@ class ProofDirectoryTest(unittest.TestCase):
             }
             Path(directory, "traces.json").write_text(json.dumps(traces))
             Path(directory, "empty.trace.zip").write_bytes(trace_zip(events=""))
+            Path(directory, "empty.json").write_text(case_log(["factory-entry"]))
             self.assertEqual(gate.proof(proof_args(directory, "factory-entry")), 1)
 
     def test_proof_directory_with_a_one_byte_trace_fails(self):
@@ -407,6 +575,7 @@ class ProofDirectoryTest(unittest.TestCase):
             }
             Path(directory, "traces.json").write_text(json.dumps(traces))
             Path(directory, "fake.trace.zip").write_bytes(b"x")
+            Path(directory, "fake.json").write_text(case_log(["factory-layout"]))
             self.assertEqual(gate.proof(proof_args(directory, "factory-layout")), 1)
 
 

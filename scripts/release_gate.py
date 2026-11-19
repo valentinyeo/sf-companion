@@ -26,7 +26,11 @@ DEFAULT_FEATURES = ".claude/skills/verify-sf-companion/features"
 LIVE_ONLY = "live-only.json"
 TRACE_SUFFIXES = (".trace.zip", ".webm")
 TRACE_ENTRIES = ("trace.trace", "trace.network")
-ACTION_EVENTS = ("before", "after")
+ACTION_EVENTS = ("before", "after", "action")
+FRAME_EVENTS = ("screencast-frame", "frame-snapshot")
+EVIDENCE_EVENTS = ACTION_EVENTS + FRAME_EVENTS
+VIDEO_TYPES = (b"webm", b"matroska")
+VIDEO_HEADER = 64
 WEBM = b"\x1aE\xdf\xa3"
 MIN_VIDEO_BYTES = 1024
 
@@ -173,7 +177,7 @@ def trace_names(traces):
     }
 
 
-def head_traces(archive_bytes, names):
+def head_members(archive_bytes, names):
     found = {}
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         for member in archive.infolist():
@@ -184,6 +188,40 @@ def head_traces(archive_bytes, names):
             if relative in names:
                 found[relative] = archive.read(member)
     return found
+
+
+def head_traces(archive_bytes, names):
+    return head_members(archive_bytes, names)
+
+
+def case_log_name(name):
+    for suffix in TRACE_SUFFIXES:
+        if name.endswith(suffix):
+            return f"{name[: -len(suffix)]}.json"
+    return f"{name}.json"
+
+
+def record_journeys(data):
+    try:
+        entry = json.loads(data.decode("utf-8", "replace"))
+    except ValueError:
+        return None
+    actions = entry.get("actions") if isinstance(entry, dict) else None
+    if not isinstance(actions, list):
+        return None
+    return {
+        action["journey"]
+        for action in actions
+        if isinstance(action, dict) and action.get("journey")
+    }
+
+
+def trace_records(archive_bytes, names):
+    logs = {case_log_name(name): name for name in names}
+    return {
+        logs[relative]: record_journeys(data)
+        for relative, data in head_members(archive_bytes, set(logs)).items()
+    }
 
 
 def trace_events(data):
@@ -199,11 +237,20 @@ def trace_events(data):
             yield event
 
 
+def usable_video(data):
+    if len(data) < MIN_VIDEO_BYTES:
+        return False
+    if not data.startswith(WEBM):
+        return False
+    header = data[:VIDEO_HEADER]
+    return any(kind in header for kind in VIDEO_TYPES)
+
+
 def usable_trace(name, data):
+    if name.endswith(".webm"):
+        return usable_video(data)
     if data == b"":
         return False
-    if name.endswith(".webm"):
-        return data.startswith(WEBM) and len(data) >= MIN_VIDEO_BYTES
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             entries = [
@@ -213,7 +260,7 @@ def usable_trace(name, data):
             ]
             for entry in entries:
                 for event in trace_events(archive.read(entry)):
-                    if event.get("type") in ACTION_EVENTS:
+                    if event.get("type") in EVIDENCE_EVENTS:
                         return True
     except zipfile.BadZipFile:
         return False
@@ -232,7 +279,7 @@ def read_traces(archive_bytes):
         return json.loads(archive.read(candidates[0]))
 
 
-def check_traces(journeys, traces, found, live_only):
+def check_traces(journeys, traces, found, live_only, records):
     if traces is None:
         return [
             f"the run uploaded no single {PROOF}/{TRACES} (missing or duplicated), "
@@ -272,6 +319,19 @@ def check_traces(journeys, traces, found, live_only):
                         f"{name} for journey {journey} holds no recorded browser "
                         "action, so it is not trace evidence"
                     )
+                continue
+            recorded_journeys = records.get(name)
+            if recorded_journeys is None:
+                problems.append(
+                    f"{name} for journey {journey} has no case log of its own, "
+                    "so it cannot be tied to that journey"
+                )
+                continue
+            if journey not in recorded_journeys:
+                problems.append(
+                    f"{name} for journey {journey} recorded no action for that "
+                    "journey"
+                )
     return problems
 
 
@@ -319,8 +379,13 @@ def evaluate_pull_request(
         ]
         return report
     traces = read_traces(archive)
+    named = trace_names(traces)
     problems = check_traces(
-        journeys, traces, head_traces(archive, trace_names(traces)), live_only
+        journeys,
+        traces,
+        head_traces(archive, named),
+        live_only,
+        trace_records(archive, named),
     )
     revision = (traces or {}).get("revision")
     if revision is not None and revision != report["head"]:
@@ -471,14 +536,18 @@ def proof(args):
     journeys = [value for value in (args.journeys or "").split(",") if value]
     traces = json.loads(traces_path.read_text())
     found = {}
+    records = {}
     for name in trace_names(traces):
         target = directory / name
         if target.is_file():
             found[name] = target.read_bytes()
+        log = directory / case_log_name(name)
+        if log.is_file():
+            records[name] = record_journeys(log.read_bytes())
     live_only = live_only_journeys(
         Path(args.repo_path).expanduser() / args.features_dir
     )
-    problems = check_traces(journeys, traces, found, live_only)
+    problems = check_traces(journeys, traces, found, live_only, records)
     if problems:
         for problem in problems:
             print(f"missing: {problem}", file=sys.stderr)
