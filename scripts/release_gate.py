@@ -168,10 +168,14 @@ def member_sizes(archive_bytes):
 
 def read_traces(archive_bytes):
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
-        for name in archive.namelist():
-            if name == f"{PROOF}/{TRACES}" or name.endswith(f"/{PROOF}/{TRACES}"):
-                return json.loads(archive.read(name))
-    return None
+        candidates = [
+            name
+            for name in archive.namelist()
+            if name == f"{PROOF}/{TRACES}" or name.endswith(f"/{PROOF}/{TRACES}")
+        ]
+        if len(candidates) != 1:
+            return None
+        return json.loads(archive.read(candidates[0]))
 
 
 def head_members(members):
@@ -187,7 +191,8 @@ def head_members(members):
 def check_traces(journeys, traces, members, live_only):
     if traces is None:
         return [
-            f"the run uploaded no {PROOF}/{TRACES}, so no journey has a recorded trace"
+            f"the run uploaded no single {PROOF}/{TRACES} (missing or duplicated), "
+            "so no journey has a recorded trace"
         ]
     recorded = traces.get("journeys") or {}
     excused = {

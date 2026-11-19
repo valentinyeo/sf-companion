@@ -57,7 +57,7 @@ def trace_members(traces):
     }
 
 
-def artifact(*, traces=None, members=()):
+def artifact(*, traces=None, members=(), extra_manifest=False):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("proof-base/result.json", "{}")
@@ -65,6 +65,8 @@ def artifact(*, traces=None, members=()):
             archive.writestr(
                 "proof-head/traces.json", json.dumps(traces, indent=2)
             )
+        if extra_manifest:
+            archive.writestr("proof-head/nested/proof-head/traces.json", "{}")
         for name in members:
             archive.writestr(f"proof-head/{name}", "PK" + "0" * 64)
     return buffer.getvalue()
@@ -78,14 +80,22 @@ class FixtureCase(unittest.TestCase):
         ]
 
     def evaluate(
-        self, *, traces, members, files=None, artifacts=None, runs=None, live_only=None
+        self,
+        *,
+        traces,
+        members,
+        files=None,
+        artifacts=None,
+        runs=None,
+        live_only=None,
+        extra_manifest=False,
     ):
         return gate.evaluate_pull_request(
             fixture("pull-request.json"),
             files if files is not None else fixture("files.json"),
             runs if runs is not None else fixture("runs.json"),
             artifacts if artifacts is not None else fixture("artifacts.json"),
-            artifact(traces=traces, members=members),
+            artifact(traces=traces, members=members, extra_manifest=extra_manifest),
             self.features,
             LIVE_ONLY if live_only is None else live_only,
         )
@@ -209,7 +219,20 @@ class FailTest(FixtureCase):
     def test_artifact_without_a_trace_index_fails(self):
         report = self.evaluate(traces=None, members=())
         self.assertEqual(report["outcome"], "failed")
-        self.assertIn("uploaded no proof-head/traces.json", report["problems"][0])
+        self.assertIn(
+            "uploaded no single proof-head/traces.json", report["problems"][0]
+        )
+
+    def test_two_trace_indexes_fail(self):
+        report = self.evaluate(
+            traces=fixture("traces-pass.json"),
+            members=trace_members(fixture("traces-pass.json")),
+            extra_manifest=True,
+        )
+        self.assertEqual(report["outcome"], "failed")
+        self.assertIn(
+            "uploaded no single proof-head/traces.json", report["problems"][0]
+        )
 
     def test_pull_request_without_a_successful_run_fails(self):
         traces = fixture("traces-pass.json")
