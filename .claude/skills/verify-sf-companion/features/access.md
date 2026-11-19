@@ -1,12 +1,14 @@
 # Anonymous access gate
 
-Anonymous visitors to the deployed Factory page are sent to Cloudflare Access before seeing factory data.
+The deployed site sits behind Cloudflare Access, so an anonymous request reaches the Access login before any factory data. The gate is a property of the deployed Website resource, not of the page renderer.
+
+Covers: deploy:website
+
+Code paths: apps/web/src/website.ts, apps/web/src/entry.server.ts
 
 ## Sub-features
 
-- `access-anonymous` redirects an unauthenticated request to Access login.
-
-Code paths: apps/web/src/website.ts, apps/web/src/entry.server.ts
+- `access-anonymous` redirects an unauthenticated request to the Access login.
 
 ## How to get to it (user POV)
 

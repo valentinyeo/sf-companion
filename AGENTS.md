@@ -176,6 +176,8 @@ Every hard rule this repo runs is a row here, and every row names the check that
 | Rule | Enforced by | Where it runs |
 | --- | --- | --- |
 | Pull request CI runs no browser and no full journey suite | `script:scripts/check_ci_scope.py` | `pnpm check`, lefthook, CI |
+| Every user-facing feature has a verify feature file, and the map's coverage line matches source | `script:scripts/feature_coverage.py` | `pnpm check`, lefthook, CI |
+| The coverage check fails on a missing file, a dead feature, or a stale count | `script:scripts/test_feature_coverage.py` | `pnpm test`, CI |
 | Every journey runs nightly on `main` and keeps its proof | `script:scripts/check_ci_scope.py` | `pnpm check`, lefthook, CI |
 
 ### Code bans

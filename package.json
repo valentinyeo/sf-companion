@@ -10,7 +10,7 @@
     "alchemy": "pnpm --filter @sf-companion/infra exec alchemy",
     "build": "turbo run build",
     "bump:checkers": "node scripts/bump-checkers.ts",
-    "check": "pnpm run lockfile:check && varlock load && turbo run typecheck typecheck-scripts && ultracite check && oxfmt --check . && scripts/check-exact-pins && scripts/check-rule-table && scripts/check_ci_scope.py",
+    "check": "pnpm run lockfile:check && varlock load && turbo run typecheck typecheck-scripts && ultracite check && oxfmt --check . && scripts/check-exact-pins && scripts/check-rule-table && scripts/check_ci_scope.py && scripts/feature_coverage.py",
     "env:check": "varlock load",
     "fix": "ultracite fix && oxfmt .",
     "lint": "ultracite check && oxfmt --check .",
