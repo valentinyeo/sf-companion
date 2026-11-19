@@ -66,13 +66,13 @@ class PickTest(unittest.TestCase):
         self.assertEqual(result["model"], "deepseek-v4.1-flash")
         self.assertEqual(result["secret"], "OPENCODE_API_KEY")
 
-    def test_prefers_openai_on_openrouter_when_an_author_is_deepseek(self):
+    def test_prefers_openai_on_vercel_gateway_when_an_author_is_deepseek(self):
         result = picker.pick_verifier("Author model: deepseek/deepseek-v4.1-flash\n")
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["family"], "openai")
-        self.assertEqual(result["provider"], "openrouter")
+        self.assertEqual(result["provider"], "vercel-ai-gateway")
         self.assertEqual(result["model"], "openai/gpt-6.1-sol")
-        self.assertEqual(result["secret"], "OPENROUTER_API_KEY")
+        self.assertEqual(result["secret"], "AI_GATEWAY_API_KEY")
 
     def test_treats_opencode_go_deepseek_as_a_deepseek_author(self):
         result = picker.pick_verifier("Author model: opencode-go/deepseek-v4.1-flash\n")
