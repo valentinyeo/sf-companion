@@ -6,7 +6,7 @@ This folder proves that `verify-sf-companion` catches real regressions and does 
 
 ## Cases
 
-`cases.json` is the single source of truth for journeys, families, cases, patches, and expected verdicts.
+`cases.json` holds families, cases, patches, and expected verdicts. `eval.py journeys` lists every feature-map journey except `access-anonymous`, which needs `run.sh --live`.
 
 | Case | Patch | What a user would see | Expected |
 | --- | --- | --- | --- |

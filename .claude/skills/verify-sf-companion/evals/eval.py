@@ -28,8 +28,32 @@ def matrix(spec):
     print(f"matrix={json.dumps({'include': include}, separators=(',', ':'))}")
 
 
-def journeys(spec):
-    print(",".join(spec["journeys"]))
+NON_EVAL_JOURNEYS = frozenset({"access-anonymous"})
+
+
+def skill_root(cases_path):
+    return Path(cases_path).resolve().parent.parent
+
+
+def journeys_for_eval(cases_path):
+    scripts = skill_root(cases_path).parent.parent.parent / "scripts"
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    import select_verifier_scope as selector
+
+    features_dir = skill_root(cases_path) / "features"
+    known = sorted(
+        {
+            journey
+            for feature in selector.read_features(features_dir)
+            for journey in feature["journeys"]
+        }
+    )
+    return [journey for journey in known if journey not in NON_EVAL_JOURNEYS]
+
+
+def journeys(cases_path):
+    print(",".join(journeys_for_eval(cases_path)))
 
 
 def text_of(trace):
@@ -115,7 +139,7 @@ def main():
         matrix(spec)
         return 0
     if args.command == "journeys":
-        journeys(spec)
+        journeys(args.cases)
         return 0
     table, mismatches = tabulate(spec, args.records, args.run_url)
     if args.table:
