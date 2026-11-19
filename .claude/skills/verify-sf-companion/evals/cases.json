@@ -44,9 +44,9 @@
       "secret": "OPENCODE_API_KEY"
     },
     {
-      "family": "openai",
+      "family": "moonshot",
       "provider": "vercel-ai-gateway",
-      "model": "openai/gpt-6.1-sol",
+      "model": "moonshotai/kimi-k3",
       "secret": "AI_GATEWAY_API_KEY"
     }
   ],

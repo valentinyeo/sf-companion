@@ -108,6 +108,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PROVIDER: ${{ matrix.provider }}
           MODEL: ${{ matrix.model }}
         run: |
@@ -115,6 +116,7 @@ jobs:
           case "$PROVIDER" in
             opencode-go) test -n "$OPENCODE_API_KEY" ;;
             vercel-ai-gateway) test -n "$AI_GATEWAY_API_KEY" ;;
+            openrouter) test -n "$OPENROUTER_API_KEY" ;;
             *) echo "No provider: $PROVIDER" >&2; exit 1 ;;
           esac
           printf '%s' "$PROMPT" > "$RECORDS/prompt.txt"
