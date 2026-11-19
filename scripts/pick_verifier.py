@@ -33,16 +33,16 @@ DEEPSEEK_VERIFIER = {
 
 OTHER_VERIFIERS = (
     {
-        "family": "openai",
-        "model": "openai/gpt-6.1-sol",
+        "family": "moonshot",
+        "model": "moonshotai/kimi-k3",
         "provider": "vercel-ai-gateway",
         "secret": "AI_GATEWAY_API_KEY",
     },
     {
-        "family": "google",
-        "model": "google/gemini-3.7-flash",
-        "provider": "vercel-ai-gateway",
-        "secret": "AI_GATEWAY_API_KEY",
+        "family": "openai",
+        "model": "openai/gpt-6.1-sol",
+        "provider": "openrouter",
+        "secret": "OPENROUTER_API_KEY",
     },
 )
 

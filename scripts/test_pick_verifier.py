@@ -66,33 +66,34 @@ class PickTest(unittest.TestCase):
         self.assertEqual(result["model"], "deepseek-v4.1-flash")
         self.assertEqual(result["secret"], "OPENCODE_API_KEY")
 
-    def test_prefers_openai_on_vercel_gateway_when_an_author_is_deepseek(self):
+    def test_prefers_kimi_on_vercel_gateway_when_an_author_is_deepseek(self):
         result = picker.pick_verifier("Author model: deepseek/deepseek-v4.1-flash\n")
         self.assertEqual(result["status"], "ok")
-        self.assertEqual(result["family"], "openai")
+        self.assertEqual(result["family"], "moonshot")
         self.assertEqual(result["provider"], "vercel-ai-gateway")
-        self.assertEqual(result["model"], "openai/gpt-6.1-sol")
+        self.assertEqual(result["model"], "moonshotai/kimi-k3")
         self.assertEqual(result["secret"], "AI_GATEWAY_API_KEY")
 
     def test_treats_opencode_go_deepseek_as_a_deepseek_author(self):
         result = picker.pick_verifier("Author model: opencode-go/deepseek-v4.1-flash\n")
         self.assertEqual(result["status"], "ok")
-        self.assertEqual(result["family"], "openai")
+        self.assertEqual(result["family"], "moonshot")
 
-    def test_skips_a_used_openai_family_and_picks_google(self):
+    def test_skips_a_used_moonshot_family_and_picks_openai(self):
         result = picker.pick_verifier(
             "Author model: deepseek/deepseek-v4.1-flash\n"
-            "Author model: openai/gpt-6.1-sol\n"
+            "Author model: moonshotai/kimi-k3\n"
         )
         self.assertEqual(result["status"], "ok")
-        self.assertEqual(result["family"], "google")
-        self.assertEqual(result["model"], "google/gemini-3.7-flash")
+        self.assertEqual(result["family"], "openai")
+        self.assertEqual(result["provider"], "openrouter")
+        self.assertEqual(result["model"], "openai/gpt-6.1-sol")
 
     def test_fails_when_every_verifier_family_wrote_the_change(self):
         result = picker.pick_verifier(
             "Author model: deepseek/deepseek-v4.1-flash\n"
+            "Author model: moonshotai/kimi-k3\n"
             "Author model: openai/gpt-6.1-sol\n"
-            "Author model: google/gemini-3.7-flash\n"
         )
         self.assertEqual(result["status"], "fail")
         self.assertIn("Every verifier family", result["reason"])
@@ -123,7 +124,7 @@ class CommandLineTest(unittest.TestCase):
                 text=True,
             )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["family"], "openai")
+        self.assertEqual(json.loads(result.stdout)["family"], "moonshot")
 
 
 if __name__ == "__main__":

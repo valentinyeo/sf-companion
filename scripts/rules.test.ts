@@ -232,7 +232,7 @@ describe("the verify-skill evaluation", () => {
   it("judges every case with two families", () => {
     expect(spec.families.map((entry) => entry.family)).toEqual([
       "deepseek",
-      "openai",
+      "moonshot",
     ]);
 
     expect(new Set(spec.families.map((entry) => entry.model)).size).toBe(

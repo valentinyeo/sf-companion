@@ -132,6 +132,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PROVIDER: ${{ steps.pick.outputs.provider }}
           MODEL: ${{ steps.pick.outputs.model }}
           FAMILY: ${{ steps.pick.outputs.family }}
@@ -166,6 +167,7 @@ jobs:
           case "$PROVIDER" in
             opencode-go) test -n "$OPENCODE_API_KEY" ;;
             vercel-ai-gateway) test -n "$AI_GATEWAY_API_KEY" ;;
+            openrouter) test -n "$OPENROUTER_API_KEY" ;;
             *) echo "No verifier provider: $PROVIDER" >&2; exit 1 ;;
           esac
           pi --provider "$PROVIDER" --model "$MODEL" --thinking low \
