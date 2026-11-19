@@ -2,6 +2,8 @@
 
 Reports is the index of finished client reports, newest first, and each row opens the stored report.
 
+Code paths: apps/web/src/content/hub.ts, apps/web/src/content/item.ts, apps/web/src/content/bucket.ts, apps/web/src/content/share.ts, apps/web/src/features/hub.stylex.ts, apps/web/src/features/page.ts, apps/web/src/features/route.ts, apps/web/src/entry.server.ts
+
 ## Sub-features
 
 - `reports-index` lists report items with project and date.

@@ -1,6 +1,6 @@
 # Companion verification map
 
-Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json` for the factory feed and `../fixture-hub/` for the hub content store, through the same files production reads.
+Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json` for the factory feed and `../fixture-hub/` for the hub content store, through the same files production reads. Every sub-feature id is a journey id: `run.sh --journeys=<ids>` drives only those journeys. Each feature file lists the source files it covers on its `Code paths:` line, so a diff selects its journeys.
 
 ## Features
 
@@ -13,6 +13,6 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 
 ## Proof rules
 
-Require successful builds and eight passing browser cases in `result.json`. Every browser case saves its actions, dimensions, ARIA snapshot, and screenshot. Any console error, uncaught browser error, failed local response, or horizontal overflow fails verification. Failed runs retain partial evidence and return a nonzero exit code. Do not call skipped checks verified.
+Require successful builds and eight passing browser cases in `result.json` for a full run. A scoped run passes only the cases its journeys drive. Every browser case saves its actions, dimensions, ARIA snapshot, and screenshot. Any console error, uncaught browser error, failed local response, or horizontal overflow fails verification. Failed runs retain partial evidence and return a nonzero exit code. Do not call skipped checks verified.
 
 The map covers Home, Explorations, Reports, and Factory. Stored items are served as the bytes kept in the content store, so the map does not claim site-styled item pages, authenticated production access, or deployed build parity.

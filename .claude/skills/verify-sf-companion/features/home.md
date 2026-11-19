@@ -2,6 +2,8 @@
 
 Home is the hub's front page: the title, an Explorations section, a Reports section, and a Factory section. Each section shows its newest rows and a link to its full list.
 
+Code paths: apps/web/src/content/hub.ts, apps/web/src/content/item.ts, apps/web/src/content/bucket.ts, apps/web/src/content/share.ts, apps/web/src/features/hub.stylex.ts, apps/web/src/features/page.ts, apps/web/src/features/route.ts, apps/web/src/entry.server.ts
+
 ## Sub-features
 
 - `home-sections` shows both hub sections with their rows.

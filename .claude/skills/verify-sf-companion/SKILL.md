@@ -19,6 +19,14 @@ Playwright is pinned and installed in disposable tooling, outside the workspace 
 
 Set `PROOF_DIR` to a new absolute directory to choose the evidence location. Otherwise the helper creates `/tmp/sf-companion-proof.XXXXXX`. It prints that path before doing work. Never use the deploy checkout. Concurrent runs have separate source copies, ports, browsers, and proof directories.
 
+A full run drives every journey. To drive only the journeys a change touches, pass their ids from the feature map's sub-features:
+
+```sh
+.claude/skills/verify-sf-companion/run.sh --journeys=factory-entry,factory-readings
+```
+
+Unknown ids fail before any install. The selected ids are recorded in `result.json`.
+
 ## Doctor
 
 The helper waits for its own Vite readiness log, then loads `/factory` and requires HTTP 200, the `Factory` heading, and the `Software Factory Companion` navigation link. A responding socket alone is not readiness. Check `seeded-dev.log` or `empty-dev.log` in the proof directory when this fails. Do not attach to another process or bypass Cloudflare Access.
@@ -34,7 +42,7 @@ Each case saves a full-page PNG, an ARIA snapshot, and a JSON action/result log.
 For the optional anonymous live boundary check:
 
 ```sh
-.claude/skills/verify-sf-companion/run.sh --live
+.claude/skills/verify-sf-companion/run.sh --live --journeys=access-anonymous
 ```
 
 This also requests `https://yeoux.net/factory/` without cookies and without following redirects. Require a redirect to a Cloudflare Access login URL. Save only status and destination origin/path, not signed query parameters. This proves the anonymous gate, not authenticated production behavior.
@@ -45,7 +53,7 @@ The helper stops only process groups it started and removes its disposable check
 
 ## Helpers
 
-- `run.sh` launches the complete verification from any working directory.
+- `run.sh` launches the verification from any working directory, in full or for the journeys named by `--journeys`.
 - `verify.mjs` builds and drives the disposable copy. Invoke it through `run.sh`, which supplies its isolated dependencies and paths.
 - `fixture.json` is synthetic build input, not live factory data.
 - `fixture-hub/` is a synthetic hub content store laid out like the R2 bucket: `index.json` lists object keys with their metadata, and each object file sits under its `x/` or `r/` prefix.
