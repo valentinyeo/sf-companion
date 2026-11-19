@@ -209,7 +209,10 @@ describe("factory page", () => {
         scene(
           { update, view },
           given(
-            initialModel({ route: SiteRoute.Factory() }, [], Option.some(feed))
+            initialModel(
+              { items: [], route: SiteRoute.Factory() },
+              Option.some(feed)
+            )
           ),
           expectElement(
             role("region", { name: "Daily shipping and burn chart" })
@@ -281,7 +284,10 @@ describe("factory page", () => {
       scene(
         { update, view },
         given(
-          initialModel({ route: SiteRoute.Factory() }, [], Option.some(feed))
+          initialModel(
+            { items: [], route: SiteRoute.Factory() },
+            Option.some(feed)
+          )
         ),
         expectElement(role("columnheader", { name: "Codex pts" })).toExist(),
         expectElement(
@@ -336,7 +342,7 @@ describe("factory page", () => {
 
       scene(
         { update, view },
-        given(initialModel({ route }, [], Option.some(feed))),
+        given(initialModel({ items: [], route }, Option.some(feed))),
         expectElement(text("Fixture Plan")).toExist(),
         expectElement(
           text(
@@ -399,7 +405,7 @@ describe("factory page", () => {
 
       scene(
         { update, view },
-        given(initialModel({ route }, [], Option.none())),
+        given(initialModel({ items: [], route }, Option.none())),
         expectElement(text("No factory numbers yet.")).toExist()
       );
     })

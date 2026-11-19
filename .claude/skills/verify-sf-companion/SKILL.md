@@ -13,7 +13,7 @@ From the repository root, run:
 .claude/skills/verify-sf-companion/run.sh
 ```
 
-The helper copies this checkout into a disposable directory, excluding Git state, dependencies, generated output, and the host feed. It installs with `pnpm install --frozen-lockfile --ignore-scripts`, builds each feed state with `pnpm --filter @sf-companion/web build`, then starts Vite with `PORTLESS=0` on an unused loopback port. A disposable Vite config names `src/client/entry.ts` as the dependency-scan entry. This lets Vite find dependencies before browser requests, avoiding cold-cache 504 errors on this SSR-only app. The production Vite config is unchanged. No certificates, proxy changes, credentials, deployment, or board writes are needed. Node and pnpm versions are pinned in `package.json`; older versions can warn. Ignoring install scripts avoids lefthook's global `core.hooksPath` conflict.
+The helper copies this checkout into a disposable directory, excluding Git state, dependencies, generated output, the host feed, and any host copy of the hub content store. It installs with `pnpm install --frozen-lockfile --ignore-scripts`, builds each feed state with `pnpm --filter @sf-companion/web build`, then starts Vite with `PORTLESS=0` on an unused loopback port. A disposable Vite config names `src/client/entry.ts` as the dependency-scan entry. This lets Vite find dependencies before browser requests, avoiding cold-cache 504 errors on this SSR-only app. The production Vite config is unchanged. No certificates, proxy changes, credentials, deployment, or board writes are needed. Node and pnpm versions are pinned in `package.json`; older versions can warn. Ignoring install scripts avoids lefthook's global `core.hooksPath` conflict.
 
 Playwright is pinned and installed in disposable tooling, outside the workspace dependency graph. Chromium must be available; the helper installs its matching browser without system dependencies. If host libraries are missing, report the launch error rather than changing the system.
 
@@ -33,7 +33,9 @@ The helper waits for its own Vite readiness log, then loads `/factory` and requi
 
 ## Drive
 
-Read [the feature map](features/README.md). The helper uses Chromium and real browser actions against the local app. It checks both feed states at 1280×900 and 390×844, with `prefers-color-scheme` set to `light` and `dark`. It navigates through the primary `Factory` link, changes usage windows, and opens native disclosure controls. Feed data enters through the existing build-time JSON file, never internal model setters or intercepted responses.
+Read [the feature map](features/README.md). The helper uses Chromium and real browser actions against the local app. It checks both seeded and empty states at 1280×900 and 390×844, with `prefers-color-scheme` set to `light` and `dark`. It reads Home, both hub indexes, one stored report, one stored exploration, the factory readings, usage windows, and native disclosure controls. Data enters through the files production reads: the factory feed JSON and the hub content store, never internal model setters or intercepted responses.
+
+Each journey records its own actions, tagged with its id. Before the run starts, `verify.mjs` fails if a feature file lists a sub-feature id that no `wants("<id>")` gate covers. At the end it fails if a requested journey recorded no action, so a journey that is listed but never driven cannot pass.
 
 ## Evidence
 
@@ -56,5 +58,6 @@ The helper stops only process groups it started and removes its disposable check
 - `run.sh` launches the verification from any working directory, in full or for the journeys named by `--journeys`.
 - `verify.mjs` builds and drives the disposable copy. Invoke it through `run.sh`, which supplies its isolated dependencies and paths.
 - `fixture.json` is synthetic build input, not live factory data.
+- `fixture-hub/` is a synthetic hub content store laid out like the R2 bucket: `index.json` lists object keys with their metadata, and each object file sits under its `x/` or `r/` prefix.
 
 Keep this skill and its feature map aligned with the app using `/maintain-verification-skill`.

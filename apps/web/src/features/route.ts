@@ -1,11 +1,8 @@
 import { pipe, Schema } from "effect";
 import { Route } from "foldkit";
 
-import type { EntryKind } from "../content/entry.js";
-
-const Section = Schema.Literals(["explorations", "reports"]);
-
-export type SectionValue = typeof Section.Type;
+import { Section } from "../content/item.js";
+import type { SectionValue } from "../content/item.js";
 
 export const SiteRoute = Route.defineRouteUnion({
   Entry: { section: Section, slug: Schema.String },
@@ -39,14 +36,8 @@ export const parseRoute = Route.parseUrlWithFallback(
   SiteRoute.NotFound
 );
 
-export const sectionFor = (kind: EntryKind): SectionValue =>
-  kind === "exploration" ? "explorations" : "reports";
+export const listPath = (section: SectionValue): string =>
+  listRouter({ section });
 
-export const kindOf = (section: SectionValue): EntryKind =>
-  section === "explorations" ? "exploration" : "report";
-
-export const listPath = (kind: EntryKind): string =>
-  listRouter({ section: sectionFor(kind) });
-
-export const entryPath = (kind: EntryKind, slug: string): string =>
-  entryRouter({ section: sectionFor(kind), slug });
+export const entryPath = (section: SectionValue, slug: string): string =>
+  entryRouter({ section, slug });

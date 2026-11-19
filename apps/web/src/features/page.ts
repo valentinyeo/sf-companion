@@ -1,22 +1,18 @@
-import { Button } from "@foldkit/ui";
 import * as stylex from "@stylexjs/stylex";
-import { Array, Option } from "effect";
+import { Array } from "effect";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
 
-import { Message } from "../client/app/message.js";
 import type { AppMessage } from "../client/app/message.js";
-import { CopyState } from "../client/app/model.js";
 import type { AppModel } from "../client/app/model.js";
-import { entriesOf, findEntry } from "../content/entry.js";
-import type { EntryValue, EntryKind } from "../content/entry.js";
+import { itemsIn, titleFromSlug } from "../content/item.js";
+import type { ItemValue, SectionValue } from "../content/item.js";
 import { factoryView } from "./factory.js";
+import { hubStyles } from "./hub.stylex.js";
 import { readerStyles } from "./reader.stylex.js";
 import {
   entryPath,
-  entryRouter,
   factoryRouter,
   homeRouter,
-  kindOf,
   listPath,
   SiteRoute,
 } from "./route.js";
@@ -24,34 +20,32 @@ import type { SiteRouteValue } from "./route.js";
 
 const SITE_NAME = "Software Factory Companion";
 
-const sectionName = (kind: EntryKind) =>
-  kind === "exploration" ? "Explorations" : "Reports";
+const HOME_LIMIT = 5;
 
-const emptyLine = (kind: EntryKind) =>
-  kind === "exploration" ? "No explorations yet." : "No reports yet.";
-
-const backLabel = (kind: EntryKind) =>
-  `Back to ${sectionName(kind).toLowerCase()}`;
+const SECTION_TEXT: Readonly<
+  Record<
+    SectionValue,
+    { readonly blurb: string; readonly empty: string; readonly name: string }
+  >
+> = {
+  explorations: {
+    blurb: "Research, plans and experiments, newest first.",
+    empty: "No explorations yet.",
+    name: "Explorations",
+  },
+  reports: {
+    blurb: "Finished reports and status pages, newest first.",
+    empty: "No reports yet.",
+    name: "Reports",
+  },
+};
 
 const className = (...styles: readonly stylex.StyleXStyles[]) =>
   stylex.props(...styles).className ?? "";
 
-const copyLabel = CopyState.match({
-  Copied: () => "Link copied",
-  Failed: () => "Copy failed. Copy the address bar instead.",
-  Idle: () => "Copy link",
-});
-
-const paragraphs = (body: string) =>
-  body.split(/\n{2,}/u).flatMap((paragraph) => {
-    const trimmed = paragraph.trim();
-
-    return trimmed === "" ? [] : [trimmed];
-  });
-
 const sectionLinks = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
-  h.li([], [h.a([h.Href(listPath("exploration"))], ["Explorations"])]),
-  h.li([], [h.a([h.Href(listPath("report"))], ["Reports"])]),
+  h.li([], [h.a([h.Href(listPath("explorations"))], ["Explorations"])]),
+  h.li([], [h.a([h.Href(listPath("reports"))], ["Reports"])]),
   h.li([], [h.a([h.Href(factoryRouter())], ["Factory"])]),
 ];
 
@@ -78,108 +72,108 @@ const siteFooter = (h: HtmlBuilder<AppMessage>): Html =>
     [h.hr([]), h.p([], ["Built with Foldkit, Effect, Alchemy, and StyleX."])]
   );
 
-const homeBranches = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
+const itemRow = (item: ItemValue, h: HtmlBuilder<AppMessage>): Html =>
   h.li(
-    [],
+    [h.Key(`${item.section}/${item.slug}`), h.Class(className(hubStyles.row))],
     [
-      h.a([h.Href(listPath("exploration"))], ["Explorations"]),
-      h.p([], ["Open questions, experiments, and working notes."]),
-    ]
-  ),
-  h.li(
-    [],
-    [
-      h.a([h.Href(listPath("report"))], ["Reports"]),
-      h.p([], ["Finished findings and write-ups."]),
-    ]
-  ),
-  h.li(
-    [],
-    [
-      h.a([h.Href(factoryRouter())], ["Factory"]),
-      h.p([], ["Usage and KPIs from the factory's own numbers."]),
-    ]
-  ),
-];
-
-const homeView = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
-  h.h1([], [SITE_NAME]),
-  h.p([], ["Working notes and finished reports from the Software Factory."]),
-  h.ul([], homeBranches(h)),
-];
-
-const entryRow = (entry: EntryValue, h: HtmlBuilder<AppMessage>): Html =>
-  h.li(
-    [h.Key(entry.slug)],
-    [
-      h.a([h.Href(entryPath(entry.kind, entry.slug))], [entry.title]),
-      h.p([], [entry.summary]),
-      h.time([h.Datetime(entry.date)], [entry.date]),
+      h.a(
+        [
+          h.Class(className(hubStyles.title)),
+          h.Href(entryPath(item.section, item.slug)),
+        ],
+        [item.title]
+      ),
+      h.span(
+        [h.Class(className(hubStyles.meta))],
+        [item.project === "" ? item.date : `${item.project} · ${item.date}`]
+      ),
     ]
   );
 
+const emptyLine = (section: SectionValue, h: HtmlBuilder<AppMessage>): Html =>
+  h.p([h.Class(className(hubStyles.empty))], [SECTION_TEXT[section].empty]);
+
+const sectionHeading = (
+  section: SectionValue,
+  items: readonly ItemValue[],
+  h: HtmlBuilder<AppMessage>
+): Html =>
+  h.div(
+    [h.Class(className(hubStyles.heading))],
+    [
+      h.h2([], [SECTION_TEXT[section].name]),
+      h.a([h.Href(listPath(section))], [`All ${items.length}`]),
+    ]
+  );
+
+const homeSection = (
+  section: SectionValue,
+  model: AppModel,
+  h: HtmlBuilder<AppMessage>
+): Html => {
+  const present = itemsIn(model.items, section);
+
+  return h.section(
+    [h.Class(className(hubStyles.section))],
+    [
+      sectionHeading(section, present, h),
+      Array.match(present, {
+        onEmpty: () => emptyLine(section, h),
+        onNonEmpty: (listed) =>
+          h.ul(
+            [h.Class(className(hubStyles.rows))],
+            listed.slice(0, HOME_LIMIT).map((item) => itemRow(item, h))
+          ),
+      }),
+    ]
+  );
+};
+
+const homeView = (
+  model: AppModel,
+  h: HtmlBuilder<AppMessage>
+): readonly Html[] => [
+  h.h1([], [SITE_NAME]),
+  h.p([], ["Working notes and finished reports from the Software Factory."]),
+  homeSection("explorations", model, h),
+  homeSection("reports", model, h),
+  h.section(
+    [h.Class(className(hubStyles.section))],
+    [
+      h.div(
+        [h.Class(className(hubStyles.heading))],
+        [h.h2([], ["Factory"]), h.a([h.Href(factoryRouter())], ["Open"])]
+      ),
+      h.p(
+        [h.Class(className(hubStyles.empty))],
+        ["Usage and KPIs from the factory's own numbers."]
+      ),
+    ]
+  ),
+];
+
 const listView = (
-  kind: EntryKind,
+  section: SectionValue,
   model: AppModel,
   h: HtmlBuilder<AppMessage>
 ): readonly Html[] => {
-  const present = entriesOf(model.entries, kind);
+  const present = itemsIn(model.items, section);
 
   return [
-    h.h1([], [sectionName(kind)]),
+    h.h1([], [SECTION_TEXT[section].name]),
+    h.p(
+      [h.Class(className(hubStyles.lede))],
+      [`${present.length} items. ${SECTION_TEXT[section].blurb}`]
+    ),
     Array.match(present, {
-      onEmpty: () => h.p([], [emptyLine(kind)]),
+      onEmpty: () => emptyLine(section, h),
       onNonEmpty: (listed) =>
         h.ul(
-          [],
-          listed.map((entry) => entryRow(entry, h))
+          [h.Class(className(hubStyles.rows))],
+          listed.map((item) => itemRow(item, h))
         ),
     }),
   ];
-};
-
-const copyLink = (
-  model: AppModel,
-  path: string,
-  h: HtmlBuilder<AppMessage>
-): Html =>
-  Button.view(
-    {
-      onClick: Message.ClickedCopyEntryLink({ path }),
-      toView: ({ button }) =>
-        h.button([...button], [copyLabel(model.copyState)]),
-      type: "button",
-    },
-    h
-  );
-
-const entryView = (
-  route: Extract<SiteRouteValue, { readonly _tag: "Entry" }>,
-  model: AppModel,
-  h: HtmlBuilder<AppMessage>
-): readonly Html[] => {
-  const kind = kindOf(route.section);
-
-  return Option.match(findEntry(model.entries, kind, route.slug), {
-    onNone: () => missingView(h),
-    onSome: (entry) => [
-      h.article(
-        [],
-        [
-          h.h1([], [entry.title]),
-          h.p([], [entry.summary]),
-          h.time([h.Datetime(entry.date)], [entry.date]),
-          ...paragraphs(entry.body).map((paragraph) => h.p([], [paragraph])),
-          copyLink(
-            model,
-            entryRouter({ section: route.section, slug: route.slug }),
-            h
-          ),
-          h.p([], [h.a([h.Href(listPath(kind))], [backLabel(kind)])]),
-        ]
-      ),
-    ],
-  });
 };
 
 const missingView = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
@@ -187,16 +181,12 @@ const missingView = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
   h.p([], [h.a([h.Href(homeRouter())], ["Go to the home page."])]),
 ];
 
-const titleOf = (route: SiteRouteValue, model: AppModel) =>
+const titleOf = (route: SiteRouteValue): string =>
   SiteRoute.match(route, {
-    Entry: ({ section, slug }) =>
-      Option.match(findEntry(model.entries, kindOf(section), slug), {
-        onNone: () => "Page not found",
-        onSome: (entry) => entry.title,
-      }),
+    Entry: ({ slug }) => titleFromSlug(slug),
     Factory: () => "Factory",
     Home: () => SITE_NAME,
-    List: ({ section }) => sectionName(kindOf(section)),
+    List: ({ section }) => SECTION_TEXT[section].name,
     NotFound: () => "Page not found",
   });
 
@@ -206,10 +196,10 @@ const bodyOf = (
   h: HtmlBuilder<AppMessage>
 ): readonly Html[] =>
   SiteRoute.match(route, {
-    Entry: (entry) => entryView(entry, model, h),
+    Entry: () => missingView(h),
     Factory: () => factoryView(model, h),
-    Home: () => homeView(h),
-    List: ({ section }) => listView(kindOf(section), model, h),
+    Home: () => homeView(model, h),
+    List: ({ section }) => listView(section, model, h),
     NotFound: () => missingView(h),
   });
 
@@ -221,5 +211,5 @@ export const view = (
     [h.Class(className(readerStyles.shell))],
     [siteHeader(h), h.main([], bodyOf(model.route, model, h)), siteFooter(h)]
   ),
-  title: titleOf(model.route, model),
+  title: titleOf(model.route),
 });
