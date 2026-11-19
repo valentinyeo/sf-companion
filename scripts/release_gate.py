@@ -174,6 +174,16 @@ def read_traces(archive_bytes):
     return None
 
 
+def head_members(members):
+    found = {}
+    for name, size in members.items():
+        parts = name.split("/")
+        if PROOF not in parts:
+            continue
+        found["/".join(parts[parts.index(PROOF) + 1 :])] = size
+    return found
+
+
 def check_traces(journeys, traces, members, live_only):
     if traces is None:
         return [
@@ -185,7 +195,7 @@ def check_traces(journeys, traces, members, live_only):
         for entry in traces.get("untraced") or []
         if entry.get("journey") in live_only and entry.get("reason")
     }
-    sizes = {name.rsplit("/", 1)[-1]: size for name, size in members.items()}
+    sizes = head_members(members)
     problems = []
     for journey in journeys:
         names = recorded.get(journey) or []
@@ -198,7 +208,7 @@ def check_traces(journeys, traces, members, live_only):
             if not name.endswith(TRACE_SUFFIXES):
                 problems.append(f"{name} for journey {journey} is not a trace or video")
                 continue
-            if sizes.get(name.rsplit("/", 1)[-1], 0) == 0:
+            if sizes.get(name, 0) == 0:
                 problems.append(
                     f"the proof artifact holds no {name} for journey {journey}"
                 )
@@ -398,7 +408,7 @@ def proof(args):
         return 1
     journeys = [value for value in (args.journeys or "").split(",") if value]
     members = {
-        path.relative_to(directory).as_posix(): path.stat().st_size
+        f"{PROOF}/{path.relative_to(directory).as_posix()}": path.stat().st_size
         for path in directory.rglob("*")
         if path.is_file()
     }

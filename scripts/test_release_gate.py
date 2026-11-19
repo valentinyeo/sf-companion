@@ -240,6 +240,25 @@ class FailTest(FixtureCase):
             "the proof records revision anothersha, not head head12",
         )
 
+    def test_base_traces_cannot_stand_in_for_head_traces(self):
+        traces = {
+            "journeys": {"factory-readings": ["seeded-1280-light.trace.zip"]},
+            "untraced": [],
+        }
+        problems = gate.check_traces(
+            ["factory-readings"],
+            traces,
+            {"proof-base/seeded-1280-light.trace.zip": 900},
+            LIVE_ONLY,
+        )
+        self.assertEqual(
+            problems,
+            [
+                "the proof artifact holds no seeded-1280-light.trace.zip "
+                "for journey factory-readings"
+            ],
+        )
+
     def test_entry_that_is_not_a_trace_or_video_fails(self):
         traces = {
             "journeys": {"factory-entry": ["seeded-1280-light.png"]},
