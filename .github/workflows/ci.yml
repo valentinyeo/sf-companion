@@ -13,6 +13,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   checks:
     runs-on: ubuntu-latest
     env:
@@ -32,8 +44,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Feed change rebuilds the site
         run: scripts/check-feed-rebuilds.sh
-      - name: Rule table and exact pins
-        run: scripts/check-rule-table && scripts/check-exact-pins
+      - name: Rule table, exact pins, and CI scope
+        run: scripts/check-rule-table && scripts/check-exact-pins && scripts/check_ci_scope.py
       - name: Test the repo checks and scripts
         run: >-
           python3 -m unittest discover -s tools -p "test_check_*.py" -v && pnpm exec vitest run scripts/rules.test.ts

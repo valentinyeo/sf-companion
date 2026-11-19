@@ -169,6 +169,14 @@ Every hard rule this repo runs is a row here, and every row names the check that
 | Dependencies are pinned to one exact version | `script:scripts/check-exact-pins` | `pnpm check`, CI |
 | No commit skips the hooks (`--no-verify`, `git commit -n`, `LEFTHOOK=0`, `core.hooksPath`) | `test:scripts/rules.test.ts` | `pnpm test`, CI, the Pi, Cursor, and Claude Code hooks that call the policy |
 | A numbers-only feed refresh rebuilds the site | `script:scripts/check-feed-rebuilds.sh` | CI job `checks` |
+| No secret material reaches the repository | `ci:Secret scan` | CI job `secrets`, every push and pull request |
+
+### Continuous integration
+
+| Rule | Enforced by | Where it runs |
+| --- | --- | --- |
+| Pull request CI runs no browser and no full journey suite | `script:scripts/check_ci_scope.py` | `pnpm check`, lefthook, CI |
+| Every journey runs nightly on `main` and keeps its proof | `script:scripts/check_ci_scope.py` | `pnpm check`, lefthook, CI |
 
 ### Code bans
 
