@@ -1,0 +1,7 @@
+{
+  "number": 12,
+  "title": "feat(factory): read the overnight plan",
+  "merged_at": "2026-11-19T15:00:00Z",
+  "merge_commit_sha": "merge12",
+  "head": { "sha": "head12" }
+}

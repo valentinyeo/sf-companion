@@ -134,6 +134,14 @@ Run `pnpm fix` only when you intend to rewrite files. Finish with `pnpm turbo ru
 
 Follow [ship](/skills/ship) and `skills/ship/references/project.md` for deployment commands, approval, checks, and recovery.
 
+### Release gate
+
+A deploy proves the change it ships. `scripts/release_gate.py` reads the SHA in `~/.local/state/sf-companion/deployed-sha`, compares it with the checkout that deploys, and lists the merged pull requests between them that changed `apps/` or `packages/`. Content under `apps/web/content/` is data, so a numbers-only feed refresh passes. For each app-code pull request the gate takes its latest successful `pstack-verifier` run, reads that run's `verifier-proofs` artifact, and requires a Playwright trace or video for every journey of the features the pull request touched. Missing proof exits nonzero and names the pull request, the journey, and the trace file.
+
+- The verifier records one `<case>.trace.zip` per browser case plus a `traces.json` index, and the workflow step `Require a trace per journey` fails the run when a driven journey has neither trace nor video. Only journeys named in `.claude/skills/verify-sf-companion/untraced.json` are excused, and that list is read from the skill, never from the proof. A trace counts only when its own case log names the journey and its `trace.trace` holds a recorded browser action or frame.
+- `~/.local/bin/sf-companion-feed` runs the gate before `alchemy deploy` and writes the deployed SHA to the state file after the login gate passes. Both lines are host-side; the repository only ships the gate they call.
+- `python3 scripts/release_gate.py --proof-dir <dir> --journeys=<ids>` checks one local proof directory instead of GitHub, and needs no token.
+
 ## Release the ratstack package
 
 - `.github/workflows/ratstack-publish.yml` publishes `ratstack` to npm with trusted publishing (OIDC). No npm token exists in the repo or its secrets.
@@ -169,6 +177,7 @@ Every hard rule this repo runs is a row here, and every row names the check that
 | Dependencies are pinned to one exact version | `script:scripts/check-exact-pins` | `pnpm check`, CI |
 | No commit skips the hooks (`--no-verify`, `git commit -n`, `LEFTHOOK=0`, `core.hooksPath`) | `test:scripts/rules.test.ts` | `pnpm test`, CI, the Pi, Cursor, and Claude Code hooks that call the policy |
 | A numbers-only feed refresh rebuilds the site | `script:scripts/check-feed-rebuilds.sh` | CI job `checks` |
+| A deploy carries a trace or video for every journey of each changed feature, or it fails before `alchemy deploy` | `script:scripts/release_gate.py` | pstack verifier step `Require a trace per journey`, and `~/.local/bin/sf-companion-feed` before every deploy |
 | No secret material reaches the repository | `ci:Secret scan` | CI job `secrets`, every push and pull request |
 
 ### Continuous integration

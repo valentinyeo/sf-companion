@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "revision": "head12",
+  "journeys": {
+    "factory-entry": [
+      "seeded-1280-light.trace.zip",
+      "empty-390-dark.trace.zip"
+    ],
+    "factory-timestamp": ["seeded-1280-light.trace.zip"],
+    "factory-empty": ["empty-1280-light.trace.zip"],
+    "factory-layout": ["seeded-390-dark.trace.zip"],
+    "home-empty": ["empty-1280-light.trace.zip"],
+    "not-found": ["empty-390-light.trace.zip"],
+    "usage-cards": ["seeded-1280-light.trace.zip"],
+    "usage-window": ["seeded-390-dark.trace.zip"],
+    "usage-burn": ["seeded-390-dark.trace.zip"],
+    "usage-kpi-fixed": ["seeded-390-dark.trace.zip"],
+    "usage-details": ["seeded-390-dark.trace.zip"],
+    "kpi-tiles": ["seeded-1280-light.trace.zip"],
+    "kpi-windows": ["seeded-390-dark.trace.zip"],
+    "kpi-details": ["seeded-1280-light.trace.zip"],
+    "shipping-chart": ["seeded-1280-light.trace.zip"],
+    "shipping-source": ["seeded-1280-light.trace.zip"],
+    "shipping-omission": ["seeded-1280-dark.trace.zip"]
+  },
+  "untraced": []
+}

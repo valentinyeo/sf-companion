@@ -79,8 +79,15 @@ const runWindows = [
   "kpi-windows",
 ].some(wants);
 const runShare = shareJourneys.some(wants);
-const liveOnlyJourneys = new Set(["access-anonymous"]);
+const untraced = JSON.parse(
+  await readFile(
+    fileURLToPath(new URL("./untraced.json", import.meta.url)),
+    "utf8"
+  )
+);
+const untracedJourneys = new Set(Object.keys(untraced));
 const runLive = wants("access-anonymous");
+const actionlessJourneys = new Set(["access-anonymous"]);
 const expectedNotFound = "/no-such-page";
 let expectingMissingPage = false;
 const exportTime = "Numbers from 2026-11-15 00:41 UTC";
@@ -98,6 +105,33 @@ const result = {
   journeys: allJourneys ? "all" : [...selected].sort(),
 };
 const children = new Set();
+let journeyIds = [];
+
+function traceIndex() {
+  const journeys = {};
+  for (const entry of result.cases) {
+    if (entry.trace === undefined) continue;
+    for (const action of entry.actions) {
+      if (action.journey === null) continue;
+      journeys[action.journey] ??= [];
+      if (!journeys[action.journey].includes(entry.trace)) {
+        journeys[action.journey].push(entry.trace);
+      }
+    }
+  }
+  const expected = (
+    allJourneys ? journeyIds : journeyIds.filter((id) => selected.has(id))
+  ).filter((id) => journeys[id] === undefined);
+  const excused = expected
+    .filter((id) => untracedJourneys.has(id))
+    .map((id) => ({ journey: id, reason: untraced[id] }));
+  return {
+    status: result.status,
+    revision: result.revision,
+    journeys,
+    untraced: excused,
+  };
+}
 
 async function featureJourneyIds() {
   const directory = fileURLToPath(new URL("./features/", import.meta.url));
@@ -137,7 +171,7 @@ function assertJourneysRecorded(ids) {
   );
   const expected = (
     allJourneys ? ids : ids.filter((id) => selected.has(id))
-  ).filter((id) => !liveOnlyJourneys.has(id));
+  ).filter((id) => !actionlessJourneys.has(id));
   const missing = expected.filter((id) => !recorded.has(id));
   assert.deepEqual(
     missing,
@@ -236,9 +270,11 @@ async function drive(browser, state, width, colorScheme, baseURL) {
     viewport: { width, height: width === 390 ? 844 : 900 },
     colorScheme,
   });
+  const trace = `${id}.trace.zip`;
+  await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
   page.setDefaultNavigationTimeout(120000);
-  const entry = { id, status: "running", actions: [], errors: [] };
+  const entry = { id, status: "running", actions: [], errors: [], trace };
   result.cases.push(entry);
   page.on("console", (message) => {
     if (message.type() !== "error") return;
@@ -604,6 +640,13 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       .catch(() => {});
     throw error;
   } finally {
+    const traced = await context.tracing
+      .stop({ path: join(proof, trace) })
+      .then(
+        () => true,
+        () => false
+      );
+    if (!traced) delete entry.trace;
     await context.close();
     await writeFile(join(proof, `${id}.json`), JSON.stringify(entry, null, 2));
   }
@@ -1141,7 +1184,7 @@ try {
   result.revision = (
     await readFile(join(proof, "revision.txt"), "utf8")
   ).trim();
-  const journeyIds = await featureJourneyIds();
+  journeyIds = await featureJourneyIds();
   await assertFeatureGates(journeyIds);
   browser = await chromium.launch();
   for (const state of ["seeded", "empty"]) {
@@ -1242,4 +1285,8 @@ export default mergeConfig(config, {
   await browser?.close();
   await Promise.all([...children].map(stop));
   await writeFile(join(proof, "result.json"), JSON.stringify(result, null, 2));
+  await writeFile(
+    join(proof, "traces.json"),
+    JSON.stringify(traceIndex(), null, 2)
+  );
 }
