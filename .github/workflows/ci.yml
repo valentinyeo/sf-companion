@@ -46,6 +46,8 @@ jobs:
         run: scripts/check-feed-rebuilds.sh
       - name: Rule table, exact pins, and CI scope
         run: scripts/check-rule-table && scripts/check-exact-pins && scripts/check_ci_scope.py
+      - name: Feature map matches source
+        run: scripts/feature_coverage.py
       - name: Test the repo checks and scripts
         run: >-
           python3 -m unittest discover -s tools -p "test_check_*.py" -v && pnpm exec vitest run scripts/rules.test.ts
