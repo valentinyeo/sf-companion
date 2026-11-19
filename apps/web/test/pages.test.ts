@@ -102,10 +102,31 @@ describe("hub pages", () => {
         ).toExist(),
         expectElement(role("heading", { name: "Explorations" })).toExist(),
         expectElement(role("heading", { name: "Reports" })).toExist(),
+        expectElement(role("heading", { name: "Factory" })).toExist(),
+        expectElement(role("heading", { name: "Usage" })).toExist(),
         expectElement(
           role("link", { name: "Finance triage 2026-11-19" })
         ).toExist(),
         expectElement(role("link", { name: "All 2" })).toExist()
+      );
+    })
+  );
+
+  it.effect("links Usage from primary navigation on an index page", () =>
+    Effect.sync(() => {
+      scene(
+        { update, view },
+        given(
+          initialModel(
+            { items: [], route: SiteRoute.List({ section: "reports" }) },
+            Option.none()
+          )
+        ),
+        expectElement(
+          role("navigation", { name: "Primary navigation" })
+        ).toExist(),
+        expectElement(role("link", { name: "Usage" })).toExist(),
+        expectElement(role("link", { name: "Factory" })).toExist()
       );
     })
   );

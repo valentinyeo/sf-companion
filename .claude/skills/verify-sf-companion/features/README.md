@@ -8,12 +8,12 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 
 ## Features
 
-- [Home](home.md) covers the front page, both hub sections, and the Factory handoff.
+- [Home](home.md) covers the front page, both hub sections, and the Factory and Usage handoffs.
 - [Explorations](explorations.md) covers the explorations index, one stored item, and its scope.
 - [Reports](reports.md) covers the reports index, one stored item, and its scope.
 - [Stored items](items.md) covers item serving: GET, HEAD, missing, and invalid slugs.
-- [Factory page](factory.md) covers entry, export time, navigation, and layout.
-- [Usage cards and windows](usage.md) covers every plan card, every window button, changed burn, fixed KPIs, and the Windows disclosure.
+- [Factory page](factory.md) covers entry, export time, navigation, layout, and the link to Usage.
+- [Usage page](usage.md) covers the menu entry, every plan card, every window button, changed burn, the fixed KPI reading, and the Windows disclosure.
 - [KPI tiles](kpis.md) covers all seven tiles, their own windows, cues, and measurement details.
 - [Shipping chart](shipping.md) covers the 30-date chart, cell sources, and stated omissions.
 - [Empty and missing states](empty.md) covers a missing feed, an empty hub, and the not-found page.
@@ -22,7 +22,7 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 
 ## Proof rules
 
-Require successful builds and nine passing browser cases in `result.json` for a full run: four seeded views, four empty views, and one share case. A scoped run passes only the cases its journeys drive. Every browser case saves its actions, dimensions, ARIA snapshot, and screenshots: `<case>.png` is the factory view after the drives and `<case>-final.png` is the last page it visited. Any console error, uncaught browser error, failed local response other than the expected 404, or horizontal overflow fails verification. Failed runs retain partial evidence and return a nonzero exit code. Do not call skipped checks verified.
+Require successful builds and nine passing browser cases in `result.json` for a full run: four seeded views, four empty views, and one share case. A scoped run passes only the cases its journeys drive. Every browser case saves its actions, dimensions, ARIA snapshot, and screenshots: `<case>.png` is the page the factory drives ended on and `<case>-final.png` is the last page it visited. Any console error, uncaught browser error, failed local response other than the expected 404, or horizontal overflow fails verification. Failed runs retain partial evidence and return a nonzero exit code. Do not call skipped checks verified.
 
 Every action in `result.json` names the journey it drove. `verify.mjs` refuses to start when this map lists a sub-feature id that `verify.mjs` never gates with `wants("<id>")`, and it fails a run when a requested journey records no action. A listed journey with no evidence is a failed run, never a skipped check.
 

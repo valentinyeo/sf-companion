@@ -27,6 +27,8 @@ const hubRoutes = [
   "yeoux.net/explorations*",
   "yeoux.net/reports*",
   "yeoux.net/factory*",
+  "yeoux.net/usage*",
+
   "yeoux.net/assets/*",
 ].map((pattern) => ({ pattern, zoneName: "yeoux.net" }));
 

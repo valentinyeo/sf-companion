@@ -1,6 +1,6 @@
 # Factory page
 
-The Factory page is reachable at a stable URL, carries the site navigation, and stamps the moment its numbers were exported. It is server-rendered at `/factory` and hydrates in the browser.
+The Factory page is reachable at a stable URL, carries the site navigation, and stamps the moment its numbers were exported. It holds the PRs shipped versus plan burn chart and the Output and waste tiles, plus a short link to Usage. It is server-rendered at `/factory` and hydrates in the browser.
 
 Covers: route:Factory
 

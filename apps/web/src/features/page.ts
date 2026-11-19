@@ -15,8 +15,10 @@ import {
   homeRouter,
   listPath,
   SiteRoute,
+  usageRouter,
 } from "./route.js";
 import type { SiteRouteValue } from "./route.js";
+import { usageView } from "./usage.js";
 
 const SITE_NAME = "Software Factory Companion";
 
@@ -47,6 +49,7 @@ const sectionLinks = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
   h.li([], [h.a([h.Href(listPath("explorations"))], ["Explorations"])]),
   h.li([], [h.a([h.Href(listPath("reports"))], ["Reports"])]),
   h.li([], [h.a([h.Href(factoryRouter())], ["Factory"])]),
+  h.li([], [h.a([h.Href(usageRouter())], ["Usage"])]),
 ];
 
 const siteHeader = (h: HtmlBuilder<AppMessage>): Html =>
@@ -146,7 +149,20 @@ const homeView = (
       ),
       h.p(
         [h.Class(className(hubStyles.empty))],
-        ["Usage and KPIs from the factory's own numbers."]
+        ["PRs shipped versus plan burn, and the output and waste tiles."]
+      ),
+    ]
+  ),
+  h.section(
+    [h.Class(className(hubStyles.section))],
+    [
+      h.div(
+        [h.Class(className(hubStyles.heading))],
+        [h.h2([], ["Usage"]), h.a([h.Href(usageRouter())], ["Open"])]
+      ),
+      h.p(
+        [h.Class(className(hubStyles.empty))],
+        ["Plan cards, their burn windows and reset lines."]
       ),
     ]
   ),
@@ -188,6 +204,7 @@ const titleOf = (route: SiteRouteValue): string =>
     Home: () => SITE_NAME,
     List: ({ section }) => SECTION_TEXT[section].name,
     NotFound: () => "Page not found",
+    Usage: () => "Usage",
   });
 
 const bodyOf = (
@@ -201,6 +218,7 @@ const bodyOf = (
     Home: () => homeView(model, h),
     List: ({ section }) => listView(section, model, h),
     NotFound: () => missingView(h),
+    Usage: () => usageView(model, h),
   });
 
 export const view = (

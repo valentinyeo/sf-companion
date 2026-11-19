@@ -1,6 +1,6 @@
 # Home
 
-Home is the hub front page: the site title, an Explorations section, a Reports section, and a Factory handoff. Each hub section shows its five newest rows and a link to its full list.
+Home is the hub front page: the site title, an Explorations section, a Reports section, and Factory and Usage handoffs. Each hub section shows its five newest rows and a link to its full list.
 
 Covers: route:Home
 
@@ -8,7 +8,7 @@ Code paths: apps/web/src/features/page.ts, apps/web/src/content/item.ts, apps/we
 
 ## Sub-features
 
-- `home-sections` shows both hub sections with their newest rows and the Factory handoff.
+- `home-sections` shows both hub sections with their newest rows and the Factory and Usage handoffs.
 - `home-links` sends each row to its stored item and each section heading to its index.
 
 ## How to get to it (user POV)
@@ -22,7 +22,7 @@ Preconditions:
 
 - Run `../run.sh`. `fixture-hub/` supplies ten explorations and ten reports. Home lists five per section.
 
-- Seeded. Require the `Software Factory Companion` heading, the `Explorations`, `Reports`, and `Factory` headings, the newest report rows `Client pricing review`, `Verifier scope audit`, `Factory feed notes`, `Retainer summary`, `Build cost review`, and the newest exploration rows `Route parser notes`, `Feed schema sketch`, `Motion study`, `Hydration check`, `Style tokens study`.
+- Seeded. Require the `Software Factory Companion` heading, the `Explorations`, `Reports`, `Factory`, and `Usage` headings, the newest report rows `Client pricing review`, `Verifier scope audit`, `Factory feed notes`, `Retainer summary`, `Build cost review`, and the newest exploration rows `Route parser notes`, `Feed schema sketch`, `Motion study`, `Hydration check`, `Style tokens study`.
 - Hidden rows. Require no link to `Support volume report` or `Nightly run log`; those sit below the five-row limit.
 - Counts. Require exactly two `All 10` links, one under each hub section.
 - Rows. Require `yeo-ux · 2026-11-12` beside the pricing row.

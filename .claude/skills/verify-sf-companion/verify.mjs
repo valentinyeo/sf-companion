@@ -33,6 +33,7 @@ const seededFactoryJourneys = [
   "factory-entry",
   "factory-layout",
   "factory-timestamp",
+  "usage-entry",
   "usage-cards",
   "usage-window",
   "usage-burn",
@@ -71,7 +72,12 @@ const seededJourneys = [
   ...shareJourneys,
 ];
 const runSeeded = seededJourneys.some(wants);
-const runEmpty = ["factory-empty", "home-empty", "not-found"].some(wants);
+const runEmpty = [
+  "factory-empty",
+  "usage-empty",
+  "home-empty",
+  "not-found",
+].some(wants);
 const runWindows = [
   "usage-window",
   "usage-burn",
@@ -348,7 +354,39 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       );
     }
     if (state === "seeded") {
+      if (wants("usage-entry")) {
+        const direct = await page.goto("/usage", { waitUntil: "networkidle" });
+        assert.equal(direct.status(), 200, `${id}: /usage status`);
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await page
+          .getByRole("link", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .waitFor();
+        await page.goto("/", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .waitFor();
+        await page
+          .getByRole("navigation", { name: "Primary navigation" })
+          .getByRole("link", { name: "Usage", exact: true })
+          .click();
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await record(
+          "usage: /usage answers directly and primary navigation reaches it",
+          "usage-entry"
+        );
+      }
       if (wants("factory-timestamp")) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
         await page.getByText(exportTime, { exact: true }).waitFor();
         await record(
           "factory: the export time prints in UTC",
@@ -356,6 +394,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (wants("usage-cards")) {
+        await page.goto("/usage", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
         const cards = [
           ["Claude Code", ["67%", "+13.2 vs pace · over pace"]],
           ["Codex", ["100%", "+21.5 vs pace · well over pace"]],
@@ -385,6 +427,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (wants("kpi-tiles")) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Factory", exact: true })
+          .waitFor();
         const tiles = [
           [
             "Tickets delivered",
@@ -420,10 +466,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (
-        runWindows ||
-        wants("factory-layout") ||
-        wants("kpi-details") ||
-        wants("usage-cards")
+        !runWindows &&
+        (wants("factory-layout") ||
+          wants("kpi-details") ||
+          wants("usage-cards"))
       ) {
         await page.screenshot({
           path: join(proof, `${id}-before.png`),
@@ -431,6 +477,14 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         });
       }
       if (runWindows) {
+        await page.goto("/usage", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await page.screenshot({
+          path: join(proof, `${id}-before.png`),
+          fullPage: true,
+        });
         for (const window of ["3h", "6h", "12h", "24h", "7d", "30d", "1h"]) {
           const button = page
             .getByRole("group", { name: "Usage window" })
@@ -455,30 +509,56 @@ async function drive(browser, state, width, colorScheme, baseURL) {
               "usage-burn"
             );
           }
-          if (wants("usage-kpi-fixed")) {
-            await page
-              .getByText("29 / day · 87 / week", { exact: true })
-              .waitFor();
-            await record(
-              `usage: ${window} leaves the KPI reading fixed`,
-              "usage-kpi-fixed"
-            );
-          }
-          if (wants("kpi-windows")) {
-            await widget("Tickets delivered")
-              .getByText("Rolling 24h and 7d", { exact: true })
-              .waitFor();
-            await widget("Drain-loop health")
-              .getByText("Rolling 45m", { exact: true })
-              .waitFor();
-            await record(
-              `kpi: ${window} leaves every tile on its own window`,
-              "kpi-windows"
+          if (wants("usage-kpi-fixed") || wants("kpi-windows")) {
+            assert.equal(
+              await page
+                .getByRole("heading", { name: "Output and waste" })
+                .count(),
+              0,
+              `${id}: the usage page carried the KPI tiles`
             );
           }
         }
+        if (wants("usage-kpi-fixed")) {
+          await page.goto("/factory", { waitUntil: "networkidle" });
+          await page
+            .getByRole("heading", { name: "Factory", exact: true })
+            .waitFor();
+          await page
+            .getByText("29 / day · 87 / week", { exact: true })
+            .waitFor();
+          await record(
+            "usage: the window buttons leave Factory's KPI reading fixed",
+            "usage-kpi-fixed"
+          );
+        }
+        if (wants("kpi-windows")) {
+          await page.goto("/factory", { waitUntil: "networkidle" });
+          await page
+            .getByRole("heading", { name: "Factory", exact: true })
+            .waitFor();
+          await widget("Tickets delivered")
+            .getByText("Rolling 24h and 7d", { exact: true })
+            .waitFor();
+          await widget("Drain-loop health")
+            .getByText("Rolling 45m", { exact: true })
+            .waitFor();
+          assert.equal(
+            await page.getByRole("group", { name: "Usage window" }).count(),
+            0,
+            `${id}: the factory page carried the usage window buttons`
+          );
+          await record(
+            "kpi: Factory keeps every tile on its own window and holds no usage buttons",
+            "kpi-windows"
+          );
+        }
       }
       if (wants("usage-details")) {
+        await page.goto("/usage", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
         const card = widget("Claude Code");
         await card.getByText("Windows", { exact: true }).click();
         await card
@@ -490,6 +570,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (wants("kpi-details")) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Factory", exact: true })
+          .waitFor();
         const delivered = widget("Tickets delivered");
         const third = delivered.getByText(
           "Synthetic third measurement detail",
@@ -519,6 +603,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         wants("shipping-source") ||
         wants("shipping-omission")
       ) {
+        await page.goto("/factory", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Factory", exact: true })
+          .waitFor();
         await page
           .getByRole("heading", {
             name: "PRs shipped vs plan burn",
@@ -593,28 +681,51 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           );
         }
       }
-    } else if (wants("factory-empty")) {
-      await page
-        .getByText("No factory numbers yet.", { exact: true })
-        .waitFor();
-      assert.equal(
-        await page.getByRole("group", { name: "Usage window" }).count(),
-        0
-      );
-      assert.equal(
-        await page.getByRole("heading", { name: "Output and waste" }).count(),
-        0
-      );
-      assert.equal(
+    } else if (wants("factory-empty") || wants("usage-empty")) {
+      if (wants("factory-empty")) {
         await page
-          .getByRole("heading", { name: "PRs shipped vs plan burn" })
-          .count(),
-        0
-      );
-      await record(
-        "missing feed shows explicit empty state, not measured zeroes",
-        "factory-empty"
-      );
+          .getByText("No factory numbers yet.", { exact: true })
+          .waitFor();
+        assert.equal(
+          await page.getByRole("group", { name: "Usage window" }).count(),
+          0
+        );
+        assert.equal(
+          await page.getByRole("heading", { name: "Output and waste" }).count(),
+          0
+        );
+        assert.equal(
+          await page
+            .getByRole("heading", { name: "PRs shipped vs plan burn" })
+            .count(),
+          0
+        );
+        await record(
+          "missing feed shows explicit empty state, not measured zeroes",
+          "factory-empty"
+        );
+      }
+      if (wants("usage-empty")) {
+        const response = await page.goto("/usage", {
+          waitUntil: "networkidle",
+        });
+        assert.equal(response.status(), 200, `${id}: empty /usage status`);
+        await page
+          .getByRole("heading", { name: "Usage", exact: true })
+          .waitFor();
+        await page
+          .getByText("No usage numbers yet.", { exact: true })
+          .waitFor();
+        assert.equal(
+          await page.getByRole("group", { name: "Usage window" }).count(),
+          0,
+          `${id}: the empty usage page still showed window buttons`
+        );
+        await record(
+          "missing feed leaves Usage with an explicit empty line and no window buttons",
+          "usage-empty"
+        );
+      }
     }
     await page.screenshot({ path: join(proof, `${id}.png`), fullPage: true });
     await writeFile(
