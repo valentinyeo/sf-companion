@@ -34,6 +34,14 @@ interface ItemTarget {
   readonly slug: string;
 }
 
+const decodeSlug = (raw: string): string => {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+};
+
 const itemTarget = (url: URL): Option.Option<ItemTarget> => {
   const parts = url.pathname.split("/");
 
@@ -42,7 +50,7 @@ const itemTarget = (url: URL): Option.Option<ItemTarget> => {
   }
 
   const section = SECTIONS.find((candidate) => candidate === parts[1]);
-  const slug = parts[2] === undefined ? "" : decodeURIComponent(parts[2]);
+  const slug = parts[2] === undefined ? "" : decodeSlug(parts[2]);
 
   return section === undefined || slug === ""
     ? Option.none()
