@@ -35,7 +35,7 @@ Preconditions:
 - KPI notes. On the sparse launch require the `Output and waste` heading and both notes: `Cost per delivered ticket unavailable. Dated deliveries are blocked by HYCI-9390. Not a measured zero.` and `Escapes unavailable. The exporter login cannot read all three boards. Not a measured zero.`
 - No plans. On the sparse launch open `/usage` and require `No plans yet.` and no `Claude Code` card heading.
 - Home. Require `No explorations yet.` and `No reports yet.`, and no item links.
-- Indexes. Open `/reports` and `/explorations` and require `0 items.` with the matching empty line.
+- Indexes (`reports-index-empty`, `explorations-index-empty`). Open `/reports` and `/explorations` and require `0 items.` with the matching empty line.
 - Not found. `page.goto('/no-such-page')` must answer 404 and show the `Page not found` heading with the `Go to the home page.` link. Choosing that link returns Home.
 
 ## Gotchas

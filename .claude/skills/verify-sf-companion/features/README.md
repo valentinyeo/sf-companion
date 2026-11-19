@@ -28,6 +28,12 @@ A journey for a page the checkout does not declare sits in `result.json` under `
 
 Every browser case also saves a Playwright trace, and `traces.json` names the trace files that cover each journey. A release needs that trace or video for each journey of every changed feature, and `scripts/release_gate.py` fails when one is missing, when the trace holds no recorded browser action, or when its case log never drove that journey. The live `access-anonymous` request and the share journeys run with no browser page, so they are listed as untraced with a reason rather than claimed as recorded.
 
+The map covers Home, Explorations, Reports, Items, Factory, Usage, KPI tiles, Shipping, Empty states, Access, and Share. Stored items are served as the bytes kept in the content store, so the map does not claim site-styled item pages, authenticated production access, or deployed build parity.
+
+## Caught bugs
+
+[CAUGHT.md](../CAUGHT.md) logs the recent bugs a check caught before the owner saw them: one row per bug with the date, the pull request, what was wrong, which check caught it, and whether the owner saw it. The rows are why this map exists. A row is written from the pull request's `pstack-verifier` comments or, for a live defect, from the revert body, never from memory, and the log is evidence rather than a gate, so no check fails when a row is missing.
+
 ## Scale
 
 The journeys start at the size production runs at, not at a toy size, so a journey that passes here still has the list lengths, chart rows and note counts a user meets. Production counts were measured on 2026-11-19 by the orchestrator against the live site. The Fixture column is what `../fixture.json` and `../fixture-hub/` hold today. `scripts/check_fixture_scale.py` reads this table and fails when a fixture count falls below its production count, when the Fixture column no longer matches the fixture, or when a row is missing.

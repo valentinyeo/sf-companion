@@ -9,6 +9,7 @@ Code paths: apps/web/src/content/hub.ts, apps/web/src/content/item.ts, apps/web/
 ## Sub-features
 
 - `reports-index` lists every report with its project and date.
+- `reports-index-empty` says the index holds nothing when no report is stored.
 - `reports-index-trailing-slash` serves the same index at `/reports/` with the trailing slash.
 - `reports-item` opens one stored report from its index row.
 - `reports-scope` keeps exploration items off the index.
@@ -29,7 +30,7 @@ Preconditions:
 - Trailing slash. `GET /reports/` must answer 200 with the `Reports` heading and `10 items.`, not a 400.
 - Item. Choose the `Client pricing review` row. Require `Fixture client pricing body.` at HTTP 200 and no site navigation. Save `hub-report-item-<case>.png` and `hub-report-item-<case>.aria.txt`.
 - Scope. Require no `Motion study` link on the index.
-- Empty. In the empty launch, require `No reports yet.` and `0 items.`
+- Empty (`reports-index-empty`). In the empty launch, require `No reports yet.` and `0 items.`
 
 ## Gotchas
 
