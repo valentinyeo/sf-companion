@@ -161,6 +161,12 @@ Why lives in `AGENTS.md` / `VISION.md`. The stack and hooks are the enforceable 
 
 If a hook fails, fix the failure. Do not disable the fence.
 
+## Bug fixes reproduce first
+
+A bug fix proves the bug before it changes behaviour. The branch adds the failing test, or the repro journey that drives it, in a commit before the commit that changes app code. The pull request body names a journey the map already lists, as `Repro journey: <id>`. The verifier then drives that journey on both checkouts, so the journey fails on the base and passes on the head.
+
+A pull request labelled `bug`, or titled with a leading `fix`, that does neither fails CI. This is the sequence-verifiable-units order: the failing unit lands first, the fix lands on top of it. A fix whose repro was never run on the base is unproven, however green its tests are.
+
 ## Rule table
 
 Every hard rule this repo runs is a row here, and every row names the check that fails when the rule breaks. `scripts/check-rule-table` reads this section, resolves each named check, and fails when one is missing. The sections above keep the reason and the shape; guidance that no run can fail, such as test design, naming, and review judgement, is guidance rather than a rule and does not appear here.
@@ -188,6 +194,7 @@ Every hard rule this repo runs is a row here, and every row names the check that
 | Every user-facing feature has a verify feature file, and the map's coverage line matches source | `script:scripts/feature_coverage.py` | `pnpm check`, lefthook, CI |
 | The coverage check fails on a missing file, a dead feature, or a stale count | `script:scripts/test_feature_coverage.py` | `pnpm test`, CI |
 | Every journey runs nightly on `main` and keeps its proof | `script:scripts/check_ci_scope.py` | `pnpm check`, lefthook, CI |
+| A bug fix names a repro journey the map lists, and its branch adds the failing test or journey before the commit that changes app code | `script:scripts/check_bug_pr.py` | CI job `bug-fix-repro`, every pull request labelled `bug` or titled `fix…` |
 | The verify-skill evaluation keeps the clean case, every planted patch, and two model families, and never runs on pull requests | `test:scripts/rules.test.ts`, `script:scripts/check_ci_scope.py` | `pnpm check`, `pnpm test`, CI, the evaluation on dispatch and weekly on `main` |
 
 ### Code bans
