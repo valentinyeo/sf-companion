@@ -23,7 +23,7 @@ Preconditions:
 - Run `../run.sh`. `fixture-hub/` supplies two reports and one exploration.
 
 - Index. Require the `Reports` heading, `2 items.`, `Client pricing review` with `yeo-ux · 2026-11-12`, and `Retainer summary` with `ezyfit · 2026-10-30`.
-- Item. Open `/reports/4b7c1d2e-client-pricing.html` and require `Fixture client pricing body.` at HTTP 200. The body is the stored artefact byte for byte, so the page has no site navigation.
+- Item. Open `/reports/4b7c1d2e-client-pricing.html` and require `Fixture client pricing body.` at HTTP 200. The body is the stored artefact byte for byte, so the page has no site navigation. Save `hub-report-item-<case>.png` and `hub-report-item-<case>.aria.txt`.
 - Empty. Require `No reports yet.` and `0 items.`
 
 ## Gotchas

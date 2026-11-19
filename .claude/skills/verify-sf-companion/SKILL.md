@@ -35,6 +35,8 @@ The helper waits for its own Vite readiness log, then loads `/factory` and requi
 
 Read [the feature map](features/README.md). The helper uses Chromium and real browser actions against the local app. It checks both seeded and empty states at 1280×900 and 390×844, with `prefers-color-scheme` set to `light` and `dark`. It reads Home, both hub indexes, one stored report, one stored exploration, the factory readings, usage windows, and native disclosure controls. Data enters through the files production reads: the factory feed JSON and the hub content store, never internal model setters or intercepted responses.
 
+Each journey records its own actions, tagged with its id. Before the run starts, `verify.mjs` fails if a feature file lists a sub-feature id that no `wants("<id>")` gate covers. At the end it fails if a requested journey recorded no action, so a journey that is listed but never driven cannot pass.
+
 ## Evidence
 
 Each case saves a full-page PNG, an ARIA snapshot, and a JSON action/result log. Browser console errors, uncaught page errors, failed local responses, or horizontal document overflow fail the run. `result.json` records the revision, matrix results, and overall status. Build and development logs survive failures too. Read the images before claiming visual quality; automated layout checks do not judge appearance.

@@ -2,7 +2,15 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
-import { copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -29,8 +37,19 @@ const seededJourneys = [
   "usage-kpi-fixed",
   "usage-details",
 ];
-const runSeeded = seededJourneys.some(wants);
-const runEmpty = wants("factory-empty");
+const seededHubJourneys = [
+  "explorations-index",
+  "explorations-item",
+  "explorations-scope",
+  "home-links",
+  "home-sections",
+  "reports-index",
+  "reports-item",
+  "reports-scope",
+];
+const runSeeded = [...seededJourneys, ...seededHubJourneys].some(wants);
+const runEmpty = ["factory-empty", "home-empty"].some(wants);
+const liveOnlyJourneys = new Set(["access-anonymous"]);
 const runWindows = ["usage-window", "usage-burn", "usage-kpi-fixed"].some(
   wants
 );
@@ -48,6 +67,53 @@ const result = {
   journeys: allJourneys ? "all" : [...selected].sort(),
 };
 const children = new Set();
+
+async function featureJourneyIds() {
+  const directory = fileURLToPath(new URL("./features/", import.meta.url));
+  const names = (await readdir(directory)).filter((name) =>
+    name.endsWith(".md")
+  );
+  const ids = new Set();
+  for (const name of names) {
+    const text = await readFile(join(directory, name), "utf8");
+    for (const [, id] of text.matchAll(/^- `([a-z0-9][a-z0-9-]*)`/gmu)) {
+      ids.add(id);
+    }
+  }
+  return [...ids].sort();
+}
+
+async function assertFeatureGates(ids) {
+  const source = await readFile(fileURLToPath(import.meta.url), "utf8");
+  const gated = new Set(
+    [...source.matchAll(/wants\("([a-z0-9][a-z0-9-]*)"\)/gu)].map(
+      (match) => match[1]
+    )
+  );
+  const ungated = ids.filter((id) => !gated.has(id));
+  assert.deepEqual(
+    ungated,
+    [],
+    `Feature ids with no wants() gate in verify.mjs: ${ungated.join(", ")}`
+  );
+}
+
+function assertJourneysRecorded(ids) {
+  const recorded = new Set(
+    result.cases
+      .flatMap((entry) => entry.actions.map((action) => action.journey))
+      .filter((journey) => journey !== null)
+  );
+  const expected = (
+    allJourneys ? ids : ids.filter((id) => selected.has(id))
+  ).filter((id) => !liveOnlyJourneys.has(id));
+  const missing = expected.filter((id) => !recorded.has(id));
+  assert.deepEqual(
+    missing,
+    [],
+    `Journeys requested but never driven: ${missing.join(", ")}`
+  );
+}
 
 function start(args, logName) {
   const log = createWriteStream(join(proof, logName));
@@ -147,12 +213,12 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       entry.errors.push(`HTTP ${response.status()} ${response.url()}`);
     }
   });
-  async function record(action) {
+  async function record(action, journey = null) {
     const dimensions = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
       viewport: document.documentElement.clientWidth,
     }));
-    entry.actions.push({ action, url: page.url(), dimensions });
+    entry.actions.push({ action, dimensions, journey, url: page.url() });
     assert.ok(
       dimensions.scroll <= dimensions.viewport,
       `${id}: horizontal overflow after ${action}`
@@ -172,6 +238,12 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       colorScheme === "dark"
     );
     await record("doctor: load /factory and confirm app identity");
+    if (wants("factory-layout")) {
+      await record(
+        "factory: layout fits this viewport width and color scheme",
+        "factory-layout"
+      );
+    }
     if (wants("factory-entry")) {
       await page
         .getByRole("link", { name: "Software Factory Companion", exact: true })
@@ -189,7 +261,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       await page
         .getByRole("heading", { name: "Factory", exact: true })
         .waitFor();
-      await record("navigate home, then choose Factory in primary navigation");
+      await record(
+        "navigate home, then choose Factory in primary navigation",
+        "factory-entry"
+      );
     }
     if (state === "seeded") {
       if (wants("factory-readings")) {
@@ -203,8 +278,12 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await page
           .getByText("+2% · £0.00 in 1h on runners", { exact: true })
           .waitFor();
+        await record(
+          "factory: seeded readings, export time and KPI display",
+          "factory-readings"
+        );
       }
-      if (runWindows || wants("factory-readings")) {
+      if (runWindows || wants("factory-layout") || wants("factory-readings")) {
         await page.screenshot({
           path: join(proof, `${id}-before.png`),
           fullPage: true,
@@ -220,16 +299,30 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             .locator(`button[aria-pressed="true"]`)
             .filter({ hasText: new RegExp(`^${window}$`, "u") })
             .waitFor();
-          if (window === "7d")
+          if (wants("usage-window")) {
+            await record(
+              `usage: choose ${window}; its button reports pressed`,
+              "usage-window"
+            );
+          }
+          if (wants("usage-burn") && window === "7d") {
             await page
               .getByText("+14% · £7.00 in 7d on runners", { exact: true })
               .waitFor();
-          await page
-            .getByText("29 / day · 87 / week", { exact: true })
-            .waitFor();
-          await record(
-            `choose ${window}; selected window changes, KPI stays fixed`
-          );
+            await record(
+              "usage: the 7d window changes burn to the 7d reading",
+              "usage-burn"
+            );
+          }
+          if (wants("usage-kpi-fixed")) {
+            await page
+              .getByText("29 / day · 87 / week", { exact: true })
+              .waitFor();
+            await record(
+              `usage: ${window} leaves the KPI reading fixed`,
+              "usage-kpi-fixed"
+            );
+          }
         }
       }
       if (wants("usage-details")) {
@@ -237,12 +330,15 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await page
           .getByText("Weekly 67%", { exact: true })
           .waitFor({ state: "visible" });
-        await record("open Windows and read Weekly 67%");
+        await record("open Windows and read Weekly 67%", "usage-details");
         await page.getByText("Measurement details", { exact: true }).click();
         await page
           .getByText("Synthetic third measurement detail", { exact: true })
           .waitFor({ state: "visible" });
-        await record("open Measurement details and read third detail");
+        await record(
+          "open Measurement details and read third detail",
+          "usage-details"
+        );
       }
       if (wants("factory-shipping")) {
         await page
@@ -267,7 +363,10 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await newest
           .getByText("GitHub search · fleet mergedAt", { exact: true })
           .waitFor();
-        await record("expand one shipping source inside the chart");
+        await record(
+          "expand one shipping source inside the chart",
+          "factory-shipping"
+        );
       }
     } else if (wants("factory-empty")) {
       await page
@@ -288,7 +387,8 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         0
       );
       await record(
-        "missing feed shows explicit empty state, not measured zeroes"
+        "missing feed shows explicit empty state, not measured zeroes",
+        "factory-empty"
       );
     }
     await driveHub(page, state, record, id);
@@ -312,70 +412,212 @@ async function drive(browser, state, width, colorScheme, baseURL) {
   }
 }
 
+async function openStoredItem(page, record, id, journey, path, body, name) {
+  const response = await page.goto(path, { waitUntil: "networkidle" });
+  assert.equal(
+    response.status(),
+    200,
+    `${id}: ${path} answered ${response.status()}`
+  );
+  await page.getByText(body, { exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("navigation", { name: "Primary navigation" }).count(),
+    0,
+    `${id}: ${path} carried site navigation`
+  );
+  await page.screenshot({
+    path: join(proof, `hub-${name}-${id}.png`),
+    fullPage: true,
+  });
+  await writeFile(
+    join(proof, `hub-${name}-${id}.aria.txt`),
+    await page.locator("body").ariaSnapshot()
+  );
+  await record(`hub: ${name} serves the stored artefact body`, journey);
+}
+
 async function driveHub(page, state, record, id) {
+  const navigation = page.getByRole("navigation", {
+    name: "Primary navigation",
+  });
+  const label = (name) => page.getByRole("link", { name, exact: true });
+  const heading = (name) => page.getByRole("heading", { name, exact: true });
+
   await page.goto("/", { waitUntil: "networkidle" });
-  await page
-    .getByRole("heading", { name: "Software Factory Companion", exact: true })
-    .waitFor();
-  await page
-    .getByRole("heading", { name: "Explorations", exact: true })
-    .waitFor();
-  await page.getByRole("heading", { name: "Reports", exact: true }).waitFor();
-  await record("hub: open home and see both sections");
-  if (state === "seeded") {
-    await page
-      .getByRole("link", { name: "Client pricing review", exact: true })
-      .waitFor();
-    await page
-      .getByRole("link", { name: "Motion study", exact: true })
-      .waitFor();
-    await page.getByRole("link", { name: "All 2", exact: true }).waitFor();
-    await page.screenshot({
-      path: join(proof, `hub-home-${id}.png`),
-      fullPage: true,
-    });
-    await page
-      .getByRole("navigation", { name: "Primary navigation" })
-      .getByRole("link", { name: "Reports", exact: true })
-      .click();
-    await page.getByRole("heading", { name: "Reports", exact: true }).waitFor();
-    await page.getByText("2 items.", { exact: false }).waitFor();
-    await page.getByText("ezyfit · 2026-10-30", { exact: true }).waitFor();
-    await page.getByText("yeo-ux · 2026-11-12", { exact: true }).waitFor();
+  await heading("Software Factory Companion").waitFor();
+  if (wants("home-sections")) {
+    await heading("Explorations").waitFor();
+    await heading("Reports").waitFor();
+    if (state === "seeded") {
+      await label("Motion study").waitFor();
+      await label("Client pricing review").waitFor();
+      await label("Retainer summary").waitFor();
+      await label("All 1").waitFor();
+      await label("All 2").waitFor();
+      await page.getByText("yeo-ux · 2026-11-12", { exact: true }).waitFor();
+      await page.screenshot({
+        path: join(proof, `hub-home-${id}.png`),
+        fullPage: true,
+      });
+    }
     await record(
-      "hub: reports index lists both report rows with project and date"
+      "hub: home shows both sections with their newest rows",
+      "home-sections"
     );
-    await page.screenshot({
-      path: join(proof, `hub-${id}.png`),
-      fullPage: true,
-    });
-    const item = await page.goto("/reports/4b7c1d2e-client-pricing.html", {
-      waitUntil: "networkidle",
-    });
-    assert.equal(item.status(), 200);
-    await page
-      .getByText("Fixture client pricing body.", { exact: true })
-      .waitFor();
-    await record("hub: open one report and read the stored artefact body");
-    await page.goto("/explorations", { waitUntil: "networkidle" });
-    await page.getByText("1 items.", { exact: false }).waitFor();
-    await page
-      .getByRole("link", { name: "Motion study", exact: true })
-      .waitFor();
-    assert.equal(
+  }
+  if (state === "seeded") {
+    if (wants("home-links")) {
+      await page.goto("/", { waitUntil: "networkidle" });
+      await label("Client pricing review").click();
       await page
-        .getByRole("link", { name: "Retainer summary", exact: true })
-        .count(),
-      0
-    );
-    await record("hub: explorations index keeps reports off its list");
+        .getByText("Fixture client pricing body.", { exact: true })
+        .waitFor();
+      await record("hub: home report row opens its stored item", "home-links");
+      await page.goto("/", { waitUntil: "networkidle" });
+      await label("Motion study").click();
+      await page.getByText("Fixture motion body.", { exact: true }).waitFor();
+      await record(
+        "hub: home exploration row opens its stored item",
+        "home-links"
+      );
+      await page.goto("/", { waitUntil: "networkidle" });
+      await label("All 2").click();
+      await heading("Reports").waitFor();
+      await page.getByText("2 items.", { exact: false }).waitFor();
+      await record(
+        "hub: home reports section link opens the reports index",
+        "home-links"
+      );
+      await page.goto("/", { waitUntil: "networkidle" });
+      await label("All 1").click();
+      await heading("Explorations").waitFor();
+      await page.getByText("1 items.", { exact: false }).waitFor();
+      await record(
+        "hub: home explorations section link opens the explorations index",
+        "home-links"
+      );
+    }
+    if (wants("reports-index")) {
+      await page.goto("/", { waitUntil: "networkidle" });
+      await navigation
+        .getByRole("link", { name: "Reports", exact: true })
+        .click();
+      await heading("Reports").waitFor();
+      await page.getByText("2 items.", { exact: false }).waitFor();
+      await page.getByText("ezyfit · 2026-10-30", { exact: true }).waitFor();
+      await page.getByText("yeo-ux · 2026-11-12", { exact: true }).waitFor();
+      await page.screenshot({
+        path: join(proof, `hub-reports-${id}.png`),
+        fullPage: true,
+      });
+      await record(
+        "hub: reports index lists both report rows with project and date",
+        "reports-index"
+      );
+    }
+    if (wants("reports-scope")) {
+      if (!wants("reports-index")) {
+        await page.goto("/reports", { waitUntil: "networkidle" });
+        await heading("Reports").waitFor();
+      }
+      assert.equal(
+        await label("Motion study").count(),
+        0,
+        `${id}: an exploration reached the reports index`
+      );
+      await record(
+        "hub: reports index keeps exploration items off its list",
+        "reports-scope"
+      );
+    }
+    if (wants("reports-item")) {
+      await openStoredItem(
+        page,
+        record,
+        id,
+        "reports-item",
+        "/reports/4b7c1d2e-client-pricing.html",
+        "Fixture client pricing body.",
+        "report-item"
+      );
+    }
+    if (wants("explorations-index")) {
+      await page.goto("/", { waitUntil: "networkidle" });
+      await navigation
+        .getByRole("link", { name: "Explorations", exact: true })
+        .click();
+      await heading("Explorations").waitFor();
+      await page.getByText("1 items.", { exact: false }).waitFor();
+      await label("Motion study").waitFor();
+      await page.getByText("2026-11-05", { exact: true }).waitFor();
+      await page.screenshot({
+        path: join(proof, `hub-explorations-${id}.png`),
+        fullPage: true,
+      });
+      await record(
+        "hub: explorations index lists the item with its date",
+        "explorations-index"
+      );
+    }
+    if (wants("explorations-scope")) {
+      if (!wants("explorations-index")) {
+        await page.goto("/explorations", { waitUntil: "networkidle" });
+        await heading("Explorations").waitFor();
+      }
+      assert.equal(
+        await label("Retainer summary").count(),
+        0,
+        `${id}: a report reached the explorations index`
+      );
+      assert.equal(
+        await label("Client pricing review").count(),
+        0,
+        `${id}: a report reached the explorations index`
+      );
+      await record(
+        "hub: explorations index keeps report items off its list",
+        "explorations-scope"
+      );
+    }
+    if (wants("explorations-item")) {
+      await openStoredItem(
+        page,
+        record,
+        id,
+        "explorations-item",
+        "/explorations/2a5e8f4d-motion-study.html",
+        "Fixture motion body.",
+        "exploration-item"
+      );
+    }
   } else {
-    await page.getByText("No explorations yet.", { exact: true }).waitFor();
-    await page.getByText("No reports yet.", { exact: true }).waitFor();
-    await page.goto("/reports", { waitUntil: "networkidle" });
-    await page.getByText("0 items.", { exact: false }).waitFor();
-    await page.getByText("No reports yet.", { exact: true }).waitFor();
-    await record("hub: empty hub says so instead of inventing entries");
+    if (wants("home-empty")) {
+      await page.getByText("No explorations yet.", { exact: true }).waitFor();
+      await page.getByText("No reports yet.", { exact: true }).waitFor();
+      assert.equal(await label("Motion study").count(), 0);
+      assert.equal(await label("Client pricing review").count(), 0);
+      await record(
+        "hub: empty home says a section holds nothing",
+        "home-empty"
+      );
+    }
+    if (wants("reports-index")) {
+      await page.goto("/reports", { waitUntil: "networkidle" });
+      await heading("Reports").waitFor();
+      await page.getByText("0 items.", { exact: false }).waitFor();
+      await page.getByText("No reports yet.", { exact: true }).waitFor();
+      await record("hub: empty reports index says 0 items", "reports-index");
+    }
+    if (wants("explorations-index")) {
+      await page.goto("/explorations", { waitUntil: "networkidle" });
+      await heading("Explorations").waitFor();
+      await page.getByText("0 items.", { exact: false }).waitFor();
+      await page.getByText("No explorations yet.", { exact: true }).waitFor();
+      await record(
+        "hub: empty explorations index says 0 items",
+        "explorations-index"
+      );
+    }
   }
 }
 
@@ -398,6 +640,8 @@ try {
   result.revision = (
     await readFile(join(proof, "revision.txt"), "utf8")
   ).trim();
+  const journeyIds = await featureJourneyIds();
+  await assertFeatureGates(journeyIds);
   browser = await chromium.launch();
   for (const state of ["seeded", "empty"]) {
     if (state === "seeded" ? !runSeeded : !runEmpty) continue;
@@ -485,6 +729,7 @@ export default mergeConfig(config, {
       await context.dispose();
     }
   }
+  assertJourneysRecorded(journeyIds);
   result.status = "passed";
 } catch (error) {
   result.status = "failed";

@@ -23,7 +23,7 @@ Preconditions:
 - Run `../run.sh`. `fixture-hub/` supplies one exploration and two reports.
 
 - Index. Require the `Explorations` heading, `1 items.`, the `Motion study` link, and no `Retainer summary` link.
-- Item. Open `/explorations/2a5e8f4d-motion-study.html` and require `Fixture motion body.` at HTTP 200.
+- Item. Open `/explorations/2a5e8f4d-motion-study.html` and require `Fixture motion body.` at HTTP 200 and no site navigation. Save `hub-exploration-item-<case>.png` and `hub-exploration-item-<case>.aria.txt`.
 - Empty. Require `No explorations yet.` and `0 items.`
 
 ## Gotchas
