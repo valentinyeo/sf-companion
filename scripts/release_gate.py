@@ -144,6 +144,26 @@ def untraced_journeys(features_dir):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def commit_features(repo_path, commit_sha, features_dir):
+    root = Path(repo_path).expanduser().resolve()
+    directory = os.path.relpath(
+        (Path(repo_path).expanduser() / features_dir).resolve(), root
+    )
+    listing = git(repo_path, "ls-tree", "-r", "--name-only", commit_sha, directory)
+    features = []
+    for path in listing.splitlines():
+        if not path.endswith(".md") or Path(path).name == "README.md":
+            continue
+        text = git(repo_path, "show", f"{commit_sha}:{path}")
+        features.append({**selector.parse_feature(text), "id": Path(path).stem})
+    if not features:
+        raise GateError(
+            f"commit {commit_sha} holds no feature map under {directory}, "
+            "so its journeys cannot be read"
+        )
+    return features
+
+
 def required_journeys(features, changed_paths):
     scope = selector.select_scope(changed_paths, features, [])
     return scope["journeys"], scope["features"]
@@ -479,15 +499,18 @@ def release(args):
             return 1
         print(f"{len(commits)} commits since {base} hold no merged app code change.")
         return 0
-    features = selector.read_features(
-        Path(args.repo_path).expanduser() / args.features_dir
-    )
-    untraced = untraced_journeys(Path(args.repo_path).expanduser() / args.features_dir)
+    features_dir = Path(args.repo_path).expanduser() / args.features_dir
+    untraced = untraced_journeys(features_dir)
     reports = []
     for pull_request in merged:
         number = pull_request["number"]
-        files = api_pages(f"/repos/{repository}/pulls/{number}/files", token)
         head_sha = (pull_request.get("head") or {}).get("sha")
+        features = commit_features(
+            args.repo_path,
+            pull_request.get("merge_commit_sha") or head_sha,
+            args.features_dir,
+        )
+        files = api_pages(f"/repos/{repository}/pulls/{number}/files", token)
         runs = api(
             f"/repos/{repository}/actions/workflows/{WORKFLOW}/runs"
             f"?head_sha={head_sha}&per_page=20",

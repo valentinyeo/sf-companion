@@ -1,9 +1,12 @@
+import contextlib
 import inspect
 import io
 import json
 import re
+import subprocess
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -99,6 +102,34 @@ def artifact(
                 f"proof-head/{gate.case_log_name(name)}", case_log(journeys)
             )
     return buffer.getvalue()
+
+
+def commit(repo, message):
+    for arguments in (
+        ("add", "."),
+        (
+            "-c",
+            "user.name=gate",
+            "-c",
+            "user.email=gate@example.com",
+            "commit",
+            "-m",
+            message,
+        ),
+    ):
+        subprocess.run(
+            ["git", "-C", str(repo), *arguments],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+    done = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    return done.stdout.strip()
 
 
 def proof_args(directory, journeys):
@@ -490,6 +521,183 @@ class ArtifactTest(unittest.TestCase):
             gate.read_traces(archive)["status"],
             "passed",
         )
+
+
+def map_repo(directory):
+    repo = Path(directory)
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    features = repo / "features"
+    features.mkdir()
+    Path(features, "home.md").write_text(
+        "- `home-entry` loads the home page.\n\n"
+        "Code paths: apps/web/src/entry.server.ts, apps/web/src/features/home.ts\n"
+    )
+    source = repo / "apps" / "web" / "src"
+    source.mkdir(parents=True)
+    Path(source, "entry.server.ts").write_text("// shared entry\n")
+    earlier = commit(repo, "home feature")
+    Path(features, "usage.md").write_text(
+        "- `usage-entry` loads /usage.\n\nCode paths: apps/web/src/entry.server.ts\n"
+    )
+    later = commit(repo, "usage feature")
+    Path(repo, "untraced.json").write_text(json.dumps(UNTRACED))
+    return repo, earlier, later
+
+
+def release_args(repo, base, head):
+    return SimpleNamespace(
+        repository="valentinyeo/sf-companion",
+        state_file="",
+        features_dir="features",
+        repo_path=str(repo),
+        base_sha=base,
+        head_sha=head,
+        proof_dir=None,
+        journeys=None,
+    )
+
+
+class MergeCommitMapTest(unittest.TestCase):
+    def test_a_later_feature_asks_nothing_of_an_earlier_pull_request(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, earlier, later = map_repo(directory)
+            traces_home = {
+                "journeys": {"home-entry": ["home.trace.zip"]},
+                "untraced": [],
+            }
+            traces_both = {
+                "journeys": {
+                    "home-entry": ["home.trace.zip"],
+                    "usage-entry": ["usage.trace.zip"],
+                },
+                "untraced": [],
+            }
+            zips = {
+                1: artifact(traces=traces_home, members=["home.trace.zip"]),
+                2: artifact(
+                    traces=traces_both,
+                    members=["home.trace.zip", "usage.trace.zip"],
+                ),
+            }
+            pull_requests = [
+                {
+                    "number": 21,
+                    "title": "shipping chart",
+                    "merged_at": "2026-11-19",
+                    "merge_commit_sha": earlier,
+                    "head": {"sha": "head21"},
+                },
+                {
+                    "number": 20,
+                    "title": "usage page",
+                    "merged_at": "2026-11-19",
+                    "merge_commit_sha": later,
+                    "head": {"sha": "head20"},
+                },
+            ]
+            files = [{"filename": "apps/web/src/entry.server.ts"}]
+            routes = {
+                "/repos/valentinyeo/sf-companion/compare/": {
+                    "status": "ahead",
+                    "total_commits": 2,
+                    "commits": [{"sha": earlier}, {"sha": later}],
+                    "files": files,
+                },
+                "/repos/valentinyeo/sf-companion/pulls/21/files": files,
+                "/repos/valentinyeo/sf-companion/pulls/20/files": files,
+                "/repos/valentinyeo/sf-companion/pulls": pull_requests,
+                "/repos/valentinyeo/sf-companion/actions/workflows/": {
+                    "workflow_runs": [
+                        {
+                            "head_sha": "head21",
+                            "conclusion": "success",
+                            "id": 1,
+                        },
+                        {
+                            "head_sha": "head20",
+                            "conclusion": "success",
+                            "id": 2,
+                        },
+                    ]
+                },
+                "/repos/valentinyeo/sf-companion/actions/runs/1/artifacts": {
+                    "artifacts": [
+                        {"name": gate.ARTIFACT, "id": 1, "expired": False}
+                    ]
+                },
+                "/repos/valentinyeo/sf-companion/actions/runs/2/artifacts": {
+                    "artifacts": [
+                        {"name": gate.ARTIFACT, "id": 2, "expired": False}
+                    ]
+                },
+            }
+
+            def fake_api(path, token):
+                for prefix, payload in routes.items():
+                    if path.startswith(prefix):
+                        return payload
+                raise AssertionError(f"unexpected API path {path}")
+
+            printed = io.StringIO()
+            with (
+                unittest.mock.patch.object(gate, "api_token", lambda: "token"),
+                unittest.mock.patch.object(gate, "api", fake_api),
+                unittest.mock.patch.object(
+                    gate,
+                    "artifact_bytes",
+                    lambda repository, artifact_id, token: zips[artifact_id],
+                ),
+                contextlib.redirect_stdout(printed),
+            ):
+                status = gate.release(release_args(repo, earlier, later))
+            output = printed.getvalue()
+        self.assertEqual(status, 0, output)
+        early, late = output.split("#20")
+        self.assertIn("  features: home\n", early)
+        self.assertIn("  journeys: home-entry\n", early)
+        self.assertIn("  features: home, usage\n", late)
+
+    def test_each_pull_request_reads_the_map_at_its_merge_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, earlier, later = map_repo(directory)
+            early_map = gate.commit_features(repo, earlier, "features")
+            self.assertEqual([feature["id"] for feature in early_map], ["home"])
+            journeys, touched = gate.required_journeys(
+                early_map, ["apps/web/src/entry.server.ts"]
+            )
+            self.assertEqual(touched, ["home"])
+            self.assertEqual(journeys, ["home-entry"])
+
+            late_journeys, _ = gate.required_journeys(
+                gate.commit_features(repo, later, "features"),
+                ["apps/web/src/entry.server.ts"],
+            )
+            self.assertEqual(sorted(late_journeys), ["home-entry", "usage-entry"])
+
+            newest = selector.read_features(repo / "features")
+            newest_journeys, _ = gate.required_journeys(
+                newest, ["apps/web/src/entry.server.ts"]
+            )
+            self.assertEqual(sorted(newest_journeys), ["home-entry", "usage-entry"])
+
+    def test_a_commit_without_the_map_is_an_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(
+                ["git", "init", "-b", "main", str(repo)],
+                capture_output=True,
+                check=True,
+                text=True,
+            )
+            Path(repo, "README.md").write_text("no map here\n")
+            head = commit(repo, "no map")
+            with self.assertRaises(gate.GateError):
+                gate.commit_features(repo, head, "features")
 
 
 class ProofDirectoryTest(unittest.TestCase):
