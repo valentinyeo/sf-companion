@@ -23,7 +23,7 @@ CONTENT = ("apps/web/content/")
 DEFAULT_REPO_PATH = str(Path(__file__).resolve().parent.parent)
 DEFAULT_STATE_FILE = "~/.local/state/sf-companion/deployed-sha"
 DEFAULT_FEATURES = ".claude/skills/verify-sf-companion/features"
-LIVE_ONLY = "live-only.json"
+UNTRACED = "untraced.json"
 TRACE_SUFFIXES = (".trace.zip", ".webm")
 TRACE_ENTRIES = ("trace.trace", "trace.network")
 ACTION_EVENTS = ("before", "after", "action")
@@ -137,8 +137,8 @@ def merged_in_range(pull_requests, commit_shas):
     return found
 
 
-def live_only_journeys(features_dir):
-    path = Path(features_dir).expanduser().parent / LIVE_ONLY
+def untraced_journeys(features_dir):
+    path = Path(features_dir).expanduser().parent / UNTRACED
     if not path.is_file():
         raise GateError(f"{path} is missing, so no journey can be excused a trace")
     return json.loads(path.read_text(encoding="utf-8"))
@@ -279,7 +279,7 @@ def read_traces(archive_bytes):
         return json.loads(archive.read(candidates[0]))
 
 
-def check_traces(journeys, traces, found, live_only, records):
+def check_traces(journeys, traces, found, untraced, records):
     if traces is None:
         return [
             f"the run uploaded no single {PROOF}/{TRACES} (missing or duplicated), "
@@ -289,7 +289,7 @@ def check_traces(journeys, traces, found, live_only, records):
     excused = {
         entry.get("journey")
         for entry in traces.get("untraced") or []
-        if entry.get("journey") in live_only and entry.get("reason")
+        if entry.get("journey") in untraced and entry.get("reason")
     }
     problems = []
     for journey in journeys:
@@ -336,7 +336,7 @@ def check_traces(journeys, traces, found, live_only, records):
 
 
 def evaluate_pull_request(
-    pull_request, files, runs, artifacts, archive, features, live_only
+    pull_request, files, runs, artifacts, archive, features, untraced
 ):
     number = pull_request["number"]
     title = pull_request.get("title") or ""
@@ -384,7 +384,7 @@ def evaluate_pull_request(
         journeys,
         traces,
         head_traces(archive, named),
-        live_only,
+        untraced,
         trace_records(archive, named),
     )
     revision = (traces or {}).get("revision")
@@ -482,7 +482,7 @@ def release(args):
     features = selector.read_features(
         Path(args.repo_path).expanduser() / args.features_dir
     )
-    live_only = live_only_journeys(Path(args.repo_path).expanduser() / args.features_dir)
+    untraced = untraced_journeys(Path(args.repo_path).expanduser() / args.features_dir)
     reports = []
     for pull_request in merged:
         number = pull_request["number"]
@@ -505,7 +505,7 @@ def release(args):
                 archive = artifact_bytes(repository, artifact["id"], token)
         reports.append(
             evaluate_pull_request(
-                pull_request, files, runs, artifacts, archive, features, live_only
+                pull_request, files, runs, artifacts, archive, features, untraced
             )
         )
     print_report(reports)
@@ -544,10 +544,10 @@ def proof(args):
         log = directory / case_log_name(name)
         if log.is_file():
             records[name] = record_journeys(log.read_bytes())
-    live_only = live_only_journeys(
+    untraced = untraced_journeys(
         Path(args.repo_path).expanduser() / args.features_dir
     )
-    problems = check_traces(journeys, traces, found, live_only, records)
+    problems = check_traces(journeys, traces, found, untraced, records)
     if problems:
         for problem in problems:
             print(f"missing: {problem}", file=sys.stderr)

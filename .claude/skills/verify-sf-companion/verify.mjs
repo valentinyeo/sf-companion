@@ -27,15 +27,23 @@ const journeys =
 const selected = new Set(journeys);
 const allJourneys = selected.size === 0;
 const wants = (journey) => allJourneys || selected.has(journey);
-const seededJourneys = [
+const shareToken = "verify-share-token";
+process.env.SF_SHARE_TOKEN = shareToken;
+const seededFactoryJourneys = [
   "factory-entry",
   "factory-layout",
-  "factory-readings",
-  "factory-shipping",
+  "factory-timestamp",
+  "usage-cards",
   "usage-window",
   "usage-burn",
   "usage-kpi-fixed",
   "usage-details",
+  "kpi-tiles",
+  "kpi-windows",
+  "kpi-details",
+  "shipping-chart",
+  "shipping-source",
+  "shipping-omission",
 ];
 const seededHubJourneys = [
   "explorations-index",
@@ -46,20 +54,44 @@ const seededHubJourneys = [
   "reports-index",
   "reports-item",
   "reports-scope",
+  "items-serve",
+  "items-head",
+  "items-missing",
+  "items-invalid",
 ];
-const runSeeded = [...seededJourneys, ...seededHubJourneys].some(wants);
-const runEmpty = ["factory-empty", "home-empty"].some(wants);
-const liveOnly = JSON.parse(
+const shareJourneys = [
+  "share-publish",
+  "share-delete",
+  "share-auth",
+  "share-validate",
+];
+const seededJourneys = [
+  ...seededFactoryJourneys,
+  ...seededHubJourneys,
+  ...shareJourneys,
+];
+const runSeeded = seededJourneys.some(wants);
+const runEmpty = ["factory-empty", "home-empty", "not-found"].some(wants);
+const runWindows = [
+  "usage-window",
+  "usage-burn",
+  "usage-kpi-fixed",
+  "kpi-windows",
+].some(wants);
+const runShare = shareJourneys.some(wants);
+const untraced = JSON.parse(
   await readFile(
-    fileURLToPath(new URL("./live-only.json", import.meta.url)),
+    fileURLToPath(new URL("./untraced.json", import.meta.url)),
     "utf8"
   )
 );
-const liveOnlyJourneys = new Set(Object.keys(liveOnly));
-const runWindows = ["usage-window", "usage-burn", "usage-kpi-fixed"].some(
-  wants
-);
+const untracedJourneys = new Set(Object.keys(untraced));
 const runLive = wants("access-anonymous");
+const actionlessJourneys = new Set(["access-anonymous"]);
+const expectedNotFound = "/no-such-page";
+let expectingMissingPage = false;
+const exportTime = "Numbers from 2026-11-15 00:41 UTC";
+const shippingCostWindow = "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC";
 const { chromium, request } = await import(
   pathToFileURL(playwrightModule).href
 );
@@ -90,14 +122,14 @@ function traceIndex() {
   const expected = (
     allJourneys ? journeyIds : journeyIds.filter((id) => selected.has(id))
   ).filter((id) => journeys[id] === undefined);
-  const untraced = expected
-    .filter((id) => liveOnlyJourneys.has(id))
-    .map((id) => ({ journey: id, reason: liveOnly[id] }));
+  const excused = expected
+    .filter((id) => untracedJourneys.has(id))
+    .map((id) => ({ journey: id, reason: untraced[id] }));
   return {
     status: result.status,
     revision: result.revision,
     journeys,
-    untraced,
+    untraced: excused,
   };
 }
 
@@ -139,7 +171,7 @@ function assertJourneysRecorded(ids) {
   );
   const expected = (
     allJourneys ? ids : ids.filter((id) => selected.has(id))
-  ).filter((id) => !liveOnlyJourneys.has(id));
+  ).filter((id) => !actionlessJourneys.has(id));
   const missing = expected.filter((id) => !recorded.has(id));
   assert.deepEqual(
     missing,
@@ -153,7 +185,12 @@ function start(args, logName) {
   const child = spawn("pnpm", args, {
     cwd: site,
     detached: true,
-    env: { ...process.env, PORTLESS: "0", NO_COLOR: "1" },
+    env: {
+      ...process.env,
+      NO_COLOR: "1",
+      PORTLESS: "0",
+      SF_SHARE_TOKEN: shareToken,
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   children.add(child);
@@ -240,14 +277,23 @@ async function drive(browser, state, width, colorScheme, baseURL) {
   const entry = { id, status: "running", actions: [], errors: [], trace };
   result.cases.push(entry);
   page.on("console", (message) => {
-    if (message.type() === "error") entry.errors.push(message.text());
+    if (message.type() !== "error") return;
+    if (expectingMissingPage && message.text().includes("404")) return;
+    entry.errors.push(message.text());
   });
   page.on("pageerror", (error) => entry.errors.push(error.message));
   page.on("response", (response) => {
-    if (response.url().startsWith(baseURL) && response.status() >= 400) {
+    if (!response.url().startsWith(baseURL) || response.status() < 400) return;
+    const path = new URL(response.url()).pathname;
+    const expected = response.status() === 404 && path === expectedNotFound;
+    if (!expected) {
       entry.errors.push(`HTTP ${response.status()} ${response.url()}`);
     }
   });
+  const widget = (name) =>
+    page
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("heading", { name, exact: true }) });
   async function record(action, journey = null) {
     const dimensions = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
@@ -302,23 +348,83 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       );
     }
     if (state === "seeded") {
-      if (wants("factory-readings")) {
-        await page
-          .getByRole("heading", { name: "Fixture Plan", exact: true })
-          .waitFor();
-        await page
-          .getByText("Numbers from 2026-11-15 00:41 UTC", { exact: true })
-          .waitFor();
-        await page.getByText("29 / day · 87 / week", { exact: true }).waitFor();
-        await page
+      if (wants("factory-timestamp")) {
+        await page.getByText(exportTime, { exact: true }).waitFor();
+        await record(
+          "factory: the export time prints in UTC",
+          "factory-timestamp"
+        );
+      }
+      if (wants("usage-cards")) {
+        const cards = [
+          ["Claude Code", ["67%", "+13.2 vs pace · over pace"]],
+          ["Codex", ["100%", "+21.5 vs pace · well over pace"]],
+          ["Grok", ["89%", "+4.2 vs pace · well over pace"]],
+          ["OpenCode", ["no reading"]],
+          [
+            "Vercel",
+            ["$105.28 left", "credit · resets Tue 00:00 · as of 2h ago"],
+          ],
+          ["DeepSeek", ["$11.28 left", "as of 28h ago"]],
+          ["OpenRouter", ["$45.85 left"]],
+        ];
+        for (const [name, readings] of cards) {
+          await widget(name)
+            .getByRole("heading", { name, exact: true })
+            .waitFor();
+          for (const reading of readings) {
+            await widget(name).getByText(reading, { exact: true }).waitFor();
+          }
+        }
+        await widget("Claude Code")
           .getByText("+2% · £0.00 in 1h on runners", { exact: true })
           .waitFor();
         await record(
-          "factory: seeded readings, export time and KPI display",
-          "factory-readings"
+          "usage: seven plan cards show their readings, resets and burn",
+          "usage-cards"
         );
       }
-      if (runWindows || wants("factory-layout") || wants("factory-readings")) {
+      if (wants("kpi-tiles")) {
+        const tiles = [
+          [
+            "Tickets delivered",
+            [
+              "29 / day · 87 / week",
+              "Hypertask boards 15, 2060, 11514 · sectionChangedAt",
+              "Rolling 24h and 7d",
+            ],
+          ],
+          ["Verifier first-pass rate", ["75%"]],
+          ["Plan usage pace", ["2/3 over pace", "off target"]],
+          ["Drain-loop health", ["3 loops fired in 45m", "on target"]],
+          [
+            "PR throughput and merge time",
+            ["1 / day · 3 / week · 20.0 min median"],
+          ],
+          ["Chat identity sync", ["50%", "off target"]],
+          [
+            "CI health",
+            [
+              "– to live · 0% confirmed infra · 0% confirmed code · 50% unclassified",
+            ],
+          ],
+        ];
+        for (const [name, texts] of tiles) {
+          for (const text of texts) {
+            await widget(name).getByText(text, { exact: true }).waitFor();
+          }
+        }
+        await record(
+          "kpi: seven tiles show their displays, sources and state cues",
+          "kpi-tiles"
+        );
+      }
+      if (
+        runWindows ||
+        wants("factory-layout") ||
+        wants("kpi-details") ||
+        wants("usage-cards")
+      ) {
         await page.screenshot({
           path: join(proof, `${id}-before.png`),
           fullPage: true,
@@ -358,24 +464,61 @@ async function drive(browser, state, width, colorScheme, baseURL) {
               "usage-kpi-fixed"
             );
           }
+          if (wants("kpi-windows")) {
+            await widget("Tickets delivered")
+              .getByText("Rolling 24h and 7d", { exact: true })
+              .waitFor();
+            await widget("Drain-loop health")
+              .getByText("Rolling 45m", { exact: true })
+              .waitFor();
+            await record(
+              `kpi: ${window} leaves every tile on its own window`,
+              "kpi-windows"
+            );
+          }
         }
       }
       if (wants("usage-details")) {
-        await page.getByText("Windows", { exact: true }).click();
-        await page
+        const card = widget("Claude Code");
+        await card.getByText("Windows", { exact: true }).click();
+        await card
           .getByText("Weekly 67%", { exact: true })
           .waitFor({ state: "visible" });
-        await record("open Windows and read Weekly 67%", "usage-details");
-        await page.getByText("Measurement details", { exact: true }).click();
-        await page
-          .getByText("Synthetic third measurement detail", { exact: true })
-          .waitFor({ state: "visible" });
         await record(
-          "open Measurement details and read third detail",
+          "usage: open Windows and read the weekly reading",
           "usage-details"
         );
       }
-      if (wants("factory-shipping")) {
+      if (wants("kpi-details")) {
+        const delivered = widget("Tickets delivered");
+        const third = delivered.getByText(
+          "Synthetic third measurement detail",
+          { exact: true }
+        );
+        assert.equal(
+          await third.isVisible(),
+          false,
+          `${id}: the third detail was visible before its disclosure opened`
+        );
+        await delivered
+          .getByText("Measurement details", { exact: true })
+          .click();
+        await third.waitFor({ state: "visible" });
+        const pace = widget("Plan usage pace");
+        await pace.getByText("Measurement details", { exact: true }).click();
+        await pace
+          .getByText("grok: 0.98× · at pace", { exact: true })
+          .waitFor({ state: "visible" });
+        await record(
+          "kpi: each measurement disclosure expands inside its own tile",
+          "kpi-details"
+        );
+      }
+      if (
+        wants("shipping-chart") ||
+        wants("shipping-source") ||
+        wants("shipping-omission")
+      ) {
         await page
           .getByRole("heading", {
             name: "PRs shipped vs plan burn",
@@ -385,23 +528,70 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         const chart = page.getByRole("region", {
           name: "Daily shipping and burn chart",
         });
-        await chart
-          .getByRole("rowheader", { name: "2026-11-15", exact: true })
-          .waitFor();
-        await chart
-          .getByRole("rowheader", { name: "2026-11-14", exact: true })
-          .waitFor();
-        const newest = chart.getByRole("row").filter({
-          has: page.getByRole("rowheader", { name: "2026-11-15", exact: true }),
-        });
-        await newest.getByText("2 PRs", { exact: true }).click();
-        await newest
-          .getByText("GitHub search · fleet mergedAt", { exact: true })
-          .waitFor();
-        await record(
-          "expand one shipping source inside the chart",
-          "factory-shipping"
-        );
+        if (wants("shipping-chart")) {
+          await chart
+            .getByText(
+              "Last 30 UTC dates · fleet merges, observed weekly quota points and attributed £",
+              { exact: true }
+            )
+            .waitFor();
+          await chart
+            .getByRole("rowheader", { name: "2026-11-15", exact: true })
+            .waitFor();
+          await chart
+            .getByRole("rowheader", { name: "2026-10-17", exact: true })
+            .waitFor();
+          assert.equal(
+            await chart.getByRole("rowheader").count(),
+            30,
+            `${id}: the chart did not render 30 dated rows`
+          );
+          await record(
+            "shipping: 30 dated rows carry merges, burn, cost and cost per PR",
+            "shipping-chart"
+          );
+        }
+        if (wants("shipping-source")) {
+          const newest = chart.getByRole("row").filter({
+            has: page.getByRole("rowheader", {
+              name: "2026-11-15",
+              exact: true,
+            }),
+          });
+          await newest.getByText("2 PRs", { exact: true }).click();
+          await newest
+            .getByText("GitHub search · fleet mergedAt", { exact: true })
+            .waitFor({ state: "visible" });
+          const opened = newest
+            .locator("details[open]")
+            .filter({ hasText: "GitHub search · fleet mergedAt" });
+          assert.equal(
+            await opened.getByText(shippingCostWindow, { exact: true }).count(),
+            1,
+            `${id}: the expanded shipping cell lost its UTC window`
+          );
+          await record(
+            "shipping: a measured cell expands to its source and UTC window",
+            "shipping-source"
+          );
+        }
+        if (wants("shipping-omission")) {
+          await page
+            .getByText(
+              "Grok, OpenCode omitted: pacing sampler retired on 2026-11-15.",
+              { exact: true }
+            )
+            .waitFor();
+          assert.equal(
+            await chart.getByRole("columnheader", { name: "Grok pts" }).count(),
+            0,
+            `${id}: a plan with no readings still got a column`
+          );
+          await record(
+            "shipping: plans with no readings are stated as omitted",
+            "shipping-omission"
+          );
+        }
       }
     } else if (wants("factory-empty")) {
       await page
@@ -426,10 +616,18 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         "factory-empty"
       );
     }
-    await driveHub(page, state, record, id);
     await page.screenshot({ path: join(proof, `${id}.png`), fullPage: true });
     await writeFile(
       join(proof, `${id}.aria.txt`),
+      await page.locator("body").ariaSnapshot()
+    );
+    await driveHub(page, state, record, id);
+    await page.screenshot({
+      path: join(proof, `${id}-final.png`),
+      fullPage: true,
+    });
+    await writeFile(
+      join(proof, `${id}-final.aria.txt`),
       await page.locator("body").ariaSnapshot()
     );
     assert.deepEqual(entry.errors, [], `${id}: browser errors`);
@@ -454,8 +652,22 @@ async function drive(browser, state, width, colorScheme, baseURL) {
   }
 }
 
-async function openStoredItem(page, record, id, journey, path, body, name) {
-  const response = await page.goto(path, { waitUntil: "networkidle" });
+async function openStoredItem(
+  page,
+  record,
+  id,
+  journey,
+  link,
+  path,
+  body,
+  name
+) {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (candidate) => new URL(candidate.url()).pathname === path
+    ),
+    page.getByRole("link", { name: link, exact: true }).click(),
+  ]);
   assert.equal(
     response.status(),
     200,
@@ -475,7 +687,64 @@ async function openStoredItem(page, record, id, journey, path, body, name) {
     join(proof, `hub-${name}-${id}.aria.txt`),
     await page.locator("body").ariaSnapshot()
   );
-  await record(`hub: ${name} serves the stored artefact body`, journey);
+  await record(`hub: ${name} opens its stored artefact body`, journey);
+}
+
+async function driveItems(page, record, id) {
+  if (wants("items-serve")) {
+    const report = await page.request.get(
+      "/reports/4b7c1d2e-client-pricing.html"
+    );
+    assert.equal(report.status(), 200, `${id}: item GET status`);
+    assert.equal(
+      report.headers()["content-type"],
+      "text/html; charset=utf-8",
+      `${id}: item GET content type`
+    );
+    assert.match(await report.text(), /Fixture client pricing body\./u);
+    const exploration = await page.request.get(
+      "/explorations/2a5e8f4d-motion-study.html"
+    );
+    assert.equal(exploration.status(), 200, `${id}: exploration GET status`);
+    await record(
+      "items: GET serves the stored bytes with their content type",
+      "items-serve"
+    );
+  }
+  if (wants("items-head")) {
+    const head = await page.request.head(
+      "/reports/4b7c1d2e-client-pricing.html"
+    );
+    assert.equal(head.status(), 200, `${id}: item HEAD status`);
+    assert.ok(
+      Number(head.headers()["content-length"]) > 0,
+      `${id}: item HEAD lost its content length`
+    );
+    assert.equal((await head.body()).length, 0, `${id}: item HEAD sent a body`);
+    await record("items: HEAD answers the headers and no body", "items-head");
+  }
+  if (wants("items-missing")) {
+    const missing = await page.request.get("/reports/0000-missing.html");
+    assert.equal(missing.status(), 404, `${id}: missing item status`);
+    assert.equal(await missing.text(), "Not found", `${id}: missing item body`);
+    await record(
+      "items: a slug the store does not hold answers 404",
+      "items-missing"
+    );
+  }
+  if (wants("items-invalid")) {
+    const invalid = await page.request.get("/reports/bad%24slug.html");
+    assert.equal(invalid.status(), 400, `${id}: invalid slug status`);
+    assert.deepEqual(
+      await invalid.json(),
+      { error: "Invalid slug" },
+      `${id}: invalid slug body`
+    );
+    await record(
+      "items: a slug outside the allowed characters answers 400",
+      "items-invalid"
+    );
+  }
 }
 
 async function driveHub(page, state, record, id) {
@@ -484,18 +753,48 @@ async function driveHub(page, state, record, id) {
   });
   const label = (name) => page.getByRole("link", { name, exact: true });
   const heading = (name) => page.getByRole("heading", { name, exact: true });
+  const section = (name) =>
+    page
+      .getByRole("main")
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name, exact: true }) });
 
   await page.goto("/", { waitUntil: "networkidle" });
   await heading("Software Factory Companion").waitFor();
   if (wants("home-sections")) {
     await heading("Explorations").waitFor();
     await heading("Reports").waitFor();
+    await heading("Factory").waitFor();
     if (state === "seeded") {
-      await label("Motion study").waitFor();
-      await label("Client pricing review").waitFor();
-      await label("Retainer summary").waitFor();
-      await label("All 1").waitFor();
-      await label("All 2").waitFor();
+      for (const name of [
+        "Client pricing review",
+        "Verifier scope audit",
+        "Factory feed notes",
+        "Retainer summary",
+        "Build cost review",
+        "Route parser notes",
+        "Feed schema sketch",
+        "Motion study",
+        "Hydration check",
+        "Style tokens study",
+      ]) {
+        await label(name).waitFor();
+      }
+      assert.equal(
+        await label("Support volume report").count(),
+        0,
+        `${id}: home listed more than five reports`
+      );
+      assert.equal(
+        await label("Nightly run log").count(),
+        0,
+        `${id}: home listed more than five explorations`
+      );
+      assert.equal(
+        await label("All 10").count(),
+        2,
+        `${id}: home did not link both sections to their ten-item indexes`
+      );
       await page.getByText("yeo-ux · 2026-11-12", { exact: true }).waitFor();
       await page.screenshot({
         path: join(proof, `hub-home-${id}.png`),
@@ -510,32 +809,53 @@ async function driveHub(page, state, record, id) {
   if (state === "seeded") {
     if (wants("home-links")) {
       await page.goto("/", { waitUntil: "networkidle" });
-      await label("Client pricing review").click();
+      await section("Reports")
+        .getByRole("link", { name: "All 10", exact: true })
+        .click();
+      await heading("Reports").waitFor();
+      await page.getByText("10 items.", { exact: false }).waitFor();
+      await record(
+        "hub: the home reports section link opens the reports index",
+        "home-links"
+      );
+      await page.goto("/", { waitUntil: "networkidle" });
+      await section("Explorations")
+        .getByRole("link", { name: "All 10", exact: true })
+        .click();
+      await heading("Explorations").waitFor();
+      await page.getByText("10 items.", { exact: false }).waitFor();
+      await record(
+        "hub: the home explorations section link opens the explorations index",
+        "home-links"
+      );
+      await page.goto("/", { waitUntil: "networkidle" });
+      await Promise.all([
+        page.waitForResponse(
+          (candidate) =>
+            new URL(candidate.url()).pathname ===
+            "/reports/4b7c1d2e-client-pricing.html"
+        ),
+        label("Client pricing review").click(),
+      ]);
       await page
         .getByText("Fixture client pricing body.", { exact: true })
         .waitFor();
-      await record("hub: home report row opens its stored item", "home-links");
+      await record(
+        "hub: a home report row opens its stored item",
+        "home-links"
+      );
       await page.goto("/", { waitUntil: "networkidle" });
-      await label("Motion study").click();
+      await Promise.all([
+        page.waitForResponse(
+          (candidate) =>
+            new URL(candidate.url()).pathname ===
+            "/explorations/2a5e8f4d-motion-study.html"
+        ),
+        label("Motion study").click(),
+      ]);
       await page.getByText("Fixture motion body.", { exact: true }).waitFor();
       await record(
-        "hub: home exploration row opens its stored item",
-        "home-links"
-      );
-      await page.goto("/", { waitUntil: "networkidle" });
-      await label("All 2").click();
-      await heading("Reports").waitFor();
-      await page.getByText("2 items.", { exact: false }).waitFor();
-      await record(
-        "hub: home reports section link opens the reports index",
-        "home-links"
-      );
-      await page.goto("/", { waitUntil: "networkidle" });
-      await label("All 1").click();
-      await heading("Explorations").waitFor();
-      await page.getByText("1 items.", { exact: false }).waitFor();
-      await record(
-        "hub: home explorations section link opens the explorations index",
+        "hub: a home exploration row opens its stored item",
         "home-links"
       );
     }
@@ -545,7 +865,7 @@ async function driveHub(page, state, record, id) {
         .getByRole("link", { name: "Reports", exact: true })
         .click();
       await heading("Reports").waitFor();
-      await page.getByText("2 items.", { exact: false }).waitFor();
+      await page.getByText("10 items.", { exact: false }).waitFor();
       await page.getByText("ezyfit · 2026-10-30", { exact: true }).waitFor();
       await page.getByText("yeo-ux · 2026-11-12", { exact: true }).waitFor();
       await page.screenshot({
@@ -553,7 +873,7 @@ async function driveHub(page, state, record, id) {
         fullPage: true,
       });
       await record(
-        "hub: reports index lists both report rows with project and date",
+        "hub: reports index lists every report with project and date",
         "reports-index"
       );
     }
@@ -567,17 +887,27 @@ async function driveHub(page, state, record, id) {
         0,
         `${id}: an exploration reached the reports index`
       );
+      assert.equal(
+        await label("Route parser notes").count(),
+        0,
+        `${id}: an exploration reached the reports index`
+      );
       await record(
         "hub: reports index keeps exploration items off its list",
         "reports-scope"
       );
     }
     if (wants("reports-item")) {
+      if (!wants("reports-index")) {
+        await page.goto("/reports", { waitUntil: "networkidle" });
+        await heading("Reports").waitFor();
+      }
       await openStoredItem(
         page,
         record,
         id,
         "reports-item",
+        "Client pricing review",
         "/reports/4b7c1d2e-client-pricing.html",
         "Fixture client pricing body.",
         "report-item"
@@ -589,7 +919,7 @@ async function driveHub(page, state, record, id) {
         .getByRole("link", { name: "Explorations", exact: true })
         .click();
       await heading("Explorations").waitFor();
-      await page.getByText("1 items.", { exact: false }).waitFor();
+      await page.getByText("10 items.", { exact: false }).waitFor();
       await label("Motion study").waitFor();
       await page.getByText("2026-11-05", { exact: true }).waitFor();
       await page.screenshot({
@@ -597,7 +927,7 @@ async function driveHub(page, state, record, id) {
         fullPage: true,
       });
       await record(
-        "hub: explorations index lists the item with its date",
+        "hub: explorations index lists every note with its date",
         "explorations-index"
       );
     }
@@ -622,22 +952,29 @@ async function driveHub(page, state, record, id) {
       );
     }
     if (wants("explorations-item")) {
+      if (!wants("explorations-index")) {
+        await page.goto("/explorations", { waitUntil: "networkidle" });
+        await heading("Explorations").waitFor();
+      }
       await openStoredItem(
         page,
         record,
         id,
         "explorations-item",
+        "Motion study",
         "/explorations/2a5e8f4d-motion-study.html",
         "Fixture motion body.",
         "exploration-item"
       );
     }
+    await driveItems(page, record, id);
   } else {
     if (wants("home-empty")) {
       await page.getByText("No explorations yet.", { exact: true }).waitFor();
       await page.getByText("No reports yet.", { exact: true }).waitFor();
       assert.equal(await label("Motion study").count(), 0);
       assert.equal(await label("Client pricing review").count(), 0);
+      assert.equal(await label("All 0").count(), 2);
       await record(
         "hub: empty home says a section holds nothing",
         "home-empty"
@@ -660,6 +997,171 @@ async function driveHub(page, state, record, id) {
         "explorations-index"
       );
     }
+    if (wants("not-found")) {
+      expectingMissingPage = true;
+      const response = await page.goto(expectedNotFound, {
+        waitUntil: "networkidle",
+      });
+      assert.equal(
+        response.status(),
+        404,
+        `${id}: an unknown URL answered ${response.status()}`
+      );
+      await page
+        .getByRole("heading", { name: "Page not found", exact: true })
+        .waitFor();
+      await page
+        .getByRole("link", { name: "Go to the home page.", exact: true })
+        .click();
+      await heading("Software Factory Companion").waitFor();
+      expectingMissingPage = false;
+      await record(
+        "missing: an unknown URL answers 404 with a way home",
+        "not-found"
+      );
+    }
+  }
+}
+
+async function driveShare(baseURL) {
+  const api = await request.newContext({ baseURL });
+  const entry = {
+    id: "seeded-share",
+    status: "running",
+    actions: [],
+    errors: [],
+  };
+  result.cases.push(entry);
+  const record = (action, journey, path) =>
+    entry.actions.push({
+      action,
+      dimensions: null,
+      journey,
+      url: `${baseURL}${path}`,
+    });
+  const auth = { authorization: `Bearer ${shareToken}` };
+  const html =
+    '<!doctype html><html lang="en"><body><p>Verification publish body.</p></body></html>';
+  const path = "/explorations/verify-publish.html";
+  const url = "https://yeoux.net/explorations/verify-publish.html";
+  try {
+    if (wants("share-auth")) {
+      const put = await api.put(path, {
+        data: html,
+        headers: { "content-type": "text/html" },
+      });
+      assert.equal(
+        put.status(),
+        401,
+        "an unauthorised publish must answer 401"
+      );
+      const removal = await api.delete(path);
+      assert.equal(
+        removal.status(),
+        401,
+        "an unauthorised delete must answer 401"
+      );
+      record(
+        "share: a write without the bearer token answers 401",
+        "share-auth",
+        path
+      );
+    }
+    if (wants("share-validate")) {
+      const date = await api.put(path, {
+        data: html,
+        headers: { ...auth, "x-date": "17/10/2026" },
+      });
+      assert.equal(date.status(), 400, "a malformed date must answer 400");
+      assert.match(await date.text(), /X-Date must look like 2026-10-17/u);
+      const project = await api.put(path, {
+        data: html,
+        headers: { ...auth, "x-project": "Yeo UX" },
+      });
+      assert.equal(
+        project.status(),
+        400,
+        "a malformed project must answer 400"
+      );
+      assert.match(
+        await project.text(),
+        /X-Project must be lowercase letters, digits and dashes/u
+      );
+      const slug = await api.put("/reports/bad%24slug.html", {
+        data: html,
+        headers: auth,
+      });
+      assert.equal(slug.status(), 400, "an invalid slug must answer 400");
+      assert.match(await slug.text(), /Invalid slug/u);
+      record(
+        "share: malformed date, project and slug answer 400 with the reason",
+        "share-validate",
+        path
+      );
+    }
+    if (wants("share-publish") || wants("share-delete")) {
+      const publish = await api.put(path, {
+        data: html,
+        headers: {
+          ...auth,
+          "content-type": "text/html",
+          "x-date": "2026-11-16",
+          "x-project": "verify",
+          "x-title": "Verification publish",
+        },
+      });
+      assert.equal(publish.status(), 200, "a valid publish must answer 200");
+      assert.deepEqual(await publish.json(), { url });
+      const listed = await (await api.get("/explorations")).text();
+      assert.ok(listed.includes("Verification publish"), "publish is missing");
+      assert.ok(
+        listed.includes("verify · 2026-11-16"),
+        "publish date is missing"
+      );
+      assert.ok(
+        listed.includes("11 items."),
+        "publish did not reach the index"
+      );
+      if (wants("share-publish")) {
+        record(
+          "share: a publish appears on the explorations index",
+          "share-publish",
+          path
+        );
+      }
+      if (wants("share-delete")) {
+        const removal = await api.delete(path, { headers: auth });
+        assert.equal(removal.status(), 200, "a valid delete must answer 200");
+        assert.deepEqual(await removal.json(), { deleted: true, url });
+        const afterDelete = await (await api.get("/explorations")).text();
+        assert.ok(
+          !afterDelete.includes("Verification publish"),
+          "the deleted item is still listed"
+        );
+        assert.ok(
+          afterDelete.includes("10 items."),
+          "the delete left the count"
+        );
+        const again = await api.delete(path, { headers: auth });
+        assert.equal(again.status(), 404, "a second delete must answer 404");
+        record(
+          "share: a delete removes the item and its listing",
+          "share-delete",
+          path
+        );
+      }
+    }
+    entry.status = "passed";
+  } catch (error) {
+    entry.status = "failed";
+    entry.error = error.stack;
+    throw error;
+  } finally {
+    await api.dispose();
+    await writeFile(
+      join(proof, "seeded-share.json"),
+      JSON.stringify(entry, null, 2)
+    );
   }
 }
 
@@ -740,6 +1242,7 @@ export default mergeConfig(config, {
         for (const theme of ["light", "dark"])
           await drive(browser, state, width, theme, url);
       }
+      if (state === "seeded" && runShare) await driveShare(url);
     } finally {
       await stop(dev);
     }

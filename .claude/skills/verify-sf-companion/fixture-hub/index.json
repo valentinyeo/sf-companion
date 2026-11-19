@@ -4,20 +4,139 @@
     "key": "r/4b7c1d2e-client-pricing.html",
     "project": "yeo-ux",
     "title": "Client pricing review",
-    "uploaded": "2026-11-12T09:20:00.000Z"
+    "uploaded": "2026-11-12T09:00:00.000Z"
+  },
+  {
+    "date": "2026-11-08",
+    "key": "r/7e2b9a14-verifier-scope-audit.html",
+    "project": "yeo-ux",
+    "title": "Verifier scope audit",
+    "uploaded": "2026-11-08T09:00:00.000Z"
+  },
+  {
+    "date": "2026-11-03",
+    "key": "r/1c6f4d90-factory-feed-notes.html",
+    "project": "hypertask",
+    "title": "Factory feed notes",
+    "uploaded": "2026-11-03T09:00:00.000Z"
   },
   {
     "date": "2026-10-30",
     "key": "r/9c1f0a3b-retainer-summary.html",
     "project": "ezyfit",
     "title": "Retainer summary",
-    "uploaded": "2026-10-30T16:05:00.000Z"
+    "uploaded": "2026-10-30T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-27",
+    "key": "r/3d8e5b21-build-cost-review.html",
+    "project": "yeo-ux",
+    "title": "Build cost review",
+    "uploaded": "2026-10-27T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-22",
+    "key": "r/6a1c7f38-q3-client-pipeline.html",
+    "project": "ezyfit",
+    "title": "Q3 client pipeline",
+    "uploaded": "2026-10-22T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-18",
+    "key": "r/0f9d2c65-deploy-recovery-drill.html",
+    "project": "hypertask",
+    "title": "Deploy recovery drill",
+    "uploaded": "2026-10-18T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-11",
+    "key": "r/8b3a6e47-onboarding-handover.html",
+    "project": "yeo-ux",
+    "title": "Onboarding handover",
+    "uploaded": "2026-10-11T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-04",
+    "key": "r/5c7f1a29-support-volume-report.html",
+    "project": "hypertask",
+    "title": "Support volume report",
+    "uploaded": "2026-10-04T09:00:00.000Z"
+  },
+  {
+    "date": "2026-09-29",
+    "key": "r/2e4d8b70-migration-readiness.html",
+    "project": "ezyfit",
+    "title": "Migration readiness",
+    "uploaded": "2026-09-29T09:00:00.000Z"
+  },
+  {
+    "date": "2026-11-14",
+    "key": "x/6b2f9d13-route-parser-notes.html",
+    "project": "",
+    "title": "Route parser notes",
+    "uploaded": "2026-11-14T09:00:00.000Z"
+  },
+  {
+    "date": "2026-11-09",
+    "key": "x/4a8c1e57-feed-schema-sketch.html",
+    "project": "",
+    "title": "Feed schema sketch",
+    "uploaded": "2026-11-09T09:00:00.000Z"
   },
   {
     "date": "2026-11-05",
     "key": "x/2a5e8f4d-motion-study.html",
     "project": "",
     "title": "Motion study",
-    "uploaded": "2026-11-05T11:40:00.000Z"
+    "uploaded": "2026-11-05T09:00:00.000Z"
+  },
+  {
+    "date": "2026-11-01",
+    "key": "x/9f3b7c21-hydration-check.html",
+    "project": "",
+    "title": "Hydration check",
+    "uploaded": "2026-11-01T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-25",
+    "key": "x/1d5e9a84-style-tokens-study.html",
+    "project": "",
+    "title": "Style tokens study",
+    "uploaded": "2026-10-25T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-19",
+    "key": "x/7c0b4f36-bucket-listing-probe.html",
+    "project": "",
+    "title": "Bucket listing probe",
+    "uploaded": "2026-10-19T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-13",
+    "key": "x/3e8a2d95-worker-cold-start.html",
+    "project": "",
+    "title": "Worker cold start",
+    "uploaded": "2026-10-13T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-07",
+    "key": "x/5a9f6b12-chart-legibility.html",
+    "project": "",
+    "title": "Chart legibility",
+    "uploaded": "2026-10-07T09:00:00.000Z"
+  },
+  {
+    "date": "2026-10-02",
+    "key": "x/8d1c3e70-access-gate-notes.html",
+    "project": "",
+    "title": "Access gate notes",
+    "uploaded": "2026-10-02T09:00:00.000Z"
+  },
+  {
+    "date": "2026-09-26",
+    "key": "x/0b7e5a48-nightly-run-log.html",
+    "project": "",
+    "title": "Nightly run log",
+    "uploaded": "2026-09-26T09:00:00.000Z"
   }
 ]

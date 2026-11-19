@@ -96,6 +96,23 @@ class ScopeTest(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("schedule", errors[0])
 
+    def test_nightly_with_a_journey_selector_is_rejected(self):
+        self.clean()
+        self.write("nightly-journeys.yml", NIGHTLY.replace("run.sh --live", "run.sh --live --journeys=factory-entry"))
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("--journeys", errors[0])
+
+    def test_nightly_with_a_quoted_journey_selector_is_rejected(self):
+        self.clean()
+        self.write(
+            "nightly-journeys.yml",
+            NIGHTLY.replace("run.sh --live", 'run.sh --live --journeys""=factory-entry'),
+        )
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("--journeys", errors[0])
+
     def test_nightly_without_any_branch_guard_is_rejected(self):
         self.clean()
         self.write("nightly-journeys.yml", NIGHTLY.replace("    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'\n", ""))
