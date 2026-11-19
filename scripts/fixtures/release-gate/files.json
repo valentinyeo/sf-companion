@@ -1,0 +1,4 @@
+[
+  { "filename": "apps/web/src/features/factory.ts" },
+  { "filename": "apps/web/test/factory.test.ts" }
+]

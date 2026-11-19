@@ -34,6 +34,25 @@ const bannedStyleDependencies = [
   /^victory$/u,
 ];
 
+const EvalFamily = Schema.Struct({
+  family: Schema.String,
+  model: Schema.String,
+  provider: Schema.String,
+  secret: Schema.String,
+});
+
+const EvalCase = Schema.Struct({
+  expect: Schema.Literals(["PASS", "FAIL"]),
+  id: Schema.String,
+  patch: Schema.NullOr(Schema.String),
+});
+
+const EvalCases = Schema.Struct({
+  cases: Schema.Array(EvalCase),
+  families: Schema.Array(EvalFamily),
+  journeys: Schema.Array(Schema.String),
+});
+
 const WebManifest = Schema.Struct({
   dependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
@@ -170,5 +189,73 @@ describe("the web style rules", () => {
         bannedStyleDependencies.some((banned) => banned.test(name))
       )
     ).toEqual([]);
+  });
+});
+
+describe("the verify-skill evaluation", () => {
+  const folder = new URL(
+    "../.claude/skills/verify-sf-companion/evals/",
+    import.meta.url
+  );
+
+  const workflow = readFileSync(
+    new URL("../.github/workflows/verify-skill-eval.yml", import.meta.url),
+    "utf-8"
+  );
+
+  const spec = Schema.decodeUnknownSync(EvalCases)(
+    JSON.parse(readFileSync(new URL("cases.json", folder), "utf-8"))
+  );
+
+  const patches = readdirSync(new URL("patches/", folder))
+    .filter((name) => name.endsWith(".patch"))
+    .toSorted((left, right) => left.localeCompare(right));
+
+  const planted = spec.cases.filter((entry) => entry.patch !== null);
+
+  const clean = spec.cases.filter((entry) => entry.patch === null);
+
+  it("plants every patch as a failing case", () => {
+    expect(
+      planted
+        .map((entry) => entry.patch ?? "")
+        .toSorted((left, right) => left.localeCompare(right))
+    ).toEqual(patches);
+    expect(planted.filter((entry) => entry.expect !== "FAIL")).toEqual([]);
+  });
+
+  it("keeps one case with no patch and a passing verdict", () => {
+    expect(clean.map((entry) => entry.id)).toEqual(["clean"]);
+    expect(clean.map((entry) => entry.expect)).toEqual(["PASS"]);
+  });
+
+  it("judges every case with two families", () => {
+    expect(spec.families.map((entry) => entry.family)).toEqual([
+      "deepseek",
+      "openai",
+    ]);
+
+    expect(new Set(spec.families.map((entry) => entry.model)).size).toBe(
+      spec.families.length
+    );
+
+    for (const family of spec.families) {
+      expect(workflow).toContain(family.secret);
+      expect(workflow).toContain(family.provider);
+    }
+
+    expect(workflow).toContain('eval.py" matrix --cases');
+  });
+
+  it("drives journeys that need no live gate", () => {
+    expect(spec.journeys).not.toContain("access-anonymous");
+    expect(new Set(spec.journeys).size).toBe(spec.journeys.length);
+  });
+
+  it("stays off pull requests and cancels superseded runs", () => {
+    expect(workflow).toMatch(/^ {2}schedule:\n/mu);
+    expect(workflow).toMatch(/^ {2}workflow_dispatch:\n/mu);
+    expect(workflow).toContain("cancel-in-progress: true");
+    expect(workflow).not.toContain("pull_request");
   });
 });

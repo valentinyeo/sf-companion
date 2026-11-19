@@ -1,0 +1,14 @@
+{
+  "artifacts": [
+    {
+      "id": 14549230202,
+      "name": "verifier-records",
+      "expired": false
+    },
+    {
+      "id": 14549230203,
+      "name": "verifier-proofs",
+      "expired": false
+    }
+  ]
+}

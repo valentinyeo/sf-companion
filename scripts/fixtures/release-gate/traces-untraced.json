@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "revision": "head12",
+  "journeys": {},
+  "untraced": [
+    {
+      "journey": "access-anonymous",
+      "reason": "live HTTP request, no browser context to record"
+    }
+  ]
+}

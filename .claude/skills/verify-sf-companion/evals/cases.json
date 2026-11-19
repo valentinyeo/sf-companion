@@ -1,0 +1,73 @@
+{
+  "journeys": [
+    "explorations-index",
+    "explorations-item",
+    "explorations-scope",
+    "factory-empty",
+    "factory-entry",
+    "factory-layout",
+    "factory-timestamp",
+    "home-empty",
+    "home-links",
+    "home-sections",
+    "items-head",
+    "items-invalid",
+    "items-missing",
+    "items-serve",
+    "kpi-details",
+    "kpi-tiles",
+    "kpi-windows",
+    "not-found",
+    "reports-index",
+    "reports-item",
+    "reports-scope",
+    "share-auth",
+    "share-delete",
+    "share-publish",
+    "share-validate",
+    "shipping-chart",
+    "shipping-omission",
+    "shipping-source",
+    "usage-burn",
+    "usage-cards",
+    "usage-details",
+    "usage-kpi-fixed",
+    "usage-window"
+  ],
+  "families": [
+    {
+      "family": "deepseek",
+      "provider": "opencode-go",
+      "model": "deepseek-v4.1-flash",
+      "secret": "OPENCODE_API_KEY"
+    },
+    {
+      "family": "openai",
+      "provider": "openrouter",
+      "model": "openai/gpt-6.1-sol",
+      "secret": "OPENROUTER_API_KEY"
+    }
+  ],
+  "cases": [
+    {
+      "id": "clean",
+      "patch": null,
+      "expect": "PASS"
+    },
+    {
+      "id": "kpi-zero",
+      "patch": "kpi-zero.patch",
+      "expect": "FAIL"
+    },
+    {
+      "id": "report-link-404",
+      "patch": "report-link-404.patch",
+      "expect": "FAIL"
+    },
+    {
+      "id": "mobile-overflow",
+      "patch": "chart-scroll-overflow.patch",
+      "expect": "FAIL"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "revision": "head12",
+  "journeys": {
+    "factory-entry": ["seeded-1280-light.trace.zip"]
+  },
+  "untraced": []
+}

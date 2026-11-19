@@ -116,6 +116,11 @@ jobs:
           options=("--journeys=$JOURNEYS")
           if [[ "$LIVE" == "true" ]]; then options+=("--live"); fi
           PROOF_DIR="$GITHUB_WORKSPACE/proof-head" change/.claude/skills/verify-sf-companion/run.sh "${options[@]}"
+      - name: Require a trace per journey
+        if: steps.scope.outputs.status == 'ok'
+        env:
+          JOURNEYS: ${{ steps.scope.outputs.journeys }}
+        run: python3 change/scripts/release_gate.py --proof-dir "$GITHUB_WORKSPACE/proof-head" --journeys="$JOURNEYS"
       - name: Install pi
         if: steps.scope.outputs.status == 'ok'
         run: npm install -g @earendil-works/pi-coding-agent@1.5.0
@@ -145,7 +150,7 @@ jobs:
             - base proof: ${{ github.workspace }}/proof-base
             - head proof: ${{ github.workspace }}/proof-head
 
-            Each proof holds result.json, one PNG screenshot and one ARIA snapshot per case, per-case JSON action logs, and the install, build, and dev logs.
+            Each proof holds result.json, one PNG screenshot, one ARIA snapshot, and one Playwright trace (`.trace.zip`) per case, per-case JSON action logs, traces.json naming the trace files that cover each journey, and the install, build, and dev logs.
 
             Do this:
             1. Read both result.json files and compare every selected journey, case by case. Look at the head PNG screenshots and ARIA snapshots, not only the status fields. Read the head logs when a case failed.
