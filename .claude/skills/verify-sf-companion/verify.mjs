@@ -97,6 +97,7 @@ const seededHubJourneys = [
   "items-head",
   "items-missing",
   "items-invalid",
+  "items-invalid-slug",
 ];
 const shareJourneys = [
   "share-publish",
@@ -119,6 +120,8 @@ const runEmpty = [
   "factory-empty",
   "usage-empty",
   "home-empty",
+  "reports-index-empty",
+  "explorations-index-empty",
   "not-found",
 ].some(wants);
 const runSparse = sparseJourneys.some(wants);
@@ -1317,21 +1320,24 @@ async function driveHub(page, state, record, id) {
         "home-empty"
       );
     }
-    if (wants("reports-index")) {
+    if (wants("reports-index-empty")) {
       await page.goto("/reports", { waitUntil: "networkidle" });
       await heading("Reports").waitFor();
       await page.getByText("0 items.", { exact: false }).waitFor();
       await page.getByText("No reports yet.", { exact: true }).waitFor();
-      await record("hub: empty reports index says 0 items", "reports-index");
+      await record(
+        "hub: empty reports index says 0 items",
+        "reports-index-empty"
+      );
     }
-    if (wants("explorations-index")) {
+    if (wants("explorations-index-empty")) {
       await page.goto("/explorations", { waitUntil: "networkidle" });
       await heading("Explorations").waitFor();
       await page.getByText("0 items.", { exact: false }).waitFor();
       await page.getByText("No explorations yet.", { exact: true }).waitFor();
       await record(
         "hub: empty explorations index says 0 items",
-        "explorations-index"
+        "explorations-index-empty"
       );
     }
     if (wants("not-found")) {
