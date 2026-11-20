@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pull-requests: write
 
 concurrency:
@@ -13,7 +14,6 @@ concurrency:
 
 jobs:
   pstack-verifier:
-    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -22,6 +22,12 @@ jobs:
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       RECORDS: ${{ github.workspace }}/records
     steps:
+      - name: Refuse a fork pull request
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "pstack-verifier cannot verify a fork pull request: the run gets no repository secrets, so no independent model can read the change." >&2
+          echo "Push a branch to valentinyeo/sf-companion instead." >&2
+          exit 1
       - name: Check out the change
         uses: actions/checkout@v4
         with:
@@ -36,6 +42,9 @@ jobs:
           fetch-depth: 0
           path: base
           persist-credentials: false
+      - name: Feature map matches source
+        working-directory: change
+        run: python3 scripts/feature_coverage.py
       - name: Use Node.js 24.18.0
         uses: actions/setup-node@v4
         with:
@@ -73,22 +82,29 @@ jobs:
             printf 'repro=%s\n' "$(jq -r '.repro | join(", ")' "$RECORDS/scope.json")"
             printf 'live=%s\n' "$(jq -r 'if (.journeys | index("access-anonymous")) then "true" else "false" end' "$RECORDS/scope.json")"
             printf 'digest=%s\n' "$(jq -r '.journeys | join(",")' "$RECORDS/scope.json" | sha256sum | cut -c1-16)"
+            printf 'harness=%s\n' "$(jq -r '.harness' "$RECORDS/scope.json")"
             printf 'reason=%s\n' "$(jq -r '.reason // ""' "$RECORDS/scope.json")"
             printf 'changed=%s\n' "$(jq -r '.changedPaths' "$RECORDS/scope.json")"
           } >> "$GITHUB_OUTPUT"
       - name: Drive both checkouts with the head helper
         if: steps.scope.outputs.status == 'ok'
         run: rsync -a --delete change/.claude/skills/verify-sf-companion/ base/.claude/skills/verify-sf-companion/
-      - name: Restore the cached base proof
-        id: cache-base
-        if: steps.scope.outputs.status == 'ok'
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ github.workspace }}/proof-base
-          key: pstack-verifier-base-${{ github.event.pull_request.base.sha }}-${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}
+      - name: Restore the saved base proof
+        id: base-proof
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok' && steps.scope.outputs.harness != 'true'
+        working-directory: change
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/base_proof_cache.py restore \
+            --repo "$GITHUB_REPOSITORY" \
+            --base-sha "$BASE_SHA" \
+            --digest "${{ steps.scope.outputs.digest }}" \
+            --proof-dir "$GITHUB_WORKSPACE/proof-base"
       - name: Run the base journeys
         id: base
-        if: steps.scope.outputs.status == 'ok' && steps.cache-base.outputs.cache-hit != 'true'
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok' && steps.base-proof.outputs.hit != 'true'
         continue-on-error: true
         env:
           JOURNEYS: ${{ steps.scope.outputs.journeys }}
@@ -99,14 +115,17 @@ jobs:
           if [[ "$LIVE" == "true" ]]; then options+=("--live"); fi
           PROOF_DIR="$GITHUB_WORKSPACE/proof-base" base/.claude/skills/verify-sf-companion/run.sh "${options[@]}"
       - name: Save the passing base proof
-        if: steps.scope.outputs.status == 'ok' && steps.cache-base.outputs.cache-hit != 'true' && steps.base.outcome == 'success'
-        uses: actions/cache/save@v4
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok' && steps.scope.outputs.harness != 'true' && steps.base-proof.outputs.hit != 'true' && steps.base.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
+          name: ${{ steps.base-proof.outputs.name }}
           path: ${{ github.workspace }}/proof-base
-          key: pstack-verifier-base-${{ github.event.pull_request.base.sha }}-${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
       - name: Run the head journeys
         id: head
-        if: steps.scope.outputs.status == 'ok'
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
         continue-on-error: true
         env:
           JOURNEYS: ${{ steps.scope.outputs.journeys }}
@@ -117,16 +136,16 @@ jobs:
           if [[ "$LIVE" == "true" ]]; then options+=("--live"); fi
           PROOF_DIR="$GITHUB_WORKSPACE/proof-head" change/.claude/skills/verify-sf-companion/run.sh "${options[@]}"
       - name: Require a trace per journey
-        if: steps.scope.outputs.status == 'ok'
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
         env:
           JOURNEYS: ${{ steps.scope.outputs.journeys }}
         run: python3 change/scripts/release_gate.py --proof-dir "$GITHUB_WORKSPACE/proof-head" --journeys="$JOURNEYS"
       - name: Install pi
-        if: steps.scope.outputs.status == 'ok'
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
         run: npm install -g @earendil-works/pi-coding-agent@1.5.0
       - name: Independent verification
         id: verifier
-        if: steps.scope.outputs.status == 'ok'
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
         continue-on-error: true
         working-directory: change
         env:
@@ -176,7 +195,7 @@ jobs:
             --no-session --mode json -p "$PROMPT" > "$RECORDS/verifier.jsonl"
       - name: Keep the change checkout clean
         id: clean
-        if: steps.scope.outputs.status == 'ok'
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
         run: git -C change diff --exit-code
       - name: Upload the proofs
         if: always()
@@ -210,6 +229,7 @@ jobs:
           HEAD_PROOF: ${{ github.workspace }}/proof-head
           JOURNEYS_LABEL: ${{ steps.scope.outputs.journeys }}
           CLEAN_OUTCOME: ${{ steps.clean.outcome }}
+          FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
         with:
           script: |
             const fs = require("fs");
@@ -237,7 +257,9 @@ jobs:
             let verdict = "FAIL";
             let detail = "";
             const facts = `Model: ${model}\nHead: ${headSha}\nBase: ${baseSha}\nJourneys: ${process.env.JOURNEYS_LABEL || "none"}\nRun: ${run}`;
-            if (pick === null || pick.status !== "ok") {
+            if (process.env.FORK === "true") {
+              detail = "pstack-verifier cannot verify a fork pull request: the run gets no repository secrets, so no independent model can read the change. Push a branch to valentinyeo/sf-companion instead.";
+            } else if (pick === null || pick.status !== "ok") {
               detail = `No verifier model ran. ${(pick && pick.reason) || "The model picker produced no result."}`;
             } else if (scope === null || scope.status !== "ok") {
               detail = `No verifier ran. ${(scope && scope.reason) || "The journey selector produced no result."}`;

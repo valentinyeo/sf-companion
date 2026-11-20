@@ -5,15 +5,19 @@ from pathlib import Path
 
 FOLDER = Path(".github") / "workflows"
 SCOPED = "pstack-verifier.yml"
+VERIFIER_JOB = "pstack-verifier"
 NIGHTLY = "nightly-journeys.yml"
 MAINTAIN = "verify-skill-maintain.yml"
 BROWSER = re.compile(r"verify-sf-companion/run\.sh|playwright|chromium", re.IGNORECASE)
 PULL_TRIGGERS = {"pull_request", "pull_request_target"}
 PINNED_SOURCE = re.compile(r"repository:\s*cursor/plugins\s*\n\s*ref:\s*([0-9a-f]{40})\s*$", re.MULTILINE)
 TRIGGER = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_-]*):")
+JOB = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_-]*):\s*$")
 INLINE = re.compile(r"^on:\s*(.+?)\s*$")
 INLINE_VALUE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
 QUOTING = re.compile(r"[\"'\\]")
+FORK_REFUSAL = re.compile(r"head\.repo\.full_name\s*!=\s*github\.repository[\s\S]*?exit 1")
+FEATURE_MAP = re.compile(r"name:\s*Feature map matches source[\s\S]*?feature_coverage\.py")
 
 
 def inline_triggers(value):
@@ -49,6 +53,47 @@ def read(folder, name):
     return path.read_text(encoding="utf-8")
 
 
+def job_block(source):
+    lines = source.split("\n")
+    for index, line in enumerate(lines):
+        match = JOB.match(line)
+        if match is None or match.group(1) != VERIFIER_JOB:
+            continue
+        block = []
+        for following in lines[index + 1 :]:
+            if following.strip() != "" and not following.startswith("    "):
+                break
+            block.append(following)
+        return "\n".join(block)
+    return None
+
+
+def check_verifier_job(source):
+    block = job_block(source)
+    if block is None:
+        return [
+            f"{SCOPED} declares no `{VERIFIER_JOB}` job. The required check on `main` then reports nothing at all, and a pull request with no verification passes the branch protection it rests on. Fix: keep one job named `{VERIFIER_JOB}` so its result is the required status."
+        ]
+    errors = []
+    if [line for line in block.split("\n") if line.startswith("    if:")]:
+        errors.append(
+            f"`{VERIFIER_JOB}` carries a job-level `if:`. A job its own `if:` skips reports neither success nor failure, and a skipped required check counts as passing, so the change lands unverified. Fix: drop the job-level `if:` and end the job red inside a step instead, so every pull request settles the required check one way or the other."
+        )
+    if FORK_REFUSAL.search(block) is None:
+        errors.append(
+            f"`{VERIFIER_JOB}` never refuses a fork pull request. A fork run gets no secrets, so its steps quietly wait and the required check can settle without verifying anything. Fix: add one step that runs on `github.event.pull_request.head.repo.full_name != github.repository`, says the fork cannot be verified, and exits 1."
+        )
+    if FEATURE_MAP.search(block) is None:
+        errors.append(
+            f"`{VERIFIER_JOB}` never runs the feature map check, `scripts/feature_coverage.py`. A pull request that adds a user-facing feature no file covers then passes the required check, and the feature map loses a feature while every run stays green. Fix: add a `Feature map matches source` step that runs `python3 scripts/feature_coverage.py` before the journeys."
+        )
+    if "hashFiles(" in block:
+        errors.append(
+            f"`{VERIFIER_JOB}` keys its base proof on `hashFiles(`, which hashes the head checkout where a shared helper may have changed. The key then hides the one fact that decides whether a saved proof is safe to serve, and another pull request reading the key cannot tell which helper built the proof. Fix: key the proof on the base commit and the journey digest, and skip the reuse whenever a shared helper changed."
+        )
+    return errors
+
+
 def check_pull_requests(folder, workflows):
     errors = []
     for name, source in workflows.items():
@@ -64,6 +109,7 @@ def check_pull_requests(folder, workflows):
                 errors.append(
                     f"{SCOPED} drives journeys on pull requests without `--journeys`. A full suite per pull request spends the job budget the cheap path protects and hides which journey the change touched. Fix: pass the selector's list, as `--journeys=$JOURNEYS`."
                 )
+            errors.extend(check_verifier_job(source))
             continue
         match = BROWSER.search(source)
         if match is not None:

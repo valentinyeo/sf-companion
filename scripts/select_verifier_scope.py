@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -7,6 +8,9 @@ import sys
 
 SMOKE_JOURNEY = "factory-entry"
 SKILL_DIRECTORY = ".claude/skills/verify-sf-companion/"
+FEATURE_FILE = re.compile(
+    r"^\.claude/skills/verify-sf-companion/features/([a-z0-9][a-z0-9-]*)\.md$"
+)
 
 
 def parse_feature(text):
@@ -43,6 +47,22 @@ def matches_code_path(changed_path, code_path):
     return changed_path == prefix or changed_path.startswith(f"{prefix}/")
 
 
+def feature_file_id(changed_path, features):
+    match = FEATURE_FILE.match(changed_path)
+    if match is None:
+        return None
+    name = match.group(1)
+    return name if any(feature["id"] == name for feature in features) else None
+
+
+def digest_of(journeys):
+    return hashlib.sha256(",".join(journeys).encode("utf-8")).hexdigest()[:16]
+
+
+def names(paths):
+    return ", ".join(os.path.basename(path) for path in paths)
+
+
 def select_scope(changed_paths, features, repro_journeys):
     known = {journey for feature in features for journey in feature["journeys"]}
     unknown_repro = [journey for journey in repro_journeys if journey not in known]
@@ -54,32 +74,62 @@ def select_scope(changed_paths, features, repro_journeys):
                 f"Known journeys: {', '.join(sorted(known))}."
             ),
         }
-    harness = any(path.startswith(SKILL_DIRECTORY) for path in changed_paths)
+    skill_paths = [path for path in changed_paths if path.startswith(SKILL_DIRECTORY)]
+    feature_files = [
+        path for path in skill_paths if feature_file_id(path, features) is not None
+    ]
+    helpers = [path for path in skill_paths if feature_file_id(path, features) is None]
+    harness = helpers != []
     touched = []
     journeys = set(repro_journeys)
+    reasons = []
     if harness:
         touched = [feature["id"] for feature in features]
         journeys.update(known)
+        reasons.append(
+            f"every journey, because the shared helper {names(helpers)} changed"
+        )
     else:
+        for path in feature_files:
+            identifier = feature_file_id(path, features)
+            if identifier not in touched:
+                touched.append(identifier)
+            journeys.update(
+                next(
+                    feature["journeys"]
+                    for feature in features
+                    if feature["id"] == identifier
+                )
+            )
+        if feature_files:
+            reasons.append(f"the feature map changed in {names(feature_files)}")
+        matched = []
         for feature in features:
-            matched = any(
+            if not any(
                 matches_code_path(changed_path, code_path)
                 for code_path in feature["codePaths"]
                 for changed_path in changed_paths
-            )
-            if not matched:
+            ):
                 continue
-            touched.append(feature["id"])
+            if feature["id"] not in touched:
+                touched.append(feature["id"])
             journeys.update(feature["journeys"])
+            matched.append(feature["id"])
+        if matched:
+            reasons.append(f"the diff touched {', '.join(matched)}")
     fallback = not journeys
     if fallback:
         journeys.add(SMOKE_JOURNEY)
+        reasons.append(f"no feature matched, so the {SMOKE_JOURNEY} smoke journey runs")
+    ordered = sorted(journeys)
     return {
         "changedPaths": len(changed_paths),
+        "digest": digest_of(ordered),
         "fallback": fallback,
         "features": touched,
         "harness": harness,
-        "journeys": sorted(journeys),
+        "journeys": ordered,
+        "reason": "; ".join(reasons),
         "repro": list(repro_journeys),
         "status": "ok",
     }
