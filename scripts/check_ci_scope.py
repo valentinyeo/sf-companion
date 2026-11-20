@@ -89,7 +89,7 @@ def check_verifier_job(source):
         )
     if "hashFiles(" in block:
         errors.append(
-            f"`{VERIFIER_JOB}` keys its base proof on `hashFiles(`, which hashes the head checkout. That digest changes with every commit and every other pull request, so no run ever restores another pull request's base proof and the base suite is driven again every time. Fix: key the proof on the base commit and the journey digest, and skip the reuse only when a shared helper changed."
+            f"`{VERIFIER_JOB}` keys its base proof on `hashFiles(`, which hashes the head checkout where a shared helper may have changed. The key then hides the one fact that decides whether a saved proof is safe to serve, and another pull request reading the key cannot tell which helper built the proof. Fix: key the proof on the base commit and the journey digest, and skip the reuse whenever a shared helper changed."
         )
     return errors
 
