@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh factory numbers on the SF companion site
+
+[Service]
+Type=oneshot
+# Exports the feed from, and redeploys, the main checkout at ~/projects/sf-companion,
+# which holds the installed app dependencies.
+ExecStart=%h/projects/sf-companion-ops/ops/sf-companion-feed
+TimeoutStartSec=900
