@@ -37,6 +37,9 @@ jobs:
           fetch-depth: 0
           path: base
           persist-credentials: false
+      - name: Feature map matches source
+        working-directory: change
+        run: python3 scripts/feature_coverage.py
       - name: Use Node.js 24.18.0
         uses: actions/setup-node@v4
         with:
