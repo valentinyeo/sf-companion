@@ -97,6 +97,10 @@ class RestoreTest(unittest.TestCase):
         self.assertIn("hit=false", self.output.read_text(encoding="utf-8"))
         self.assertIn("miss", result["message"])
 
+    def test_the_output_names_the_artifact_to_upload_on_a_miss(self):
+        self.restore([])
+        self.assertIn(f"name={NAME}", self.output.read_text(encoding="utf-8"))
+
     def test_an_expired_entry_and_a_stray_entry_still_end_the_search(self):
         result = self.restore(
             [

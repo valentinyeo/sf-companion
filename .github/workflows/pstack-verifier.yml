@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pull-requests: write
 
 concurrency:
@@ -79,16 +80,23 @@ jobs:
       - name: Drive both checkouts with the head helper
         if: steps.scope.outputs.status == 'ok'
         run: rsync -a --delete change/.claude/skills/verify-sf-companion/ base/.claude/skills/verify-sf-companion/
-      - name: Restore the cached base proof
-        id: cache-base
+      - name: Restore the saved base proof
+        id: base-proof
         if: steps.scope.outputs.status == 'ok'
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ github.workspace }}/proof-base
-          key: pstack-verifier-base-${{ github.event.pull_request.base.sha }}-${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}
+        working-directory: change
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROOF_KEY: ${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}
+        run: |
+          set -euo pipefail
+          python3 scripts/base_proof_cache.py restore \
+            --repo "$GITHUB_REPOSITORY" \
+            --base-sha "$BASE_SHA" \
+            --digest "$PROOF_KEY" \
+            --proof-dir "$GITHUB_WORKSPACE/proof-base"
       - name: Run the base journeys
         id: base
-        if: steps.scope.outputs.status == 'ok' && steps.cache-base.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.status == 'ok' && steps.base-proof.outputs.hit != 'true'
         continue-on-error: true
         env:
           JOURNEYS: ${{ steps.scope.outputs.journeys }}
@@ -99,11 +107,14 @@ jobs:
           if [[ "$LIVE" == "true" ]]; then options+=("--live"); fi
           PROOF_DIR="$GITHUB_WORKSPACE/proof-base" base/.claude/skills/verify-sf-companion/run.sh "${options[@]}"
       - name: Save the passing base proof
-        if: steps.scope.outputs.status == 'ok' && steps.cache-base.outputs.cache-hit != 'true' && steps.base.outcome == 'success'
-        uses: actions/cache/save@v4
+        if: steps.scope.outputs.status == 'ok' && steps.base-proof.outputs.hit != 'true' && steps.base.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
+          name: ${{ steps.base-proof.outputs.name }}
           path: ${{ github.workspace }}/proof-base
-          key: pstack-verifier-base-${{ github.event.pull_request.base.sha }}-${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
       - name: Run the head journeys
         id: head
         if: steps.scope.outputs.status == 'ok'

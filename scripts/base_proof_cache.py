@@ -92,7 +92,7 @@ def place(archive, proof_dir):
 def report(output, result):
     if output is None:
         return
-    lines = [f"hit={'true' if result['hit'] else 'false'}"]
+    lines = [f"hit={'true' if result['hit'] else 'false'}", f"name={result['name']}"]
     if result["run"]:
         lines.append(f"run={result['run']}")
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -105,18 +105,18 @@ def restore(repo, base_sha, digest, proof_dir, token, output=None, fetch_json=No
     try:
         chosen = newest(saved_artifacts(repo, name, token, fetch_json))
     except OSError as error:
-        return miss(output, f"base proof cache miss: could not ask GitHub for {name}: {error}")
+        return miss(output, name, f"base proof cache miss: could not ask GitHub for {name}: {error}")
     if chosen is None:
-        return miss(output, f"base proof cache miss: no earlier run saved {name}")
+        return miss(output, name, f"base proof cache miss: no earlier run saved {name}")
     run = str((chosen.get("workflow_run") or {}).get("id") or "")
     try:
         archive = fetch_zip(
             f"{API}/repos/{repo}/actions/artifacts/{chosen['id']}/zip", token
         )
     except OSError as error:
-        return miss(output, f"base proof cache miss: could not download {name}: {error}")
+        return miss(output, name, f"base proof cache miss: could not download {name}: {error}")
     if not place(archive, Path(proof_dir)):
-        return miss(output, f"base proof cache miss: {name} holds no {PROOF}/result.json")
+        return miss(output, name, f"base proof cache miss: {name} holds no {PROOF}/result.json")
     message = (
         f"base proof cache hit: {name} from run {run} "
         f"{(chosen.get('workflow_run') or {}).get('html_url') or ''}".rstrip()
@@ -127,9 +127,9 @@ def restore(repo, base_sha, digest, proof_dir, token, output=None, fetch_json=No
     return result
 
 
-def miss(output, message):
+def miss(output, name, message):
     print(message)
-    result = {"hit": False, "message": message, "name": "", "run": ""}
+    result = {"hit": False, "message": message, "name": name, "run": ""}
     report(output, result)
     return result
 
