@@ -128,6 +128,17 @@ class ReproTest(unittest.TestCase):
         self.assertIn("factory-entry", scope["reason"])
 
 
+def all_journeys():
+    return [
+        "access-anonymous",
+        "factory-empty",
+        "factory-entry",
+        "factory-readings",
+        "usage-details",
+        "usage-window",
+    ]
+
+
 class HarnessTest(unittest.TestCase):
     def test_runs_every_journey_when_the_helper_changed(self):
         scope = selector.select_scope(
@@ -136,10 +147,78 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual(scope["status"], "ok")
         self.assertTrue(scope["harness"])
         self.assertEqual(scope["features"], ["factory", "usage", "access"])
+        self.assertEqual(scope["journeys"], all_journeys())
+        self.assertFalse(scope["fallback"])
+        self.assertIn("verify.mjs", scope["reason"])
+
+    def test_runs_every_journey_when_the_launcher_or_fixture_changed(self):
+        for helper in ("run.sh", "fixture.json"):
+            scope = selector.select_scope(
+                [f".claude/skills/verify-sf-companion/{helper}"], FEATURES, []
+            )
+            self.assertTrue(scope["harness"], helper)
+            self.assertEqual(scope["journeys"], all_journeys(), helper)
+
+    def test_runs_every_journey_when_the_map_index_changed(self):
+        scope = selector.select_scope(
+            [".claude/skills/verify-sf-companion/features/README.md"], FEATURES, []
+        )
+        self.assertTrue(scope["harness"])
+        self.assertEqual(scope["journeys"], all_journeys())
+
+    def test_a_helper_change_wins_over_a_feature_file_change(self):
+        scope = selector.select_scope(
+            [
+                ".claude/skills/verify-sf-companion/features/factory.md",
+                ".claude/skills/verify-sf-companion/verify.mjs",
+            ],
+            FEATURES,
+            [],
+        )
+        self.assertTrue(scope["harness"])
+        self.assertEqual(scope["journeys"], all_journeys())
+
+
+class FeatureFileChangeTest(unittest.TestCase):
+    def test_one_feature_file_selects_only_its_own_journeys(self):
+        scope = selector.select_scope(
+            [".claude/skills/verify-sf-companion/features/usage.md"], FEATURES, []
+        )
+        self.assertEqual(scope["status"], "ok")
+        self.assertFalse(scope["harness"])
+        self.assertFalse(scope["fallback"])
+        self.assertEqual(scope["features"], ["usage"])
+        self.assertEqual(scope["journeys"], ["usage-details", "usage-window"])
+        self.assertIn("usage.md", scope["reason"])
+
+    def test_two_feature_files_select_both_features(self):
+        scope = selector.select_scope(
+            [
+                ".claude/skills/verify-sf-companion/features/usage.md",
+                ".claude/skills/verify-sf-companion/features/access.md",
+            ],
+            FEATURES,
+            [],
+        )
+        self.assertEqual(scope["features"], ["usage", "access"])
+        self.assertEqual(
+            scope["journeys"], ["access-anonymous", "usage-details", "usage-window"]
+        )
+
+    def test_a_feature_file_plus_app_code_keeps_both(self):
+        scope = selector.select_scope(
+            [
+                ".claude/skills/verify-sf-companion/features/factory.md",
+                "apps/web/src/client/app/update.ts",
+            ],
+            FEATURES,
+            [],
+        )
+        self.assertFalse(scope["harness"])
+        self.assertEqual(scope["features"], ["factory", "usage"])
         self.assertEqual(
             scope["journeys"],
             [
-                "access-anonymous",
                 "factory-empty",
                 "factory-entry",
                 "factory-readings",
@@ -147,7 +226,52 @@ class HarnessTest(unittest.TestCase):
                 "usage-window",
             ],
         )
-        self.assertFalse(scope["fallback"])
+
+    def test_a_feature_file_for_an_unknown_feature_is_a_helper(self):
+        scope = selector.select_scope(
+            [".claude/skills/verify-sf-companion/features/deleted.md"], FEATURES, []
+        )
+        self.assertTrue(scope["harness"])
+        self.assertEqual(scope["journeys"], all_journeys())
+
+    def test_a_feature_file_without_journeys_falls_back_to_the_smoke_journey(self):
+        scope = selector.select_scope(
+            [".claude/skills/verify-sf-companion/features/silent.md"],
+            [
+                {
+                    "codePaths": [],
+                    "id": "silent",
+                    "journeys": [],
+                }
+            ],
+            [],
+        )
+        self.assertEqual(scope["features"], ["silent"])
+        self.assertEqual(scope["journeys"], ["factory-entry"])
+        self.assertTrue(scope["fallback"])
+
+
+class DigestTest(unittest.TestCase):
+    def test_same_journeys_share_a_digest_across_different_diffs(self):
+        first = selector.select_scope(["apps/web/src/website.ts"], FEATURES, [])
+        second = selector.select_scope(
+            ["apps/web/src/website.ts", ".claude/skills/verify-sf-companion/features/access.md"],
+            FEATURES,
+            [],
+        )
+        self.assertEqual(first["journeys"], second["journeys"])
+        self.assertEqual(first["digest"], second["digest"])
+
+    def test_a_different_journey_set_gets_a_different_digest(self):
+        first = selector.select_scope(["apps/web/src/website.ts"], FEATURES, [])
+        second = selector.select_scope(["apps/web/src/features/factory.ts"], FEATURES, [])
+        self.assertNotEqual(first["digest"], second["digest"])
+
+    def test_the_digest_is_short_hex(self):
+        digest = selector.select_scope(["apps/web/src/website.ts"], FEATURES, [])[
+            "digest"
+        ]
+        self.assertRegex(digest, r"^[0-9a-f]{16}$")
 
 
 class FallbackTest(unittest.TestCase):
@@ -193,6 +317,7 @@ class CommandLineTest(unittest.TestCase):
         self.assertEqual(scope["status"], "ok")
         self.assertEqual(scope["features"], ["factory"])
         self.assertEqual(scope["journeys"], ["factory-entry"])
+        self.assertRegex(scope["digest"], r"^[0-9a-f]{16}$")
 
 
 if __name__ == "__main__":

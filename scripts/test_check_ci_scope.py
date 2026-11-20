@@ -15,6 +15,26 @@ on:
 VERIFIER = """name: Pstack verifier
 on:
   pull_request:
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+concurrency:
+  group: pstack-verifier-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  pstack-verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse what cannot be verified
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "pstack-verifier cannot verify a fork pull request" >&2
+          exit 1
+      - name: Select the touched journeys
+        run: python3 scripts/select_verifier_scope.py
+      - name: Run the head journeys
+        run: .claude/skills/verify-sf-companion/run.sh --journeys=$JOURNEYS
 """
 
 NIGHTLY = """name: Nightly journeys
@@ -76,7 +96,7 @@ class ScopeTest(unittest.TestCase):
 
     def clean(self):
         self.write("ci.yml", CLEAN_CI)
-        self.write("pstack-verifier.yml", VERIFIER + "steps:\n  - run: run.sh --journeys=$JOURNEYS\n")
+        self.write("pstack-verifier.yml", VERIFIER)
         self.write("nightly-journeys.yml", NIGHTLY)
         self.write("verify-skill-maintain.yml", MAINTAIN)
 
@@ -108,10 +128,51 @@ class ScopeTest(unittest.TestCase):
 
     def test_verifier_without_a_journey_list_is_rejected(self):
         self.clean()
-        self.write("pstack-verifier.yml", VERIFIER + "steps:\n  - run: run.sh\n")
+        self.write(
+            "pstack-verifier.yml",
+            VERIFIER.replace(" --journeys=$JOURNEYS", ""),
+        )
         errors = scope.check(self.root)
         self.assertEqual(len(errors), 1)
         self.assertIn("--journeys", errors[0])
+
+    def test_a_verifier_job_that_can_skip_is_rejected(self):
+        self.clean()
+        self.write(
+            "pstack-verifier.yml",
+            VERIFIER.replace(
+                "  pstack-verifier:\n    runs-on",
+                "  pstack-verifier:\n    if: github.event.pull_request.head.repo.full_name == github.repository\n    runs-on",
+            ),
+        )
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("skip", errors[0])
+        self.assertIn("required check", errors[0])
+
+    def test_a_verifier_without_a_fork_refusal_is_rejected(self):
+        self.clean()
+        self.write(
+            "pstack-verifier.yml",
+            VERIFIER.replace(
+                "      - name: Refuse what cannot be verified\n"
+                "        if: github.event.pull_request.head.repo.full_name != github.repository\n"
+                "        run: |\n"
+                '          echo "pstack-verifier cannot verify a fork pull request" >&2\n'
+                "          exit 1\n",
+                "",
+            ),
+        )
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("fork", errors[0])
+
+    def test_a_verifier_without_the_job_is_rejected(self):
+        self.clean()
+        self.write("pstack-verifier.yml", "name: Pstack verifier\non:\n  pull_request:\n")
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 2)
+        self.assertIn("pstack-verifier", " ".join(errors))
 
     def test_nightly_on_pull_requests_is_rejected(self):
         self.clean()
