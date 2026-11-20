@@ -17,6 +17,7 @@ INLINE = re.compile(r"^on:\s*(.+?)\s*$")
 INLINE_VALUE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
 QUOTING = re.compile(r"[\"'\\]")
 FORK_REFUSAL = re.compile(r"head\.repo\.full_name\s*!=\s*github\.repository[\s\S]*?exit 1")
+FEATURE_MAP = re.compile(r"name:\s*Feature map matches source[\s\S]*?feature_coverage\.py")
 
 
 def inline_triggers(value):
@@ -81,6 +82,14 @@ def check_verifier_job(source):
     if FORK_REFUSAL.search(block) is None:
         errors.append(
             f"`{VERIFIER_JOB}` never refuses a fork pull request. A fork run gets no secrets, so its steps quietly wait and the required check can settle without verifying anything. Fix: add one step that runs on `github.event.pull_request.head.repo.full_name != github.repository`, says the fork cannot be verified, and exits 1."
+        )
+    if FEATURE_MAP.search(block) is None:
+        errors.append(
+            f"`{VERIFIER_JOB}` never runs the feature map check, `scripts/feature_coverage.py`. A pull request that adds a user-facing feature no file covers then passes the required check, and the feature map loses a feature while every run stays green. Fix: add a `Feature map matches source` step that runs `python3 scripts/feature_coverage.py` before the journeys."
+        )
+    if "hashFiles(" in block:
+        errors.append(
+            f"`{VERIFIER_JOB}` keys its base proof on `hashFiles(`, which hashes the head checkout. That digest changes with every commit and every other pull request, so no run ever restores another pull request's base proof and the base suite is driven again every time. Fix: key the proof on the base commit and the journey digest, and skip the reuse only when a shared helper changed."
         )
     return errors
 

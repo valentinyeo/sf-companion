@@ -82,6 +82,7 @@ jobs:
             printf 'repro=%s\n' "$(jq -r '.repro | join(", ")' "$RECORDS/scope.json")"
             printf 'live=%s\n' "$(jq -r 'if (.journeys | index("access-anonymous")) then "true" else "false" end' "$RECORDS/scope.json")"
             printf 'digest=%s\n' "$(jq -r '.journeys | join(",")' "$RECORDS/scope.json" | sha256sum | cut -c1-16)"
+            printf 'harness=%s\n' "$(jq -r '.harness' "$RECORDS/scope.json")"
             printf 'reason=%s\n' "$(jq -r '.reason // ""' "$RECORDS/scope.json")"
             printf 'changed=%s\n' "$(jq -r '.changedPaths' "$RECORDS/scope.json")"
           } >> "$GITHUB_OUTPUT"
@@ -90,17 +91,16 @@ jobs:
         run: rsync -a --delete change/.claude/skills/verify-sf-companion/ base/.claude/skills/verify-sf-companion/
       - name: Restore the saved base proof
         id: base-proof
-        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok' && steps.scope.outputs.harness != 'true'
         working-directory: change
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROOF_KEY: ${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}
         run: |
           set -euo pipefail
           python3 scripts/base_proof_cache.py restore \
             --repo "$GITHUB_REPOSITORY" \
             --base-sha "$BASE_SHA" \
-            --digest "$PROOF_KEY" \
+            --digest "${{ steps.scope.outputs.digest }}" \
             --proof-dir "$GITHUB_WORKSPACE/proof-base"
       - name: Run the base journeys
         id: base
@@ -115,7 +115,7 @@ jobs:
           if [[ "$LIVE" == "true" ]]; then options+=("--live"); fi
           PROOF_DIR="$GITHUB_WORKSPACE/proof-base" base/.claude/skills/verify-sf-companion/run.sh "${options[@]}"
       - name: Save the passing base proof
-        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok' && steps.base-proof.outputs.hit != 'true' && steps.base.outcome == 'success'
+        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok' && steps.scope.outputs.harness != 'true' && steps.base-proof.outputs.hit != 'true' && steps.base.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.base-proof.outputs.name }}

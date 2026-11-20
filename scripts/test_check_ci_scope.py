@@ -33,6 +33,12 @@ jobs:
           exit 1
       - name: Select the touched journeys
         run: python3 scripts/select_verifier_scope.py
+      - name: Feature map matches source
+        run: python3 scripts/feature_coverage.py
+      - name: Restore the saved base proof
+        id: base-proof
+        if: steps.scope.outputs.harness != 'true'
+        run: python3 scripts/base_proof_cache.py restore --digest "${{ steps.scope.outputs.digest }}"
       - name: Run the head journeys
         run: .claude/skills/verify-sf-companion/run.sh --journeys=$JOURNEYS
 """
@@ -167,12 +173,40 @@ class ScopeTest(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("fork", errors[0])
 
+    def test_a_verifier_without_the_feature_map_check_is_rejected(self):
+        self.clean()
+        self.write(
+            "pstack-verifier.yml",
+            VERIFIER.replace(
+                "      - name: Feature map matches source\n"
+                "        run: python3 scripts/feature_coverage.py\n",
+                "",
+            ),
+        )
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("feature map", errors[0])
+
     def test_a_verifier_without_the_job_is_rejected(self):
         self.clean()
         self.write("pstack-verifier.yml", "name: Pstack verifier\non:\n  pull_request:\n")
         errors = scope.check(self.root)
         self.assertEqual(len(errors), 2)
         self.assertIn("pstack-verifier", " ".join(errors))
+
+    def test_a_base_proof_key_that_hashes_the_head_checkout_is_rejected(self):
+        self.clean()
+        self.write(
+            "pstack-verifier.yml",
+            VERIFIER.replace(
+                'run: python3 scripts/base_proof_cache.py restore --digest "${{ steps.scope.outputs.digest }}"',
+                "run: python3 scripts/base_proof_cache.py restore --digest \"${{ steps.scope.outputs.digest }}-${{ hashFiles('change/.claude/skills/verify-sf-companion/**') }}\"",
+            ),
+        )
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("hashFiles", errors[0])
+        self.assertIn("another pull request", errors[0])
 
     def test_nightly_on_pull_requests_is_rejected(self):
         self.clean()

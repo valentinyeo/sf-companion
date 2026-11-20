@@ -195,7 +195,7 @@ Every hard rule this repo runs is a row here, and every row names the check that
 | Rule | Enforced by | Where it runs |
 | --- | --- | --- |
 | Pull request CI runs no browser and no full journey suite | `script:scripts/check_ci_scope.py` | `pnpm check`, lefthook, CI |
-| The verifier reuses the base proof an earlier run saved as a repository artifact, keyed by base commit, journey digest, and skill digest, and restores it instead of driving the base again | `script:scripts/test_base_proof_cache.py` | `pnpm test`, CI |
+| The verifier reuses the base proof an earlier pull request saved as a repository artifact, keyed by base commit and journey digest, and re-proves the base only when a shared helper changed | `script:scripts/test_base_proof_cache.py`, `script:scripts/check_ci_scope.py` | `pnpm test`, CI |
 | An edit under the verify skill selects only the journeys of the feature file it changes, and a shared helper selects every journey | `script:scripts/test_select_verifier_scope.py` | `pnpm test`, CI |
 | The required verifier check fails on an unmapped user-facing feature before it picks a model | `script:scripts/feature_coverage.py`, `ci:Feature map matches source` | pstack verifier step `Feature map matches source`, `pnpm check`, CI |
 | A skipped verifier never counts as passing: no job-level `if:`, and a fork pull request or a failed model pick ends the check red | `script:scripts/check_ci_scope.py`, `script:scripts/test_check_ci_scope.py` | `pnpm check`, `pnpm test`, lefthook, CI |
