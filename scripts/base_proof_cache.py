@@ -55,13 +55,14 @@ def github_bytes(url, token):
         return response.read()
 
 
-def saved_artifacts(repo, name, token, fetch_json=github_json, per_page=PER_PAGE):
+def saved_artifacts(
+    repo, name, token, fetch_json=github_json, per_page=PER_PAGE, max_pages=50
+):
     found = []
     seen = 0
-    page = 1
-    while True:
+    for page in range(1, max_pages + 1):
         payload = fetch_json(
-            f"{API}/repos/{repo}/actions/artifacts?name={name}&per_page={per_page}&page={page}",
+            f"{API}/repos/{repo}/actions/artifacts?per_page={per_page}&page={page}",
             token,
         )
         batch = payload.get("artifacts") or []
@@ -75,9 +76,9 @@ def saved_artifacts(repo, name, token, fetch_json=github_json, per_page=PER_PAGE
             f"base proof listing page {page}: {len(batch)} artifacts, "
             f"{len(found)} usable, {payload.get('total_count')} reported"
         )
-        if not batch or len(batch) < per_page or seen >= (payload.get("total_count") or 0):
-            return found
-        page += 1
+        if len(batch) < per_page or seen >= (payload.get("total_count") or 0):
+            break
+    return found
 
 
 def newest(artifacts):

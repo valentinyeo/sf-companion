@@ -144,6 +144,21 @@ class RestoreTest(unittest.TestCase):
         self.assertEqual(self.served, [])
         self.assertIn("hit=false", self.output.read_text(encoding="utf-8"))
 
+    def test_the_listing_stops_at_the_last_page_it_will_read(self):
+        asked = []
+
+        def fetch(url, token):
+            asked.append(int(url.rsplit("page=", 1)[1]))
+            return {
+                "total_count": 10**6,
+                "artifacts": [artifact(8, "verifier-proofs", "2026-11-19T20:00:00Z")],
+            }
+
+        cache.saved_artifacts(
+            "valentinyeo/sf-companion", NAME, "token", fetch, per_page=1, max_pages=3
+        )
+        self.assertEqual(asked, [1, 2, 3])
+
     def test_a_full_first_page_asks_for_the_next_one(self):
         pages = {
             1: [artifact(1, NAME, "2026-11-18T20:00:00Z") for _ in range(2)],
@@ -161,6 +176,19 @@ class RestoreTest(unittest.TestCase):
         )
         self.assertEqual(asked, [1, 2])
         self.assertEqual([artifact["id"] for artifact in found], [1, 1, 2])
+
+    def test_the_listing_reads_every_artifact_and_matches_the_name_here(self):
+        asked = []
+
+        def fetch(url, token):
+            asked.append(url)
+            return {"total_count": 1, "artifacts": [artifact(7, NAME, "2026-11-19T20:00:00Z")]}
+
+        result = self.restore([], fetch_json=fetch)
+        self.assertTrue(result["hit"])
+        self.assertEqual(len(asked), 1)
+        self.assertNotIn("name=", asked[0])
+        self.assertIn("actions/artifacts?per_page=", asked[0])
 
     def test_an_archive_without_a_result_file_is_a_miss(self):
         result = self.restore(
