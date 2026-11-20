@@ -1,0 +1,54 @@
+#!/bin/sh
+# Refresh the factory numbers on the login-protected companion site.
+# Exports the feed, then redeploys the site with it. Run by the sf-companion-feed timer.
+set -eu
+REPO="$HOME/projects/sf-companion"
+FEED="$REPO/apps/web/content/feed/factory.json"
+export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:/usr/bin:/bin"
+
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/sf-companion-feed.lock"
+flock -n 9 || { echo "another run is active"; exit 0; }
+
+mkdir -p "$(dirname "$FEED")"
+# Usage sources: token-ladder (Claude, Codex), OpenCode credit history, Vercel AI Gateway credits.
+export ADVISOR_BIN="$HOME/projects/poteto-2-advisor/bin" \
+  TOKEN_LADDER_STATUS="$HOME/.local/state/token-ladder/status.json" \
+  OPENCODE_HISTORY="$HOME/.local/state/pacing/opencode-history.jsonl" \
+  GROK_STATE="$HOME/.local/state/token-ladder/grok.json"
+# DeepSeek platform key and OpenRouter management keys: one 1Password read each per run.
+DEEPSEEK_API_KEY="$(yeo-key "Deepseek Platform only for Pi Durable" "api key")"
+export DEEPSEEK_API_KEY
+stack-key --env openrouter -- stack-key --env "Vercel Token Pass" -- python3 "$REPO/tools/export-factory-feed.py" --out "$FEED"
+unset DEEPSEEK_API_KEY
+
+# Refuse to ship app code whose changed features have no recorded trace or video.
+python3 "$REPO/scripts/release_gate.py"
+# The hub upload endpoint keeps yeoshare's token. Read once per run, never printed.
+SF_SHARE_TOKEN="$(yeo-key "Yeoux Site Share" SHARE_TOKEN)"
+export SF_SHARE_TOKEN
+# One key read per run. The inner script never prints the key or the email.
+yeo-key --env "Hetzner Wrangler All Access" -- sh -c '
+set -eu
+A=7865043d9ae730882b77f3d5d670c158
+export CLOUDFLARE_API_TOKEN="$credential" CLOUDFLARE_ACCOUNT_ID="$A" APP_ENV=production
+unset credential username
+SF_ACCESS_EMAIL=$(curl -sf -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  "https://api.cloudflare.com/client/v4/accounts/$A/access/apps?per_page=100" | python3 -I -c "
+import json,sys
+apps=json.load(sys.stdin)[\"result\"]
+app=next(a for a in apps if a.get(\"name\")==\"Yeo UX Site\")
+pol=next(p for p in app[\"policies\"] if p.get(\"name\")==\"Valentin\")
+emails=[i[\"email\"][\"email\"] for i in pol[\"include\"] if \"email\" in i]
+assert len(emails)==1
+print(emails[0])")
+export SF_ACCESS_EMAIL SF_ACCESS_SERVICE_TOKEN_ID=9b81ebc0-5518-41cc-8715-53ef3881b60f
+cd "$HOME/projects/sf-companion/apps/infra"
+timeout 500 node_modules/.bin/alchemy deploy alchemy.local.ts --stage prod --no-input --yes 2>&1 \
+  | sed -E "s/$SF_ACCESS_EMAIL/[email]/g; s/[A-Za-z0-9_-]{40,}/[redacted]/g" | grep -v "^    at " | tail -6
+'
+
+# Refuse to leave the site open: the address must still send visitors to the login.
+code=$(curl -s -o /dev/null -w '%{http_code}' https://sf-companion.ancient-glitter-9ac9.workers.dev/factory)
+[ "$code" = "302" ] || { echo "LOGIN GATE CHECK FAILED: got $code"; exit 1; }
+mkdir -p "$HOME/.local/state/sf-companion" && git -C "$REPO" rev-parse HEAD > "$HOME/.local/state/sf-companion/deployed-sha"
+echo "feed live, login gate ok"
