@@ -177,6 +177,12 @@ class RestoreTest(unittest.TestCase):
         self.assertEqual(asked, [1, 2])
         self.assertEqual([artifact["id"] for artifact in found], [1, 1, 2])
 
+    def test_a_proof_named_with_an_older_key_still_matches_the_base_and_journeys(self):
+        legacy = f"{NAME}-d9d32c03ebd9bb576f2fb7399b1d1e522c33aec659ba1ae4dcd9bf8f21072e7c"
+        result = self.restore([artifact(7, legacy, "2026-11-19T20:00:00Z")])
+        self.assertTrue(result["hit"])
+        self.assertEqual(result["run"], "70")
+
     def test_the_listing_reads_every_artifact_and_matches_the_name_here(self):
         asked = []
 

@@ -70,7 +70,8 @@ def saved_artifacts(
         found.extend(
             artifact
             for artifact in batch
-            if artifact.get("name") == name and not artifact.get("expired")
+            if str(artifact.get("name") or "").startswith(name)
+            and not artifact.get("expired")
         )
         print(
             f"base proof listing page {page}: {len(batch)} artifacts, "
