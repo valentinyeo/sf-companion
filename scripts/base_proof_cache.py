@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 import tempfile
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -35,9 +36,22 @@ def github_json(url, token):
         return json.load(response)
 
 
+class StorageRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        following = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if following is None:
+            return None
+        if urllib.parse.urlsplit(newurl).netloc != urllib.parse.urlsplit(req.full_url).netloc:
+            for header in ("Authorization", "Cookie"):
+                following.headers.pop(header, None)
+                following.unredirected_hdrs.pop(header, None)
+        return following
+
+
 def github_bytes(url, token):
     request = urllib.request.Request(url, headers=headers(token))
-    with urllib.request.urlopen(request, timeout=180) as response:
+    opener = urllib.request.build_opener(StorageRedirect)
+    with opener.open(request, timeout=180) as response:
         return response.read()
 
 
@@ -56,6 +70,10 @@ def saved_artifacts(repo, name, token, fetch_json=github_json, per_page=PER_PAGE
             artifact
             for artifact in batch
             if artifact.get("name") == name and not artifact.get("expired")
+        )
+        print(
+            f"base proof listing page {page}: {len(batch)} artifacts, "
+            f"{len(found)} usable, {payload.get('total_count')} reported"
         )
         if not batch or len(batch) < per_page or seen >= (payload.get("total_count") or 0):
             return found

@@ -2,6 +2,7 @@
 import io
 import tempfile
 import unittest
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -36,6 +37,37 @@ def artifact(identifier, name, created_at, expired=False):
 class NameTest(unittest.TestCase):
     def test_the_name_carries_the_base_and_the_journey_digest(self):
         self.assertEqual(cache.artifact_name(BASE, DIGEST), NAME)
+
+
+class DownloadTest(unittest.TestCase):
+    def request(self):
+        return urllib.request.Request(
+            f"{cache.API}/repos/valentinyeo/sf-companion/actions/artifacts/7/zip",
+            headers=cache.headers("secret"),
+        )
+
+    def test_the_storage_redirect_drops_the_bearer_token(self):
+        following = cache.StorageRedirect().redirect_request(
+            self.request(),
+            None,
+            302,
+            "Found",
+            {},
+            "https://blob.example/archive?sig=1",
+        )
+        self.assertIsNotNone(following)
+        self.assertNotIn("Authorization", following.headers)
+
+    def test_a_redirect_inside_the_api_keeps_the_bearer_token(self):
+        following = cache.StorageRedirect().redirect_request(
+            self.request(),
+            None,
+            302,
+            "Found",
+            {},
+            f"{cache.API}/repositories/1/actions/artifacts/7/zip",
+        )
+        self.assertEqual(following.headers.get("Authorization"), "Bearer secret")
 
 
 class RestoreTest(unittest.TestCase):
