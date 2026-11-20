@@ -97,6 +97,35 @@ class RestoreTest(unittest.TestCase):
         self.assertIn("hit=false", self.output.read_text(encoding="utf-8"))
         self.assertIn("miss", result["message"])
 
+    def test_an_expired_entry_and_a_stray_entry_still_end_the_search(self):
+        result = self.restore(
+            [
+                artifact(5, NAME, "2026-11-19T20:00:00Z", expired=True),
+                artifact(6, f"base-proof-v1-{BASE}-ffffffffffffffff", "2026-11-19T20:00:00Z"),
+            ]
+        )
+        self.assertFalse(result["hit"])
+        self.assertEqual(self.served, [])
+        self.assertIn("hit=false", self.output.read_text(encoding="utf-8"))
+
+    def test_a_full_first_page_asks_for_the_next_one(self):
+        pages = {
+            1: [artifact(1, NAME, "2026-11-18T20:00:00Z") for _ in range(2)],
+            2: [artifact(2, NAME, "2026-11-19T20:00:00Z")],
+        }
+        asked = []
+
+        def fetch(url, token):
+            page = int(url.rsplit("page=", 1)[1])
+            asked.append(page)
+            return {"total_count": 3, "artifacts": pages.get(page, [])}
+
+        found = cache.saved_artifacts(
+            "valentinyeo/sf-companion", NAME, "token", fetch, per_page=2
+        )
+        self.assertEqual(asked, [1, 2])
+        self.assertEqual([artifact["id"] for artifact in found], [1, 1, 2])
+
     def test_an_archive_without_a_result_file_is_a_miss(self):
         result = self.restore(
             [artifact(7, NAME, "2026-11-19T20:00:00Z")],

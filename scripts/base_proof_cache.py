@@ -13,6 +13,7 @@ from pathlib import Path
 API = "https://api.github.com"
 PREFIX = "base-proof-v1"
 PROOF = "proof-base"
+PER_PAGE = 100
 
 
 def artifact_name(base_sha, digest):
@@ -40,21 +41,23 @@ def github_bytes(url, token):
         return response.read()
 
 
-def saved_artifacts(repo, name, token, fetch_json=github_json):
+def saved_artifacts(repo, name, token, fetch_json=github_json, per_page=PER_PAGE):
     found = []
+    seen = 0
     page = 1
     while True:
         payload = fetch_json(
-            f"{API}/repos/{repo}/actions/artifacts?name={name}&per_page=100&page={page}",
+            f"{API}/repos/{repo}/actions/artifacts?name={name}&per_page={per_page}&page={page}",
             token,
         )
         batch = payload.get("artifacts") or []
+        seen += len(batch)
         found.extend(
             artifact
             for artifact in batch
             if artifact.get("name") == name and not artifact.get("expired")
         )
-        if not batch or len(found) >= (payload.get("total_count") or 0):
+        if not batch or len(batch) < per_page or seen >= (payload.get("total_count") or 0):
             return found
         page += 1
 
