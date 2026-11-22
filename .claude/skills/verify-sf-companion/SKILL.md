@@ -5,7 +5,7 @@ description: Drive the Software Factory Companion web UI with Playwright, verify
 
 # Verify Software Factory Companion
 
-pstack: 0.15.44
+pstack: 0.15.46
 
 ## Launch
 

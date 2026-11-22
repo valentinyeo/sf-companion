@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: cursor/plugins
-          ref: e58dd043600587dbaf58ba315e7f2b38373eeb43
+          ref: 0b46ec399d55f2829e88822998f53b84944837d3
           path: pstack-source
           persist-credentials: false
       - name: Use Node.js 24.18.0
