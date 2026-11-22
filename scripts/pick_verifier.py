@@ -34,8 +34,8 @@ DEEPSEEK_VERIFIER = {
 
 OTHER_VERIFIERS = (
     {
-        "family": "moonshot",
-        "model": "moonshotai/kimi-k3",
+        "family": "zai",
+        "model": "zai/glm-5.3-flash",
         "provider": "vercel-ai-gateway",
         "secret": "AI_GATEWAY_API_KEY",
     },
