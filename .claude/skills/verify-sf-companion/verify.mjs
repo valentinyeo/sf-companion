@@ -1023,7 +1023,7 @@ async function driveItems(page, record, id) {
     );
   }
   if (wants("items-invalid-slug")) {
-    for (const path of ["/reports/a/b", "/reports/%24"]) {
+    for (const path of ["/reports/a/b", "/reports/%24", "/reports/%FF"]) {
       const rejected = await page.request.get(path);
       assert.equal(
         rejected.status(),
@@ -1037,7 +1037,7 @@ async function driveItems(page, record, id) {
       );
     }
     await record(
-      "items: a slug holding a slash answers 400",
+      "items: a slug holding a slash or an undecodable slug answers 400",
       "items-invalid-slug"
     );
   }
