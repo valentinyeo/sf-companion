@@ -10,6 +10,7 @@ ITEM_FILE = Path("apps/web/src/content/item.ts")
 FACTORY_FILE = Path("apps/web/src/features/factory.ts")
 SHARE_FILE = Path("apps/web/src/content/share.ts")
 WEBSITE_FILE = Path("apps/web/src/website.ts")
+VERIFIER_FILE = Path(".github/workflows/pstack-verifier.yml")
 README = "README.md"
 
 ROUTE_UNION = re.compile(r"Route\.defineRouteUnion\(\{((?:.|\n)*?)\n\}\)")
@@ -97,6 +98,12 @@ def deploy_features(source):
     return {"deploy:website"}, []
 
 
+def verifier_features(source):
+    if re.search(r"\bpython3\s+scripts/pick_verifier\.py\b", source):
+        return {"ci:verifier-selection"}, []
+    return set(), []
+
+
 def derived_features(root):
     sources = {
         (route_features, ROUTE_FILE),
@@ -104,6 +111,7 @@ def derived_features(root):
         (factory_features, FACTORY_FILE),
         (share_features, SHARE_FILE),
         (deploy_features, WEBSITE_FILE),
+        (verifier_features, VERIFIER_FILE),
     }
     keys = set()
     errors = []

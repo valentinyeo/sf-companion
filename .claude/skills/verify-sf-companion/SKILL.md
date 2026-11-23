@@ -7,6 +7,8 @@ description: Drive the Software Factory Companion web UI with Playwright, verify
 
 pstack: 0.15.46
 
+The `verifier-selection` journey drives the PR picker CLI without credentials. It records author lines, expected fields, and actual JSON in `verifier-selection.json` and `result.json`; it has no browser page or trace. Run it directly with `python3 .claude/skills/verify-sf-companion/verifier_selection.py <checkout>` for a focused selection check.
+
 ## Launch
 
 From the repository root, run:
@@ -45,7 +47,7 @@ Each journey records its own actions, tagged with its id. Before the run starts,
 
 ## Evidence
 
-Each case saves a full-page PNG of the page its drives ended on, a final-page PNG, an ARIA snapshot of each, a Playwright trace (`.trace.zip`), and a JSON action/result log. Open a trace with `pnpm exec playwright show-trace <file>`; it replays every action with its DOM snapshot. `traces.json` names the trace files that cover each journey and lists the journeys a browser cannot trace; `untraced.json` is the only place that list lives, so the gate reads it from the skill rather than from the artifact. Browser console errors, uncaught page errors, failed local responses, or horizontal document overflow fail the run. `result.json` records the revision, matrix results, and overall status. The seeded share case drives the HTTP share API, so it logs its own `seeded-share.json` and records no browser trace. Build and development logs survive failures too. Read the images before claiming visual quality; automated layout checks do not judge appearance.
+Each browser case saves a full-page PNG of the page its drives ended on, a final-page PNG, an ARIA snapshot of each, a Playwright trace (`.trace.zip`), and a JSON action/result log. Open a trace with `pnpm exec playwright show-trace <file>`; it replays every action with its DOM snapshot. `traces.json` names the trace files that cover each journey and lists the journeys a browser cannot trace; `untraced.json` is the only place that list lives, so the gate reads it from the skill rather than from the artifact. Browser console errors, uncaught page errors, failed local responses, or horizontal document overflow fail the run. `result.json` records the revision, matrix results, and overall status. The seeded share case drives the HTTP share API, so it logs its own `seeded-share.json` and records no browser trace. Build and development logs survive failures too. Read the images before claiming visual quality; automated layout checks do not judge appearance.
 
 A deploy needs this evidence: `scripts/release_gate.py` fails when a journey a pulled-in feature changed has no trace or video. A trace counts only when its case log names that journey and its `trace.trace` holds a recorded browser action or frame; a video counts only when its EBML header reads as webm or matroska.
 

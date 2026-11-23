@@ -1,4 +1,5 @@
 {
+  "verifier-selection": "A local picker CLI driven through stdin with recorded JSON output, so there is no browser page to record.",
   "access-anonymous": "A live HTTPS request to yeoux.net with no cookies, so there is no browser page to record.",
   "share-publish": "A publish driven through the HTTP share API in a request context, so there is no browser page to record.",
   "share-delete": "A delete driven through the HTTP share API in a request context, so there is no browser page to record.",

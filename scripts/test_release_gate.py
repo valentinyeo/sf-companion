@@ -761,8 +761,10 @@ class UntracedListTest(unittest.TestCase):
                 "share-delete",
                 "share-publish",
                 "share-validate",
+                "verifier-selection",
             ],
         )
+        self.assertIn("no browser page", untraced["verifier-selection"])
         self.assertIn("no browser page", untraced["access-anonymous"])
         self.assertIn("no browser page", untraced["share-publish"])
 
