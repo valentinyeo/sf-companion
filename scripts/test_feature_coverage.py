@@ -28,6 +28,7 @@ export const deleteItem = (
 """
 
 WEBSITE = 'export class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {}\n'
+VERIFIER = 'run: python3 scripts/pick_verifier.py --body-file "$RECORDS/pr-body.txt"\n'
 
 FEATURES = {
     "home.md": "route:Home",
@@ -41,9 +42,10 @@ FEATURES = {
     "empty.md": "factory:no-feed, route:NotFound",
     "access.md": "deploy:website",
     "share.md": "share:upload, share:delete",
+    "verifier.md": "ci:verifier-selection",
 }
 
-TOTAL = 15
+TOTAL = 16
 
 
 class CoverageTest(unittest.TestCase):
@@ -56,6 +58,7 @@ class CoverageTest(unittest.TestCase):
         self.write_source(coverage.FACTORY_FILE, FACTORY)
         self.write_source(coverage.SHARE_FILE, SHARE)
         self.write_source(coverage.WEBSITE_FILE, WEBSITE)
+        self.write_source(coverage.VERIFIER_FILE, VERIFIER)
         for name, covers in FEATURES.items():
             self.write_feature(name, covers)
         self.write_readme(coverage.coverage_line(TOTAL, TOTAL, len(FEATURES)))
@@ -80,7 +83,7 @@ class CoverageTest(unittest.TestCase):
     def test_readme_line_is_generated_from_source(self):
         self.assertEqual(
             coverage.coverage_line(TOTAL, TOTAL, len(FEATURES)),
-            "Coverage: 15 of 15 features across 11 files.",
+            "Coverage: 16 of 16 features across 12 files.",
         )
 
     def test_feature_without_a_file_is_rejected(self):
@@ -95,7 +98,7 @@ class CoverageTest(unittest.TestCase):
         self.write_readme(coverage.coverage_line(14, 14, 11))
         errors = coverage.check(self.root)
         self.assertEqual(len(errors), 1)
-        self.assertIn("Coverage: 15 of 15 features across 11 files.", errors[0])
+        self.assertIn("Coverage: 16 of 16 features across 12 files.", errors[0])
         self.assertIn("--write", errors[0])
 
     def test_write_refreshes_the_coverage_count(self):
@@ -126,6 +129,20 @@ class CoverageTest(unittest.TestCase):
         errors = coverage.check(self.root)
         self.assertEqual(len(errors), 1)
         self.assertIn("factory:tickets", errors[0])
+
+    def test_verifier_without_a_feature_file_is_rejected(self):
+        (self.features / "verifier.md").unlink()
+        errors = coverage.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("ci:verifier-selection", errors[0])
+        self.assertIn("no feature file covers it", errors[0])
+
+    def test_removed_verifier_makes_its_feature_stale(self):
+        self.write_source(coverage.VERIFIER_FILE, "jobs: {}\n")
+        errors = coverage.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("ci:verifier-selection", errors[0])
+        self.assertIn("source no longer has", errors[0])
 
     def test_feature_file_without_a_covers_line_is_rejected(self):
         (self.features / "stray.md").write_text("# Stray\n", encoding="utf-8")

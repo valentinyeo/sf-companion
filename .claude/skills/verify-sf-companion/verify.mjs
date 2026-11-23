@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import {
   copyFile,
@@ -139,6 +139,8 @@ const untraced = JSON.parse(
   )
 );
 const untracedJourneys = new Set(Object.keys(untraced));
+const cliJourneys = ["verifier-selection"];
+const runCli = cliJourneys.some(wants);
 const runLive = wants("access-anonymous");
 const actionlessJourneys = new Set(["access-anonymous"]);
 const expectedNotFound = "/no-such-page";
@@ -1529,7 +1531,7 @@ try {
   ).trim();
   journeyIds = await featureJourneyIds();
   await assertFeatureGates(journeyIds);
-  browser = await chromium.launch();
+  if (runSeeded || runEmpty || runSparse) browser = await chromium.launch();
   for (const state of ["seeded", "empty", "sparse"]) {
     const wanted = { empty: runEmpty, seeded: runSeeded, sparse: runSparse }[
       state
@@ -1621,6 +1623,24 @@ export default mergeConfig(config, {
     } finally {
       await context.dispose();
     }
+  }
+  if (runCli && wants("verifier-selection")) {
+    const selection = spawnSync(
+      "python3",
+      [
+        fileURLToPath(new URL("./verifier_selection.py", import.meta.url)),
+        site,
+      ],
+      { encoding: "utf8", timeout: 300_000 }
+    );
+    const entry = JSON.parse(selection.stdout);
+    result.cases.push(entry);
+    await writeFile(
+      join(proof, "verifier-selection.json"),
+      JSON.stringify(entry, null, 2)
+    );
+    assert.equal(selection.status, 0, entry.error ?? selection.stderr);
+    assert.equal(entry.status, "passed");
   }
   assertJourneysRecorded(journeyIds);
   result.status = "passed";
