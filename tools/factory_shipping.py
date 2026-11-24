@@ -92,7 +92,7 @@ def shipping(now, prs, pr_source, readings, metric, max_gap=6 * 3600):
                 c["barPct"] = round(100 * c["value"] / maximum, 2) if maximum else 0
     return {"days": days, "omissions": plan_omissions(days), "notes": [
         pr_source,
-        "30 UTC dates, newest first; today to export time. Bars start at zero; each column has its own maximum. Usage window buttons do not change this chart.",
+        "30 UTC dates, newest first; today to export time. Bars start at zero; each column has its own maximum.",
         "Quota points are observed rises, not tokens. Plans have different quotas; do not add their points. Resets add no burn. Gaps over 6h are excluded; measured values may undercount daily use.",
         "Vercel, DeepSeek and OpenRouter daily history is unavailable in these sources.",
         *(["OpenCode points cover its weekly subscription, not credit spend."] if any(d["burn"][3]["reading"]["kind"] == "measured" for d in days) else []),

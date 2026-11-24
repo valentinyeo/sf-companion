@@ -378,7 +378,7 @@ describe("factory page", () => {
         expectElement(text("Board 15 / Product Lead, 1d: 29")).toExist(),
         expectElement(text("Numbers from 2026-11-15 00:41 UTC")).toExist(),
         expectElement(
-          text("Usage has the plan cards, their burn windows and reset lines.")
+          text("Usage has the plan cards, 1h burn and reset lines.")
         ).toExist()
       );
     })

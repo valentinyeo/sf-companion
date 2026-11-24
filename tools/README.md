@@ -6,9 +6,10 @@ Set these environment variables before running it:
 
 - `ADVISOR_BIN` (required): the advisor's `bin` directory. Its helpers supply runner, reviewer and burn readings for Usage, not KPIs.
 - `TOKEN_LADDER_STATUS` (required): token-ladder's status JSON file. Claude and Codex use the weekly percentage, reset time, and pace (`used - time_gone`), plus any available week and five-hour readings. Readings older than 30 minutes, or plans reporting an error, show no reading.
-- `OPENCODE_HISTORY` (optional): the OpenCode credit history JSONL file. The last nonblank line supplies `credits_usd`, `today_usd`, and the epoch timestamp `at`. The card shows the balance and reading age; the burn line includes today's dollars.
+- `OPENCODE_API_KEY` / `OPENCODE_AUTH_FILE` (optional): OpenCode Go API key (defaults to `~/.pi/agent/auth.json` or `~/.local/share/opencode/auth.json`, provider `opencode-go`). One authenticated GET to `https://opencode.ai/zen/go/v1/usage` supplies monthly, weekly, and 5h Go subscription percentages and reset times. If that read fails, the card falls back to `OPENCODE_HISTORY` or plan-pick's anchored credit in `lane-credits.json` labeled `estimate`.
+- `OPENCODE_HISTORY` (optional): the OpenCode credit history JSONL file. Used for today's spend and as a credit fallback when the Go usage endpoint cannot be read.
+- `TOKEN_LADDER_LAUNCHES` (optional): plan-pick's `launches.jsonl` (defaults next to `TOKEN_LADDER_STATUS`). Unfinished launches whose PID or `plan-pick --run` process is alive supply live runner counts per lane.
 - `AI_GATEWAY_API_KEY` (optional): the Vercel AI Gateway key. One authenticated GET to `https://ai-gateway.vercel.sh/v1/credits` supplies `token_pass.remaining` in dollars. Numeric strings are accepted. The request has a 30-second timeout and no retries. The key and response are never logged.
-- `GROK_STATE` (optional): token-ladder's `grok.json`, written every 30 minutes by `cursor-usage-read`. Grok, Cursor and X merged into one plan, Grok Bot; the reading is its combined weekly usage from Cursor's dashboard. Readings older than one hour show no reading.
 - `DEEPSEEK_API_KEY` (optional): a DeepSeek platform key. One GET to `https://api.deepseek.com/user/balance` supplies the USD `total_balance`.
 - `OPENROUTER_MANAGEMENT_KEY` and `OPENROUTER_MANAGEMENT_KEY_AGENTS` (optional): OpenRouter keys, one per account. Each GET to `https://openrouter.ai/api/v1/credits` supplies `total_credits - total_usage`; the card shows the sum. If any account fails to read, the card shows no reading.
 
@@ -21,9 +22,9 @@ python3 tools/export-factory-feed.py --out /tmp/factory-feed.json
 
 Inject the Vercel key through your secret manager rather than placing it in a command or file.
 
-It needs Python 3 and nothing else. Run it on the factory host, because the runners line reads live tmux state. It never reads or recreates pacer state or starts a timer.
+It needs Python 3 and nothing else. Run it on the factory host, because the runners line reads live worker processes and the advisor's tmux state. It never reads or recreates pacer state or starts a timer.
 
-Every export includes Claude, Codex, Grok, OpenCode, Vercel, DeepSeek and OpenRouter, in that order. Grok reads the merged Grok Bot weekly usage from `GROK_STATE`. Missing or unreadable source files and missing or failed Vercel responses leave the affected cards without readings; they never become zero usage. Every credit card's age uses the contract's `· as of` prefix, for example ` · as of 28h ago`.
+Every export includes Claude, Codex, OpenCode, Vercel, DeepSeek, OpenRouter, Antigravity, CommandCode, and Cursor, in that order, with one fixed `1h` burn window. There is no Grok card: the merged Grok Bot plan was retired, and nothing on this host reads the $20 Grok plan's usage. Missing or unreadable source files and missing or failed responses leave the affected cards without readings; they never become zero usage. Every credit card's age uses the contract's `· as of` prefix, for example ` · as of 28h ago`.
 
 The file is written to a temp path and then renamed, so a crash never leaves half a feed. Each export reads current inputs and, when configured, Vercel's current balance.
 

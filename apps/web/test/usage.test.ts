@@ -1,7 +1,6 @@
 import { describe, it } from "@effect/vitest";
 import { Effect, Option } from "effect";
 import {
-  click,
   expect as expectElement,
   given,
   role,
@@ -38,9 +37,6 @@ const usageFeed = {
       "1h": {
         claude: { gbp: 0, pricedPts: 0, pts: 2, todayUsd: null },
       },
-      "7d": {
-        claude: { gbp: 7, pricedPts: 1, pts: 14, todayUsd: null },
-      },
     },
     cards: [
       {
@@ -64,20 +60,20 @@ const usageFeed = {
         windows: [{ label: "Weekly", usedPct: 67 }],
       },
       {
-        creditAsOf: " · as of 28h ago",
-        creditReadAt: "2026-11-14T00:41:00Z",
-        creditSubLabel: "credit",
-        creditUsd: 29.1,
+        creditAsOf: " · as of 1h ago",
+        creditReadAt: "2026-11-14T23:41:00Z",
+        creditSubLabel: "estimate",
+        creditUsd: 6.2,
         mode: "credit",
-        name: "Credit Plan",
-        note: null,
+        name: "OpenCode",
+        note: "Anchored credit estimate (lane-credits.json)",
         paceDelta: null,
         plan: "opencode",
-        primaryWindow: "week",
+        primaryWindow: "month",
         resetsText: null,
         reviewer: { known: true, show: false, tip: "" },
         runnersLive: true,
-        runnersText: "0 runners",
+        runnersText: "2 DeepSeek 4.1 Flash medium",
         skip: null,
         tone: "plain",
         usedPct: null,
@@ -111,31 +107,38 @@ const usageFeed = {
 };
 
 describe("usage page", () => {
-  it.effect("shows one card per plan with its reading and burn", () =>
-    Effect.gen(function* showCards() {
-      const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
+  it.effect(
+    "shows one card per plan with fixed 1h burn, live runners, and no window picker",
+    () =>
+      Effect.gen(function* showCards() {
+        const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
 
-      scene(
-        { update, view },
-        given(
-          initialModel(
-            { items: [], route: SiteRoute.Usage() },
-            Option.some(feed)
-          )
-        ),
-        expectElement(role("heading", { name: "Usage" })).toExist(),
-        expectElement(role("group", { name: "Usage window" })).toExist(),
-        expectElement(text("Fixture Plan")).toExist(),
-        expectElement(text("67%")).toExist(),
-        expectElement(text("+13.2 vs pace · over pace")).toExist(),
-        expectElement(text("resets Sun 18:00")).toExist(),
-        expectElement(text("+2% · £0.00 in 1h on runners")).toExist(),
-        expectElement(text("Credit Plan")).toExist(),
-        expectElement(text("$29.10 left")).toExist(),
-        expectElement(text("as of 28h ago")).toExist(),
-        expectElement(text("Weekly 67%")).toExist()
-      );
-    })
+        scene(
+          { update, view },
+          given(
+            initialModel(
+              { items: [], route: SiteRoute.Usage() },
+              Option.some(feed)
+            )
+          ),
+          expectElement(role("heading", { name: "Usage" })).toExist(),
+          expectElement(role("group", { name: "Usage window" })).not.toExist(),
+          expectElement(
+            text("The buttons change the burn window only.", { exact: false })
+          ).not.toExist(),
+          expectElement(text("Fixture Plan")).toExist(),
+          expectElement(text("67%")).toExist(),
+          expectElement(text("+13.2 vs pace · over pace")).toExist(),
+          expectElement(text("resets Sun 18:00")).toExist(),
+          expectElement(text("+2% · £0.00 in 1h on runners")).toExist(),
+          expectElement(text("OpenCode")).toExist(),
+          expectElement(text("$6.20 left")).toExist(),
+          expectElement(text("estimate · as of 1h ago")).toExist(),
+          expectElement(text("2 DeepSeek 4.1 Flash medium")).toExist(),
+          expectElement(text("Weekly 67%")).toExist(),
+          expectElement(text("29 / day · 87 / week")).not.toExist()
+        );
+      })
   );
 
   it.effect(
@@ -164,30 +167,6 @@ describe("usage page", () => {
           expectElement(text("no reading")).toExist()
         );
       })
-  );
-
-  it.effect("changes the burn reading and keeps KPI tiles on Factory", () =>
-    Effect.gen(function* changeWindow() {
-      const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
-
-      scene(
-        { update, view },
-        given(
-          initialModel(
-            { items: [], route: SiteRoute.Usage() },
-            Option.some(feed)
-          )
-        ),
-        expectElement(text("29 / day · 87 / week")).not.toExist(),
-        click(role("button", { name: "7d" })),
-        expectElement(role("button", { name: "7d" })).toHaveAttr(
-          "aria-pressed",
-          "true"
-        ),
-        expectElement(text("+14% · £7.00 in 7d on runners")).toExist(),
-        expectElement(text("29 / day · 87 / week")).not.toExist()
-      );
-    })
   );
 
   it.effect("says so when the feed is missing", () =>
