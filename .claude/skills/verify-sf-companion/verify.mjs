@@ -515,6 +515,28 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           ],
           ["DeepSeek", ["$11.28 left", "as of 28h ago"]],
           ["OpenRouter", ["$45.85 left"]],
+          [
+            "Antigravity",
+            [
+              "no reading",
+              "Quota used up at 2026-11-24T00:46:05Z · limit unknown",
+            ],
+          ],
+          [
+            "CommandCode",
+            [
+              "5%",
+              "resets Tue 21:52",
+              "66.4095/70 monthly credits left (~$94.87 Flash usage)",
+            ],
+          ],
+          [
+            "Cursor",
+            [
+              "no reading",
+              "Skipped until 2036-11-20 20:22 UTC (manual skip (lane-limits))",
+            ],
+          ],
         ];
         for (const [name, readings] of cards) {
           await widget(name)
@@ -528,7 +550,7 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           .getByText("+2% · £0.00 in 1h on runners", { exact: true })
           .waitFor();
         await record(
-          "usage: seven plan cards show their readings, resets and burn",
+          "usage: every plan card shows its reading, resets, burn and skip",
           "usage-cards"
         );
       }
