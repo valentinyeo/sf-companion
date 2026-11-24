@@ -84,9 +84,7 @@ const kpisSection = (
       h.h2([], ["Output and waste"]),
       h.p(
         [h.Class(classes(factoryStyles.small))],
-        [
-          "Each metric uses its own source window. The usage window buttons do not change these readings.",
-        ]
+        ["Each metric uses its own source window."]
       ),
       h.ul(
         [h.Class(classes(factoryStyles.tiles))],
@@ -329,7 +327,7 @@ export const factoryView = (
         [h.Class(classes(factoryStyles.small))],
         [
           h.a([h.Href(usageRouter())], ["Usage"]),
-          " has the plan cards, their burn windows and reset lines.",
+          " has the plan cards, 1h burn and reset lines.",
         ]
       ),
       shippingSection(feed, h),

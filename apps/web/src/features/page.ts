@@ -162,7 +162,7 @@ const homeView = (
       ),
       h.p(
         [h.Class(className(hubStyles.empty))],
-        ["Plan cards, their burn windows and reset lines."]
+        ["Plan cards, 1h burn and reset lines."]
       ),
     ]
   ),

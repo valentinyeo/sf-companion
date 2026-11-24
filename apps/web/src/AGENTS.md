@@ -25,7 +25,7 @@ Rules for browser code under `apps/web/src/client/` and `apps/web/src/features/`
 | `src/features/page.ts` | The page view; it composes the template's `reader.stylex.ts` and base sheet |
 | `src/features/hub.stylex.ts` | StyleX styles for the home and index rows only |
 | `src/features/factory.ts` | The `/factory` view: the PRs shipped versus plan burn chart, the KPI tiles, and the link to Usage |
-| `src/features/usage.ts` | The `/usage` view: plan cards, the burn window picker, and the Windows disclosure |
+| `src/features/usage.ts` | The `/usage` view: plan cards, fixed 1h burn, and the Windows disclosure |
 | `src/features/cue.ts` | The state cue and the class helper shared by the factory and usage views |
 | `src/features/factory.stylex.ts` | StyleX styles for the factory and usage views |
 | `src/client/rat.css` | The template's base sheet: monospace type, 80ch measure, grid, focus ring |

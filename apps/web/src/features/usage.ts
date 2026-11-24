@@ -2,20 +2,19 @@ import type * as stylex from "@stylexjs/stylex";
 import { Option } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 
-import { Message } from "../client/app/message.js";
 import type { AppMessage } from "../client/app/message.js";
 import type { AppModel } from "../client/app/model.js";
-import { windowKeys } from "../content/feed.js";
 import type {
   BurnByWindowValue,
   FactoryFeedValue,
   ToneValue,
   UsageCardValue,
-  WindowKeyValue,
   WindowReadingValue,
 } from "../content/feed.js";
 import { classes, cue } from "./cue.js";
 import { factoryStyles } from "./factory.stylex.js";
+
+const BURN_WINDOW = "1h";
 
 const trimmed = (value: number): string => {
   const fixed = value.toFixed(2);
@@ -60,9 +59,17 @@ const bigNumber = (card: UsageCardValue): string => {
 
 const resetLine = (card: UsageCardValue): string => {
   if (card.resetsText === null) {
-    return card.mode === "credit" && card.creditAsOf !== null
-      ? card.creditAsOf.replace(/^ · /u, "")
-      : "";
+    if (card.mode !== "credit") {
+      return "";
+    }
+
+    if (card.creditSubLabel === "estimate") {
+      return `estimate${card.creditAsOf ?? ""}`;
+    }
+
+    return card.creditAsOf === null
+      ? ""
+      : card.creditAsOf.replace(/^ · /u, "");
   }
 
   const prefix =
@@ -73,12 +80,8 @@ const resetLine = (card: UsageCardValue): string => {
   return `${prefix}resets ${card.resetsText}${card.creditAsOf ?? ""}`;
 };
 
-const burnLine = (
-  card: UsageCardValue,
-  burn: BurnByWindowValue,
-  windowKey: WindowKeyValue
-): string => {
-  const cell = burn[windowKey]?.[card.plan];
+const burnLine = (card: UsageCardValue, burn: BurnByWindowValue): string => {
+  const cell = burn[BURN_WINDOW]?.[card.plan];
 
   if (cell === undefined) {
     return "–";
@@ -107,7 +110,7 @@ const burnLine = (
       ? ""
       : ` · $${cell.todayUsd.toFixed(2)} today`;
 
-  return `${body === "" ? "" : `${body} `}in ${windowKey}${runners}${today}`;
+  return `${body === "" ? "" : `${body} `}in ${BURN_WINDOW}${runners}${today}`;
 };
 
 const paceLine = (
@@ -161,7 +164,6 @@ const skipLine = (card: UsageCardValue): string | null =>
 const usageCard = (
   card: UsageCardValue,
   burn: BurnByWindowValue,
-  windowKey: WindowKeyValue,
   h: HtmlBuilder<AppMessage>
 ): Html => {
   const reset = resetLine(card);
@@ -193,45 +195,15 @@ const usageCard = (
       ...(card.note === null
         ? []
         : [h.p([h.Class(classes(factoryStyles.small))], [card.note])]),
-      h.p(
-        [h.Class(classes(factoryStyles.small))],
-        [burnLine(card, burn, windowKey)]
-      ),
+      h.p([h.Class(classes(factoryStyles.small))], [burnLine(card, burn)]),
       ...(details === null ? [] : [details]),
       h.p([h.Class(classes(factoryStyles.small))], [card.runnersText]),
     ]
   );
 };
 
-const picker = (selected: WindowKeyValue, h: HtmlBuilder<AppMessage>): Html =>
-  h.div(
-    [
-      h.Role("group"),
-      h.AriaLabel("Usage window"),
-      h.Class(classes(factoryStyles.picker)),
-    ],
-    windowKeys.map((key) =>
-      h.button(
-        [
-          h.Key(key),
-          h.Type("button"),
-          h.AriaPressed(key === selected ? "true" : "false"),
-          h.OnClick(Message.SelectedKpiWindow({ window: key })),
-          h.Class(
-            classes(
-              factoryStyles.pickerButton,
-              key === selected ? factoryStyles.pickerSelected : null
-            )
-          ),
-        ],
-        [key]
-      )
-    )
-  );
-
 const usageCards = (
   feed: FactoryFeedValue,
-  windowKey: WindowKeyValue,
   h: HtmlBuilder<AppMessage>
 ): readonly Html[] =>
   feed.usage.cards.length === 0
@@ -239,9 +211,7 @@ const usageCards = (
     : [
         h.ul(
           [h.Class(classes(factoryStyles.cards))],
-          feed.usage.cards.map((card) =>
-            usageCard(card, feed.usage.burn, windowKey, h)
-          )
+          feed.usage.cards.map((card) => usageCard(card, feed.usage.burn, h))
         ),
       ];
 
@@ -253,15 +223,6 @@ export const usageView = (
     onNone: () => [h.h1([], ["Usage"]), h.p([], ["No usage numbers yet."])],
     onSome: (feed) => [
       h.h1([], ["Usage"]),
-      h.p(
-        [h.Class(classes(factoryStyles.small))],
-        [
-          "Plan cards and burn per window. The buttons change the burn window only.",
-        ]
-      ),
-      h.section(
-        [h.Class(classes(factoryStyles.section))],
-        [picker(model.kpiWindow, h), ...usageCards(feed, model.kpiWindow, h)]
-      ),
+      h.section([h.Class(classes(factoryStyles.section))], usageCards(feed, h)),
     ],
   });

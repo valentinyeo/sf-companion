@@ -99,25 +99,6 @@ export const factoryStyles = stylex.create({
     gap: "0.5ch",
     marginBlock: 0,
   },
-  picker: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "0.5ch",
-    marginBlock: reader.spaceSmall,
-  },
-  pickerButton: {
-    backgroundColor: "transparent",
-    borderColor: surface.line,
-    borderRadius: surface.radius,
-    borderStyle: "solid",
-    borderWidth: 1,
-    color: "inherit",
-    fontSize: reader.fontSmall,
-  },
-  pickerSelected: {
-    backgroundColor: surface.wash,
-    fontWeight: "bold",
-  },
   reset: {
     color: surface.muted,
     fontSize: reader.fontSmall,
