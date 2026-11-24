@@ -1,8 +1,11 @@
+import contextlib
 import copy
 import importlib.util
+import io
 import json
 import os
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -52,7 +55,7 @@ def seed():
     }
 
 
-def exported(fixture):
+def runner(fixture):
     def run(args):
         if args[0] == "hypertask":
             board = int(args[args.index("--project") + 1])
@@ -63,6 +66,16 @@ def exported(fixture):
         if args[0] == "python3":
             return fixture["chats"]
         endpoint = args[-1]
+        if "nodes(ids:" in endpoint and "WorkflowRun" in endpoint:
+            ids = json.loads(endpoint.split("nodes(ids: ")[1].split(") {")[0])
+            runs = {r["node_id"]: r for r in fixture["runs"] if r.get("node_id")}
+            return {"data": {"nodes": [{"id": i, "databaseId": runs[i]["id"],
+                                        "createdAt": runs[i]["created_at"],
+                                        "updatedAt": runs[i]["updated_at"],
+                                        "checkSuite": {"id": runs[i].get("check_suite_node_id"),
+                                                       "status": (runs[i].get("status") or "").upper(),
+                                                       "conclusion": (runs[i].get("conclusion") or "").upper() or None}}
+                                       for i in ids]}}
         if "nodes(ids:" in endpoint:
             return {"data": {"nodes": [{"id": "suite-11", "checkRuns": {
                 "pageInfo": {"hasNextPage": fixture.get("annotation_overflow", False)},
@@ -70,6 +83,9 @@ def exported(fixture):
                            "nodes": [dict(a, annotationLevel=a.get("annotationLevel", "FAILURE")) for a in fixture["annotations"]]
                            if fixture["annotations"] is not None else None}}],
             }}]}}
+        if "/actions/runs/" in endpoint and endpoint.rsplit("/", 1)[-1].isdigit():
+            wanted = int(endpoint.rsplit("/", 1)[-1])
+            return next(r for r in fixture["runs"] if r["id"] == wanted)
         if "/actions/runs?" in endpoint:
             return {"total_count": len(fixture["runs"]), "workflow_runs": fixture["runs"]}
         if "/jobs?" in endpoint:
@@ -86,13 +102,37 @@ def exported(fixture):
                       for p in fixture["prs"]],
         }}}}
 
+    return run
+
+
+def exported_in(fixture, directory, calls=None):
+    root = Path(directory)
+    (root / "roster.json").write_text(json.dumps(fixture["roster"]))
+    (root / "loop.log").write_text(fixture["log"])
+    inner = runner(fixture)
+
+    def run(args):
+        if calls is not None:
+            calls.append(list(args))
+        return inner(args)
+
+    with patch.dict(os.environ, {"FACTORY_REPOS": "fixture/repo", "FACTORY_ROSTER": str(root / "roster.json"),
+                                 "FACTORY_LOOP_LOG": str(root / "loop.log"),
+                                 "FACTORY_CACHE": str(root / "cache")}):
+        return kpi.collect(NOW, run)
+
+
+def exported(fixture):
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        (root / "roster.json").write_text(json.dumps(fixture["roster"]))
-        (root / "loop.log").write_text(fixture["log"])
-        with patch.dict(os.environ, {"FACTORY_REPOS": "fixture/repo", "FACTORY_ROSTER": str(root / "roster.json"),
-                                     "FACTORY_LOOP_LOG": str(root / "loop.log")}):
-            return kpi.collect(NOW, run)
+        return exported_in(fixture, directory)
+
+
+def exporter_module():
+    with patch.dict(os.environ, {"ADVISOR_BIN": "/fixture", "TOKEN_LADDER_STATUS": "/fixture/status.json"}):
+        spec = importlib.util.spec_from_file_location("exporter", Path(__file__).with_name("export-factory-feed.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    return module
 
 
 class FactoryKpiTests(unittest.TestCase):
@@ -368,15 +408,104 @@ class FactoryKpiTests(unittest.TestCase):
         self.assertTrue(any("CI health unavailable" in n for n in result["notes"]))
 
     def test_exporter_contract_accepts_seeded_kpis_and_rejects_missing_provenance(self):
-        with patch.dict(os.environ, {"ADVISOR_BIN": "/fixture", "TOKEN_LADDER_STATUS": "/fixture/status.json"}):
-            spec = importlib.util.spec_from_file_location("exporter", Path(__file__).with_name("export-factory-feed.py"))
-            exporter = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(exporter)
+        exporter = exporter_module()
         feed = {"generatedAt": "2026-11-16T12:00:00Z", "usage": {"cards": [], "burn": {}}, "kpis": exported(seed())}
         self.assertEqual(exporter.validate(feed), [])
         broken = copy.deepcopy(feed)
         broken["kpis"]["tiles"][0]["source"] = ""
         self.assertTrue(exporter.validate(broken))
+
+    def test_repeat_export_rereads_no_finished_run_and_no_classified_failure(self):
+        fixture = seed()
+        with tempfile.TemporaryDirectory() as directory:
+            calls = []
+            first = exported_in(fixture, directory, calls)
+            first_gh = len([a for a in calls if a[0] == "gh"])
+            calls.clear()
+            second = exported_in(fixture, directory, calls)
+            second_gh = [a for a in calls if a[0] == "gh"]
+            self.assertEqual(second["tiles"], first["tiles"])
+            self.assertEqual(second["shipping"], first["shipping"])
+            self.assertLessEqual(len(second_gh), 6)
+            self.assertLess(len(second_gh), first_gh)
+            self.assertEqual([a for a in second_gh if any("nodes(ids:" in w for w in a)], [])
+            self.assertEqual([a for a in second_gh if any("/jobs?" in w for w in a)], [])
+            self.assertEqual([a for a in second_gh if any("/annotations?" in w for w in a)], [])
+
+    def test_saved_prs_never_widen_the_requested_window(self):
+        fixture = seed()
+        fixture["prs"].append({"number": 42, "createdAt": iso(NOW - 20 * kpi.DAY),
+                               "updatedAt": iso(NOW - 20 * kpi.DAY), "mergedAt": None, "comments": []})
+        with tempfile.TemporaryDirectory() as directory:
+            store = Path(directory)
+            (store / "fixture__repo.json").write_text(json.dumps({"prs": {
+                "42": dict(fixture["prs"][-1], repo="fixture/repo"),
+                "1": dict(fixture["prs"][0], repo="fixture/repo", mergeCommit={"oid": "merge-1"})},
+                "prs_through": NOW - 60}))
+            quiet = runner(fixture)
+            with patch.dict(os.environ, {"FACTORY_REPOS": "fixture/repo"}):
+                self.assertEqual([p["number"] for p in kpi.read_prs(NOW, quiet, days=7, cache=kpi.Cache(store))], [1, 2, 3])
+                self.assertEqual(sorted(p["number"] for p in kpi.read_prs(NOW, quiet, days=30, cache=kpi.Cache(store))),
+                                 [1, 2, 3, 42])
+                saved = json.loads((store / "fixture__repo.json").read_text())
+            self.assertEqual(sorted(saved["prs"]), ["1", "2", "3", "42"])
+
+    def test_in_flight_runs_are_refreshed_in_one_batch_and_leave_the_store(self):
+        fixture = seed()
+        for offset in (1, 2):
+            fixture["runs"].append({"id": 12 + offset, "node_id": f"node-{12 + offset}", "status": "in_progress",
+                                    "conclusion": None, "created_at": iso(NOW - 600), "updated_at": iso(NOW - 300)})
+        with tempfile.TemporaryDirectory() as directory:
+            calls = []
+            first = exported_in(fixture, directory, calls)
+            batch = [a for a in calls if a[0] == "gh" and any("WorkflowRun" in w for w in a)]
+            self.assertEqual(len(batch), 1)
+            self.assertEqual([a for a in calls if a[0] == "gh" and a[-1].rsplit("/", 1)[-1].isdigit()], [])
+            self.assertIn("2 completed Actions runs", " ".join(next(t for t in first["tiles"] if t["id"] == "ci")["details"]))
+            for run in fixture["runs"][-2:]:
+                run.update(status="completed", conclusion="success", updated_at=iso(NOW - 60))
+            calls.clear()
+            second = exported_in(fixture, directory, calls)
+            self.assertEqual([a for a in calls if a[0] == "gh" and any("WorkflowRun" in w for w in a)], [])
+            self.assertIn("4 completed Actions runs", " ".join(next(t for t in second["tiles"] if t["id"] == "ci")["details"]))
+            saved = json.loads((Path(directory) / "cache" / "fixture__repo.json").read_text())
+            self.assertEqual({r["status"] for r in saved["runs"].values()}, {"completed"})
+
+    def test_completed_run_keeps_the_failure_kind_from_its_first_read(self):
+        fixture = seed()
+        with tempfile.TemporaryDirectory() as directory:
+            exported_in(fixture, directory)
+            cache_file = next((Path(directory) / "cache").glob("*.json"))
+            saved = json.loads(cache_file.read_text())
+            self.assertEqual([(r["id"], r["failure_kind"], r["classified"]) for r in saved["runs"].values()],
+                             [(10, None, True), (11, "infra", True)])
+            before = cache_file.read_text()
+            exported_in(fixture, directory)
+            self.assertEqual(cache_file.read_text(), before)
+
+    def test_budget_refusal_stops_the_export_and_keeps_the_previous_feed(self):
+        refused = types.SimpleNamespace(returncode=75, stdout="", stderr="refused")
+        with patch.object(kpi.subprocess, "run", return_value=refused):
+            with self.assertRaises(kpi.BudgetRefused):
+                kpi.command_json(["gh", "api", "rate_limit"])
+        with tempfile.TemporaryDirectory() as directory:
+            def refused_run(args):
+                raise kpi.BudgetRefused("refused")
+
+            with self.assertRaises(kpi.BudgetRefused):
+                kpi.collect(NOW, refused_run, store=kpi.Cache(directory))
+            exporter = exporter_module()
+            out = Path(directory) / "factory.json"
+            out.write_text('{"generatedAt": "kept"}')
+            stderr = io.StringIO()
+            with patch.object(exporter, "advisor",
+                              return_value=(None, types.SimpleNamespace(load=lambda: {}), None)), \
+                 patch.object(exporter, "build", side_effect=kpi.BudgetRefused("refused")), \
+                 contextlib.redirect_stderr(stderr):
+                code = exporter.main(["--out", str(out)])
+            self.assertEqual(code, 3)
+            self.assertEqual(out.read_text(), '{"generatedAt": "kept"}')
+            self.assertEqual(len([line for line in stderr.getvalue().splitlines() if line.strip()]), 1)
 
     def test_ci_headline_names_receipts_and_a_high_failed_share(self):
         unknown = {"failure_kind": "unknown"}

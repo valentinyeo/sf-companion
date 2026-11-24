@@ -389,7 +389,12 @@ def main(argv=None):
     except (OSError, ValueError) as ex:
         print(f"metric: {type(ex).__name__}: {ex}; writing the absent form", file=sys.stderr)
         g = None
-    feed = build(ub, sv, rv, g if isinstance(g, dict) else {}, now)
+    try:
+        feed = build(ub, sv, rv, g if isinstance(g, dict) else {}, now)
+    except factory_kpis.BudgetRefused:
+        print(f"GitHub call budget refused the read. Kept the previous feed at {args.out} unchanged; the next run retries. "
+              f"Fix: let the rolling hour clear, or cut calls with {factory_kpis.CACHE_ENV} kept on disk.", file=sys.stderr)
+        return 3
     problems = validate(feed)
     if problems:
         for problem in problems:

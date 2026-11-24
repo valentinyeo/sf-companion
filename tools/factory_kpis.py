@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import statistics
+import tempfile
 import factory_shipping
 from functools import cache
 from datetime import datetime, timezone
@@ -12,6 +13,17 @@ from pathlib import Path
 
 BOARDS = (15, 2060, 11514)
 DAY = 86400
+CACHE_ENV = "FACTORY_CACHE"
+CACHE_DEFAULT = Path.home() / ".local/state/factory-feed-cache"
+RUN_OVERLAP = 2 * 3600
+RUN_STORE_MARGIN = 3600
+PR_OVERLAP = 300
+PR_STORE_DAYS = 30
+ACTIONS_FIELDS = ("id", "node_id", "status", "conclusion", "created_at", "updated_at", "check_suite_node_id")
+FAILURE_CONCLUSIONS = ("failure", "timed_out", "startup_failure", "action_required", "stale")
+RUN_STATE_QUERY = """query { nodes(ids: IDS) { id ... on WorkflowRun {
+  databaseId createdAt updatedAt checkSuite { id status conclusion }
+} } }"""
 LOOP_KINDS = {"chief", "lead", "solo-dev"}
 REPOS = (
     "hypertask-ai/hypertask", "valentinyeo/house-rules", "valentinyeo/poteto-2-advisor",
@@ -44,6 +56,10 @@ class SourceUnavailable(ValueError):
     pass
 
 
+class BudgetRefused(RuntimeError):
+    pass
+
+
 def timestamp(value):
     if not isinstance(value, str):
         return None
@@ -54,8 +70,41 @@ def timestamp(value):
 
 
 def command_json(args):
-    result = subprocess.run(args, capture_output=True, text=True, timeout=90, check=True)
+    result = subprocess.run(args, capture_output=True, text=True, timeout=90)
+    if result.returncode == 75:
+        raise BudgetRefused("the shared gh call budget refused this read")
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, args, result.stdout, result.stderr)
     return json.loads(result.stdout)
+
+
+def scoped_repos():
+    return [item.strip() for item in os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(",") if item.strip()]
+
+
+class Cache:
+    def __init__(self, root=None):
+        self.root = Path(root) if root is not None else Path(os.environ.get(CACHE_ENV, CACHE_DEFAULT))
+
+    def read(self, repo):
+        try:
+            data = json.loads((self.root / (repo.replace("/", "__") + ".json")).read_text())
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def write(self, repo, data):
+        path = self.root / (repo.replace("/", "__") + ".json")
+        tmp = None
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            handle, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+            with os.fdopen(handle, "w", encoding="utf-8") as fh:
+                json.dump(data, fh)
+            os.replace(tmp, path)
+        except (OSError, ValueError):
+            if tmp:
+                Path(tmp).unlink(missing_ok=True)
 
 
 def read_pages(endpoint, run, key=None):
@@ -97,10 +146,15 @@ def read_tickets(now, run=command_json):
     return list({row["id"]: row for row in rows}.values())
 
 
-def read_prs(now, run=command_json, days=7):
+def read_prs(now, run=command_json, days=7, cache=None):
     rows = []
-    for repo in [item.strip() for item in os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(",") if item.strip()]:
+    for repo in scoped_repos():
         owner, name = repo.strip().split("/")
+        saved = cache.read(repo) if cache else {}
+        known = saved.get("prs") if isinstance(saved.get("prs"), dict) else {}
+        through = saved.get("prs_through")
+        since = through if isinstance(through, (int, float)) and not isinstance(through, bool) else None
+        fetched = {}
         after = None
         while True:
             args = ["gh", "api", "graphql", "-f", "query=" + PR_QUERY,
@@ -111,9 +165,10 @@ def read_prs(now, run=command_json, days=7):
             if data.get("errors"):
                 raise ValueError("PR query failed")
             page = data["data"]["repository"]["pullRequests"]
-            if any(timestamp(p.get("updatedAt")) is None for p in page["nodes"]):
+            nodes = page["nodes"]
+            if any(timestamp(p.get("updatedAt")) is None for p in nodes):
                 raise SourceUnavailable("PR pagination has an invalid updatedAt timestamp")
-            recent = [p for p in page["nodes"] if timestamp(p["updatedAt"]) >= now - days * DAY]
+            recent = [p for p in nodes if timestamp(p["updatedAt"]) >= now - days * DAY]
             for pr in recent:
                 if pr.get("mergedAt") is not None and timestamp(pr["mergedAt"]) is None:
                     raise SourceUnavailable("PR merge date unavailable")
@@ -121,13 +176,23 @@ def read_prs(now, run=command_json, days=7):
                 if pr["comments"]["pageInfo"]["hasNextPage"]:
                     comments = [{"body": c["body"], "createdAt": c["created_at"]}
                                 for c in read_pages(f"repos/{repo}/issues/{pr['number']}/comments", run)]
-                rows.append(dict(pr, repo=repo, comments=comments))
-            if len(recent) < len(page["nodes"]) or not page["pageInfo"]["hasNextPage"]:
+                fetched[str(pr["number"])] = dict(pr, repo=repo, comments=comments)
+            older_than_saved = since is not None and any(timestamp(p["updatedAt"]) < since for p in nodes)
+            if older_than_saved or len(recent) < len(nodes) or not page["pageInfo"]["hasNextPage"]:
                 break
             cursor = page["pageInfo"]["endCursor"]
             if not cursor or cursor == after:
                 raise SourceUnavailable("PR pagination did not advance")
             after = cursor
+        merged = {**known, **fetched}
+        kept = {key: dict(value, repo=repo) for key, value in merged.items()
+                if isinstance(value, dict) and timestamp(value.get("updatedAt")) is not None
+                and timestamp(value["updatedAt"]) >= now - PR_STORE_DAYS * DAY}
+        rows.extend(value for value in kept.values() if timestamp(value["updatedAt"]) >= now - days * DAY)
+        if cache:
+            saved["prs"] = kept
+            saved["prs_through"] = now - PR_OVERLAP
+            cache.write(repo, saved)
     return rows
 
 
@@ -199,7 +264,7 @@ def verifier(prs, now):
     display = f"{passed / len(outcomes):.0%}" if outcomes else "–"
     details = [f"{passed}/{len(outcomes)} PRs passed their first verdict" if outcomes else "No PRs received a first verdict in this window.",
                f"Merged without verdict: {absent / len(merged):.0%} ({absent}/{len(merged)})" if merged else "Merged without verdict: –; no merged PRs in this window.",
-               "Repositories: " + ", ".join(os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(",")),
+               "Repositories: " + ", ".join(scoped_repos()),
                "First PASS or PASS+NOTES counts as pass. Later verdicts never replace the first. Merge coverage uses comments present at merge time."]
     return tile("verifier", "Verifier first-pass rate", display, "GitHub fleet PR comments · PASS / PASS+NOTES / FAIL",
                 "First verdicts and merges in rolling 7d", details)
@@ -278,7 +343,7 @@ def merges(prs, now):
     details = [f"Last 24h: {daily} merged PRs." + (" No PRs merged in the last 24h." if not daily else ""),
                f"{len(merged)} PRs merged in 7d; {len(merged) / 7:.2f} per day averaged over the full window.",
                "Open-to-merge includes draft and review time." if merged else "No merged PRs in this window; merge time has no samples.",
-               "Repositories: " + ", ".join(os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(","))]
+               "Repositories: " + ", ".join(scoped_repos())]
     return tile("merges", "PR throughput and merge time",
                 f"{daily} merged in 24h · {len(merged) / 7:.1f} per day over 7d · {duration}",
                 "GitHub fleet PRs · createdAt and mergedAt", "Rolling 24h count and 7d daily average; merge-time cohort is 7d", details)
@@ -341,6 +406,31 @@ def read_actions(repo, start, end, run):
     return rows
 
 
+def read_run_updates(repo, rows, run):
+    updates = {}
+    readable = [row for row in rows if isinstance(row.get("node_id"), str) and row["node_id"]]
+    for offset in range(0, len(readable), 100):
+        chunk = readable[offset:offset + 100]
+        query = RUN_STATE_QUERY.replace("IDS", json.dumps([row["node_id"] for row in chunk]))
+        data = run(["gh", "api", "graphql", "-f", "query=" + query])
+        if data.get("errors"):
+            raise SourceUnavailable("Actions run state query failed")
+        found = {node["id"]: node for node in data["data"]["nodes"] if node}
+        for row in chunk:
+            node = found.get(row["node_id"])
+            if not node:
+                raise SourceUnavailable("Actions run state query lost a run")
+            suite = node.get("checkSuite") or {}
+            updates[str(row["id"])] = {
+                "status": str(suite.get("status") or "").lower() or None,
+                "conclusion": str(suite.get("conclusion") or "").lower() or None,
+                "created_at": node.get("createdAt"),
+                "updated_at": node.get("updatedAt"),
+                "check_suite_node_id": suite.get("id"),
+            }
+    return updates
+
+
 def read_failure_kinds(repo, rows, run):
     failed = [r for r in rows if r["conclusion"] in ("failure", "timed_out", "startup_failure", "action_required", "stale")]
     kinds = {}
@@ -383,26 +473,69 @@ def read_failure_kinds(repo, rows, run):
     return kinds
 
 
-def read_ci(now, prs, run=command_json):
+def read_ci(now, prs, run=command_json, cache=None):
     runs = []
     live = []
-    for repo in [r.strip() for r in os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(",") if r.strip()]:
-        found = {r["id"]: r for r in read_actions(repo, int(now - DAY), int(now), run)}
+    for repo in scoped_repos():
+        saved = cache.read(repo) if cache else {}
+        stored = saved.get("runs") if isinstance(saved.get("runs"), dict) else {}
+        through = saved.get("runs_through")
+        through = through if isinstance(through, (int, float)) and not isinstance(through, bool) else None
+        start = int(now) - DAY
+        fetched_from = int(max(start, through - RUN_OVERLAP)) if through is not None else start
+        if fetched_from > int(now):
+            fetched_from = start
+        found = {str(r["id"]): r for r in read_actions(repo, fetched_from, int(now), run)}
+        merged = {key: dict(value) for key, value in stored.items() if isinstance(value, dict)}
+        for key, row in found.items():
+            previous = merged.get(key) or {}
+            merged[key] = {**{field: row.get(field) for field in ACTIONS_FIELDS},
+                           "failure_kind": previous.get("failure_kind"),
+                           "classified": previous.get("classified") is True}
+        unresolved = {key: row for key, row in merged.items() if row.get("status") != "completed"}
+        if unresolved:
+            updates = read_run_updates(repo, list(unresolved.values()), run)
+            for key, row in unresolved.items():
+                if key in updates:
+                    merged[key] = {**row, **updates[key]}
+                    continue
+                refreshed = run(["gh", "api", f"repos/{repo}/actions/runs/{row['id']}"])
+                if not isinstance(refreshed, dict) or refreshed.get("id") is None:
+                    raise SourceUnavailable("Actions run reread did not return the run")
+                merged[key] = {**{field: refreshed.get(field) for field in ACTIONS_FIELDS},
+                               "failure_kind": row.get("failure_kind"),
+                               "classified": row.get("classified") is True}
         completed = []
-        for row in found.values():
+        for row in merged.values():
             created = timestamp(row.get("created_at"))
             updated = timestamp(row.get("updated_at"))
             if created is None or updated is None:
                 raise SourceUnavailable("Actions run timestamps unavailable")
-            if now - DAY <= created <= now and row["status"] == "completed" and updated <= now:
+            if now - DAY <= created <= now and row.get("status") == "completed" and updated <= now:
                 completed.append(row)
-        kinds = read_failure_kinds(repo, completed, run)
-        runs.extend(dict(row, failure_kind=kinds.get(row["id"])) for row in completed)
-        merged = [p for p in prs if p.get("repo") == repo and timestamp(p.get("mergedAt")) is not None
-                  and now - DAY <= timestamp(p["mergedAt"]) <= now]
-        if not merged:
+        pending = [row for row in completed if row.get("conclusion") in FAILURE_CONCLUSIONS and not row.get("classified")]
+        kinds = read_failure_kinds(repo, pending, run) if pending else {}
+        for row in completed:
+            if row.get("conclusion") in FAILURE_CONCLUSIONS:
+                if row["id"] in kinds:
+                    row["failure_kind"] = kinds[row["id"]]
+                    row["classified"] = True
+            else:
+                row["failure_kind"] = None
+                row["classified"] = True
+        kept = {key: row for key, row in merged.items()
+                if timestamp(row.get("created_at")) is not None
+                and timestamp(row["created_at"]) >= now - DAY - RUN_STORE_MARGIN}
+        runs.extend(dict(row, failure_kind=row.get("failure_kind")) for row in completed)
+        if cache:
+            saved["runs"] = kept
+            saved["runs_through"] = now
+            cache.write(repo, saved)
+        merged_prs = [p for p in prs if p.get("repo") == repo and timestamp(p.get("mergedAt")) is not None
+                      and now - DAY <= timestamp(p["mergedAt"]) <= now]
+        if not merged_prs:
             continue
-        shas = {(p.get("mergeCommit") or {}).get("oid"): timestamp(p["mergedAt"]) for p in merged}
+        shas = {(p.get("mergeCommit") or {}).get("oid"): timestamp(p["mergedAt"]) for p in merged_prs}
         page = 1
         receipts = {}
         while True:
@@ -447,7 +580,7 @@ def ci_health(data, prs, now):
                f"Failures: infra {counts['infra']}, code/policy {counts['code']}, unclassified {counts['unknown']}.",
                "Classification uses the startup_failure conclusion and explicit failure annotations. Billing, runner, and startup_failure signatures are infra. Policy-check text is code/policy. Generic exit codes and other missing annotations stay unclassified.",
                "A zero code/policy count means no matching annotations, not zero product failures when unclassified runs remain.",
-               "Repositories: " + ", ".join(os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(","))]
+               "Repositories: " + ", ".join(scoped_repos())]
     if not runs:
         details.append("No completed Actions runs in this window; failure rates have no denominator.")
     off_target = (bool(runs) and failed / len(runs) > FAILED_RUN_LIMIT) or (bool(live) and statistics.median(live) > LIVE_MINUTES_LIMIT)
@@ -457,14 +590,15 @@ def ci_health(data, prs, now):
                 "bad" if off_target else None)
 
 
-def collect(now, run=command_json, burn_readings=None, metric=None):
+def collect(now, run=command_json, burn_readings=None, metric=None, store=None):
     tiles = []
     notes = []
     home = Path.home()
+    store = store if store is not None else Cache()
 
     @cache
     def prs():
-        return read_prs(now, run, days=30)
+        return read_prs(now, run, days=30, cache=store)
 
     sources = (
         ("Tickets delivered", lambda: delivered(read_tickets(now, run), now)),
@@ -475,11 +609,13 @@ def collect(now, run=command_json, burn_readings=None, metric=None):
             Path(os.environ.get("FACTORY_LOOP_LOG", home / ".local/state/fleet-switch/log.txt")).read_text(), now)),
         ("PR throughput and merge time", lambda: merges(prs(), now)),
         ("Chat identity sync", lambda: identity_sync(read_identities(run), now)),
-        ("CI health", lambda: ci_health(read_ci(now, prs(), run), prs(), now)),
+        ("CI health", lambda: ci_health(read_ci(now, prs(), run, store), prs(), now)),
     )
     for label, read in sources:
         try:
             tiles.append(read())
+        except BudgetRefused:
+            raise
         except SourceUnavailable as error:
             notes.append(f"{label} unavailable. {error}. Not a measured zero.")
         except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.SubprocessError):
@@ -493,9 +629,11 @@ def collect(now, run=command_json, burn_readings=None, metric=None):
     ])
     try:
         shipping_prs = prs()
+    except BudgetRefused:
+        raise
     except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.SubprocessError):
         shipping_prs = None
-    repos = ", ".join(os.environ.get("FACTORY_REPOS", ",".join(REPOS)).split(","))
+    repos = ", ".join(scoped_repos())
     shipping = factory_shipping.shipping(now, shipping_prs, "GitHub mergedAt · " + repos,
                                          burn_readings or {}, metric or {})
     return {"tiles": tiles, "notes": notes, "shipping": shipping}
