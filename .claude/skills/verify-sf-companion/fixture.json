@@ -2217,6 +2217,24 @@
           "gbp": null,
           "pricedPts": null,
           "todayUsd": null
+        },
+        "antigravity": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "commandcode": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "cursor": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
         }
       },
       "3h": {
@@ -2257,6 +2275,24 @@
           "todayUsd": null
         },
         "openrouter": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "antigravity": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "commandcode": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "cursor": {
           "pts": null,
           "gbp": null,
           "pricedPts": null,
@@ -2305,6 +2341,24 @@
           "gbp": null,
           "pricedPts": null,
           "todayUsd": null
+        },
+        "antigravity": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "commandcode": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "cursor": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
         }
       },
       "12h": {
@@ -2345,6 +2399,24 @@
           "todayUsd": null
         },
         "openrouter": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "antigravity": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "commandcode": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "cursor": {
           "pts": null,
           "gbp": null,
           "pricedPts": null,
@@ -2393,6 +2465,24 @@
           "gbp": null,
           "pricedPts": null,
           "todayUsd": null
+        },
+        "antigravity": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "commandcode": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "cursor": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
         }
       },
       "7d": {
@@ -2433,6 +2523,24 @@
           "todayUsd": null
         },
         "openrouter": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "antigravity": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "commandcode": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "cursor": {
           "pts": null,
           "gbp": null,
           "pricedPts": null,
@@ -2481,6 +2589,24 @@
           "gbp": null,
           "pricedPts": null,
           "todayUsd": null
+        },
+        "antigravity": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "commandcode": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
+        },
+        "cursor": {
+          "pts": null,
+          "gbp": null,
+          "pricedPts": null,
+          "todayUsd": null
         }
       }
     },
@@ -2492,6 +2618,7 @@
         "creditUsd": null,
         "mode": "percent",
         "name": "Claude Code",
+        "note": null,
         "paceDelta": 13.2,
         "plan": "claude",
         "primaryWindow": "week",
@@ -2503,6 +2630,7 @@
         },
         "runnersLive": true,
         "runnersText": "0 runners",
+        "skip": null,
         "tone": "warm",
         "usedPct": 67,
         "windows": [
@@ -2523,6 +2651,7 @@
         "creditUsd": null,
         "mode": "percent",
         "name": "Codex",
+        "note": null,
         "paceDelta": 21.5,
         "plan": "codex",
         "primaryWindow": "week",
@@ -2534,6 +2663,7 @@
         },
         "runnersLive": true,
         "runnersText": "2 runners",
+        "skip": null,
         "tone": "hot",
         "usedPct": 100,
         "windows": [
@@ -2550,6 +2680,7 @@
         "creditUsd": null,
         "mode": "percent",
         "name": "Grok",
+        "note": null,
         "paceDelta": 4.2,
         "plan": "grok",
         "primaryWindow": "week",
@@ -2561,6 +2692,7 @@
         },
         "runnersLive": true,
         "runnersText": "0 runners",
+        "skip": null,
         "tone": "hot",
         "usedPct": 89.4,
         "windows": []
@@ -2572,6 +2704,7 @@
         "creditUsd": null,
         "mode": "none",
         "name": "OpenCode",
+        "note": null,
         "paceDelta": null,
         "plan": "opencode",
         "primaryWindow": "week",
@@ -2583,6 +2716,7 @@
         },
         "runnersLive": true,
         "runnersText": "No runners",
+        "skip": null,
         "tone": "plain",
         "usedPct": null,
         "windows": []
@@ -2594,6 +2728,7 @@
         "creditUsd": 105.28,
         "mode": "credit",
         "name": "Vercel",
+        "note": null,
         "paceDelta": null,
         "plan": "vercel",
         "primaryWindow": "week",
@@ -2605,6 +2740,7 @@
         },
         "runnersLive": true,
         "runnersText": "0 runners",
+        "skip": null,
         "tone": "plain",
         "usedPct": null,
         "windows": []
@@ -2616,6 +2752,7 @@
         "creditUsd": 11.28,
         "mode": "credit",
         "name": "DeepSeek",
+        "note": null,
         "paceDelta": null,
         "plan": "deepseek",
         "primaryWindow": "week",
@@ -2627,6 +2764,7 @@
         },
         "runnersLive": true,
         "runnersText": "0 runners",
+        "skip": null,
         "tone": "plain",
         "usedPct": null,
         "windows": []
@@ -2638,6 +2776,7 @@
         "creditUsd": 45.85,
         "mode": "credit",
         "name": "OpenRouter",
+        "note": null,
         "paceDelta": null,
         "plan": "openrouter",
         "primaryWindow": "week",
@@ -2649,6 +2788,82 @@
         },
         "runnersLive": true,
         "runnersText": "0 runners",
+        "skip": null,
+        "tone": "plain",
+        "usedPct": null,
+        "windows": []
+      },
+      {
+        "creditAsOf": null,
+        "creditReadAt": null,
+        "creditSubLabel": null,
+        "creditUsd": null,
+        "mode": "none",
+        "name": "Antigravity",
+        "note": "Quota used up at 2026-11-24T00:46:05Z · limit unknown",
+        "paceDelta": null,
+        "plan": "antigravity",
+        "primaryWindow": "week",
+        "resetsText": null,
+        "reviewer": {
+          "known": true,
+          "show": false,
+          "tip": ""
+        },
+        "runnersLive": true,
+        "runnersText": "0 runners",
+        "skip": null,
+        "tone": "plain",
+        "usedPct": null,
+        "windows": []
+      },
+      {
+        "creditAsOf": null,
+        "creditReadAt": null,
+        "creditSubLabel": null,
+        "creditUsd": null,
+        "mode": "percent",
+        "name": "CommandCode",
+        "note": "66.4095/70 monthly credits left (~$94.87 Flash usage)",
+        "paceDelta": -0.3,
+        "plan": "commandcode",
+        "primaryWindow": "month",
+        "resetsText": "Tue 21:52",
+        "reviewer": {
+          "known": true,
+          "show": false,
+          "tip": ""
+        },
+        "runnersLive": true,
+        "runnersText": "0 runners",
+        "skip": null,
+        "tone": "plain",
+        "usedPct": 5.1,
+        "windows": []
+      },
+      {
+        "creditAsOf": null,
+        "creditReadAt": null,
+        "creditSubLabel": null,
+        "creditUsd": null,
+        "mode": "none",
+        "name": "Cursor",
+        "note": null,
+        "paceDelta": null,
+        "plan": "cursor",
+        "primaryWindow": "week",
+        "resetsText": null,
+        "reviewer": {
+          "known": true,
+          "show": false,
+          "tip": ""
+        },
+        "runnersLive": true,
+        "runnersText": "0 runners",
+        "skip": {
+          "reason": "manual skip (lane-limits)",
+          "untilText": "2036-11-20 20:22 UTC"
+        },
         "tone": "plain",
         "usedPct": null,
         "windows": []

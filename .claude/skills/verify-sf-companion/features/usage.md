@@ -1,6 +1,6 @@
 # Usage page
 
-Usage lives at its own URL, `/usage`, and has its own primary navigation entry. It shows one card per plan, each with its own quota reading, reset line, burn line, optional pace line, optional Windows disclosure, and runner text. The window buttons above the cards change the burn window. The Factory page keeps the export stamp, the shipping chart, and the KPI tiles.
+Usage lives at its own URL, `/usage`, and has its own primary navigation entry. It shows one card per plan plan-pick knows, each with its own quota reading, reset line, burn line, optional pace line, optional skip line with the skip's end date and reason, optional note, optional Windows disclosure, and runner text. The window buttons above the cards change the burn window. The Factory page keeps the export stamp, the shipping chart, and the KPI tiles.
 
 Covers: route:Usage
 
@@ -9,7 +9,7 @@ Code paths: apps/web/src/features/usage.ts, apps/web/src/features/cue.ts, apps/w
 ## Sub-features
 
 - `usage-entry` loads `/usage` directly and reaches it from primary navigation.
-- `usage-cards` shows every plan card with its reading, reset line, burn, pace, and runner text.
+- `usage-cards` shows every plan card with its reading, reset line, burn, pace, skip line and runner text.
 - `usage-window` selects 1h, 3h, 6h, 12h, 24h, 7d, and 30d.
 - `usage-burn` changes the displayed burn to match the selected window.
 - `usage-kpi-fixed` leaves Factory's KPI tiles and their readings untouched after every window choice.
@@ -26,10 +26,10 @@ Code paths: apps/web/src/features/usage.ts, apps/web/src/features/cue.ts, apps/w
 
 Preconditions:
 
-- Run `../run.sh`. These actions run for each seeded viewport and color scheme. The fixture carries seven cards covering percent, credit, and no-reading modes.
+- Run `../run.sh`. These actions run for each seeded viewport and color scheme. The fixture carries ten cards covering percent, credit, no-reading, skipped and noted modes.
 
 - Entry. `page.goto('/usage')` must return 200 and show `getByRole('heading', {name: 'Usage', exact: true})`, with the `Software Factory Companion` link in Primary navigation. Then choose the site name, then `Usage` in `getByRole('navigation', {name: 'Primary navigation'})`. Then from Home choose `Open` in the Usage section, and from `/factory` choose the `Usage` link in the page body. Each one must land on the Usage heading.
-- Cards. Require headings `Claude Code`, `Codex`, `Grok`, `OpenCode`, `Vercel`, `DeepSeek`, and `OpenRouter`. Inside the Claude Code list item require `67%` and `+13.2 vs pace · over pace`. Inside Vercel require `$105.28 left`. Inside DeepSeek require `$11.28 left`. Inside OpenCode require `no reading`.
+- Cards. Require headings `Claude Code`, `Codex`, `Grok`, `OpenCode`, `Vercel`, `DeepSeek`, `OpenRouter`, `Antigravity`, `CommandCode`, and `Cursor`. Inside the Claude Code list item require `67%` and `+13.2 vs pace · over pace`. Inside Vercel require `$105.28 left`. Inside DeepSeek require `$11.28 left`. Inside OpenCode require `no reading`. Inside Antigravity require `Quota used up at 2026-11-24T00:46:05Z · limit unknown`. Inside Cursor require `Skipped until 2036-11-20 20:22 UTC (manual skip (lane-limits))`.
 - Baseline. Require `+2% · £0.00 in 1h on runners`. Capture `seeded-<width>-<theme>-before.png` on `/usage`.
 - Select. For each window, click `page.getByRole('group', {name: 'Usage window'}).getByRole('button', {name: window, exact: true})`. Require that button's `aria-pressed` to become `true`.
 - Read burn. On 7d, require `+14% · £7.00 in 7d on runners`. The helper returns to 1h after exercising every button.

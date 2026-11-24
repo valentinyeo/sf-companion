@@ -43,7 +43,7 @@ The journeys start at the size production runs at, not at a toy size, so a journ
 | ------------------ | ---------- | ------- |
 | Hub reports        | 9          | 10      |
 | Hub explorations   | 1          | 10      |
-| Usage cards        | 7          | 7       |
+| Usage cards        | 7          | 10      |
 | Usage burn windows | 7          | 7       |
 | KPI tiles          | 4          | 7       |
 | KPI notes          | 8          | 8       |

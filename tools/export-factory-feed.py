@@ -29,9 +29,15 @@ ADVISOR_BIN = Path(os.environ["ADVISOR_BIN"])
 if not os.environ.get("TOKEN_LADDER_STATUS"):
     sys.exit("Set TOKEN_LADDER_STATUS to token-ladder's status JSON file.")
 TOKEN_LADDER_STATUS = Path(os.environ["TOKEN_LADDER_STATUS"])
+TOKEN_LADDER_LIMITS = Path(os.environ.get("TOKEN_LADDER_LIMITS") or TOKEN_LADDER_STATUS.with_name("lane-limits.json"))
+TOKEN_LADDER_CREDITS = Path(os.environ.get("TOKEN_LADDER_CREDITS") or TOKEN_LADDER_STATUS.with_name("lane-credits.json"))
 PICKER_WINDOWS = ("1h", "3h", "6h", "12h", "24h", "7d", "30d")
-PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel", "deepseek", "openrouter")
-PLAN_NAMES = ("Claude", "Codex", "Grok", "OpenCode", "Vercel", "DeepSeek", "OpenRouter")
+PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel", "deepseek", "openrouter",
+             "antigravity", "commandcode", "cursor")
+PLAN_NAMES = ("Claude", "Codex", "Grok", "OpenCode", "Vercel", "DeepSeek", "OpenRouter",
+              "Antigravity", "CommandCode", "Cursor")
+PLAN_LANES = {"antigravity": ("antigravity", "google"), "commandcode": ("commandcode", "credit:commandcode")}
+COMMANDCODE_MONTHLY_CREDITS = 70.0
 WINDOW_ENUM = ("week", "month")
 MODE_ENUM = ("percent", "credit", "none")
 TONE_ENUM = ("plain", "warm", "hot")
@@ -73,6 +79,66 @@ def read_status():
         return status if isinstance(status, dict) else {}
     except (OSError, ValueError):
         return {}
+
+
+def read_json(path):
+    try:
+        data = json.loads(Path(path).read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def skip_of(limits, plan, now):
+    """The plan's active lane-limit skip, in plan-pick's words (`bin/plan-pick` parse_limit and limit_note)."""
+    for key in PLAN_LANES.get(plan, (plan,)):
+        raw = limits.get(key)
+        reason = None
+        if isinstance(raw, dict):
+            until = number(raw.get("until"))
+            if isinstance(raw.get("reason"), str) and raw["reason"].strip():
+                reason = raw["reason"].strip()
+        else:
+            until = number(raw)
+            recorded = limits.get(f"{key}:reason")
+            if isinstance(recorded, str) and recorded.strip():
+                reason = recorded.strip()
+        if until is None or until <= now:
+            continue
+        if reason is None:
+            reason = "manual skip (lane-limits)" if until - now > 24 * 3600 else "limited (lane-limits)"
+        return {"reason": reason,
+                "untilText": datetime.fromtimestamp(until, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+    return None
+
+
+def antigravity_note(pools):
+    """The Antigravity plan's quota state, from the google pool token-ladder records."""
+    pool = pools.get("google") if isinstance(pools, dict) else None
+    if not isinstance(pool, dict):
+        return None
+    if pool.get("used_up") and isinstance(pool.get("used_up_at"), str):
+        return f"Quota used up at {pool['used_up_at']} · limit unknown"
+    used_pct = number(pool.get("used_pct"))
+    if used_pct is not None:
+        return f"Quota {used_pct:.0f}% used"
+    return f"Quota unknown: {pool.get('source') or 'no reading'}"
+
+
+def commandcode_reading(credits, now):
+    """Monthly credits used, pace and reset, from the credit reading plan-pick writes."""
+    entry = credits.get("commandcode") if isinstance(credits, dict) else None
+    if not isinstance(entry, dict):
+        return None
+    remaining, start, end = number(entry.get("credits")), number(entry.get("period_start")), number(entry.get("period_end"))
+    if remaining is None or start is None or end is None or now >= end or end <= start:
+        return None
+    used = max(0.0, COMMANDCODE_MONTHLY_CREDITS - remaining)
+    used_pct = min(100.0, used / COMMANDCODE_MONTHLY_CREDITS * 100)
+    gone_pct = max(0.0, min(100.0, (now - start) / (end - start) * 100))
+    return {"usedPct": used_pct, "paceDelta": used_pct - gone_pct, "resetsAt": end,
+            "note": f"{remaining:g}/{COMMANDCODE_MONTHLY_CREDITS:g} monthly credits left "
+                    f"(~${remaining * 100 / COMMANDCODE_MONTHLY_CREDITS:.2f} Flash usage)"}
 
 
 def opencode_reading():
@@ -182,6 +248,9 @@ def usage_part(ub, g, now):
     grok = grok_reading(now)
     other_credit = {"deepseek": deepseek_reading(now), "openrouter": openrouter_reading(now)}
     groups = ub.runner_groups()
+    limits = read_json(TOKEN_LADDER_LIMITS)
+    credits = read_json(TOKEN_LADDER_CREDITS)
+    pools = status.get("pools") if isinstance(status.get("pools"), dict) else {}
     cards = []
     for plan, label in zip(PLAN_ENUM, PLAN_NAMES):
         credit = opencode_credit if plan == "opencode" else vercel_credit if plan == "vercel" else other_credit.get(plan)
@@ -199,6 +268,14 @@ def usage_part(ub, g, now):
             gone = 100 * (now - (resets - 7 * 24 * 3600)) / (7 * 24 * 3600)
             delta = used - gone if 0 <= gone <= 100 else None
         resets_text = None
+        note = antigravity_note(pools) if plan == "antigravity" else None
+        if plan == "commandcode":
+            commandcode = commandcode_reading(credits, now)
+            if commandcode is not None:
+                used, delta = commandcode["usedPct"], commandcode["paceDelta"]
+                resets = commandcode["resetsAt"]
+                note = commandcode["note"]
+        skip = skip_of(limits, plan, now)
         if used is not None and resets is not None:
             try:
                 resets_text = ub.when(resets)
@@ -215,7 +292,7 @@ def usage_part(ub, g, now):
         cards.append({
             "plan": plan,
             "name": label,
-            "primaryWindow": ub.PRIMARY.get(plan, "week"),
+            "primaryWindow": "month" if plan == "commandcode" else ub.PRIMARY.get(plan, "week"),
             "mode": "credit" if credit else "percent" if used is not None else "none",
             "usedPct": used,
             "resetsText": resets_text,
@@ -229,6 +306,8 @@ def usage_part(ub, g, now):
             "runnersText": ub.runners_text(None if groups is None else groups.get(plan, {})),
             "runnersLive": groups is not None,
             "reviewer": review_of(ub, plan, label),
+            "note": note,
+            "skip": skip,
         })
     burn = {}
     plans_by_window = g.get("windows") if isinstance(g, dict) else None
@@ -294,7 +373,8 @@ def validate(feed):
     for i, card in enumerate(cards if isinstance(cards, list) else []):
         where = f"usage.cards[{i}]"
         ok(set(card) == {"plan", "name", "primaryWindow", "mode", "usedPct", "resetsText", "paceDelta", "tone", "creditUsd",
-                         "creditSubLabel", "creditReadAt", "creditAsOf", "windows", "runnersText", "runnersLive", "reviewer"},
+                         "creditSubLabel", "creditReadAt", "creditAsOf", "windows", "runnersText", "runnersLive", "reviewer",
+                         "note", "skip"},
            f"{where}: field set does not match the contract")
         ok(card.get("plan") in PLAN_ENUM, f"{where}.plan: needs one of {PLAN_ENUM}")
         ok(isinstance(card.get("name"), str) and card["name"], f"{where}.name: needs text")
@@ -316,6 +396,13 @@ def validate(feed):
             ok(w.get("usedPct") is None or (is_num(w["usedPct"]) and 0 <= w["usedPct"] <= 100), f"{where}.windows[{j}].usedPct: needs 0 to 100 or null")
         ok(isinstance(card.get("runnersText"), str) and card["runnersText"], f"{where}.runnersText: needs text")
         ok(isinstance(card.get("runnersLive"), bool), f"{where}.runnersLive: needs true or false")
+        ok(card.get("note") is None or (isinstance(card["note"], str) and card["note"]), f"{where}.note: needs text or null")
+        skip = card.get("skip")
+        ok(skip is None or (isinstance(skip, dict) and set(skip) == {"reason", "untilText"}),
+           f"{where}.skip: needs null or exactly reason and untilText")
+        if isinstance(skip, dict):
+            ok(isinstance(skip.get("reason"), str) and skip["reason"], f"{where}.skip.reason: needs text")
+            ok(isinstance(skip.get("untilText"), str) and skip["untilText"], f"{where}.skip.untilText: needs text")
         reviewer = card.get("reviewer")
         ok(isinstance(reviewer, dict) and set(reviewer) == {"show", "known", "tip"}, f"{where}.reviewer: needs exactly show, known, tip")
         if isinstance(reviewer, dict):

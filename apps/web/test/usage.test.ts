@@ -50,6 +50,7 @@ const usageFeed = {
         creditUsd: null,
         mode: "percent",
         name: "Fixture Plan",
+        note: null,
         paceDelta: 13.2,
         plan: "claude",
         primaryWindow: "week",
@@ -57,6 +58,7 @@ const usageFeed = {
         reviewer: { known: true, show: false, tip: "" },
         runnersLive: true,
         runnersText: "0 runners",
+        skip: null,
         tone: "warm",
         usedPct: 67,
         windows: [{ label: "Weekly", usedPct: 67 }],
@@ -68,6 +70,7 @@ const usageFeed = {
         creditUsd: 29.1,
         mode: "credit",
         name: "Credit Plan",
+        note: null,
         paceDelta: null,
         plan: "opencode",
         primaryWindow: "week",
@@ -75,6 +78,30 @@ const usageFeed = {
         reviewer: { known: true, show: false, tip: "" },
         runnersLive: true,
         runnersText: "0 runners",
+        skip: null,
+        tone: "plain",
+        usedPct: null,
+        windows: [],
+      },
+      {
+        creditAsOf: null,
+        creditReadAt: null,
+        creditSubLabel: null,
+        creditUsd: null,
+        mode: "none",
+        name: "Retired Plan",
+        note: "Quota used up at 2026-11-24T00:46:05Z",
+        paceDelta: null,
+        plan: "cursor",
+        primaryWindow: "week",
+        resetsText: null,
+        reviewer: { known: true, show: false, tip: "" },
+        runnersLive: true,
+        runnersText: "0 runners",
+        skip: {
+          reason: "manual skip (lane-limits)",
+          untilText: "2036-11-20 20:22 UTC",
+        },
         tone: "plain",
         usedPct: null,
         windows: [],
@@ -109,6 +136,34 @@ describe("usage page", () => {
         expectElement(text("Weekly 67%")).toExist()
       );
     })
+  );
+
+  it.effect(
+    "shows a skipped plan with the skip's end date and its reason",
+    () =>
+      Effect.gen(function* showSkip() {
+        const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
+
+        scene(
+          { update, view },
+          given(
+            initialModel(
+              { items: [], route: SiteRoute.Usage() },
+              Option.some(feed)
+            )
+          ),
+          expectElement(text("Retired Plan")).toExist(),
+          expectElement(
+            text(
+              "Skipped until 2036-11-20 20:22 UTC (manual skip (lane-limits))"
+            )
+          ).toExist(),
+          expectElement(
+            text("Quota used up at 2026-11-24T00:46:05Z")
+          ).toExist(),
+          expectElement(text("no reading")).toExist()
+        );
+      })
   );
 
   it.effect("changes the burn reading and keeps KPI tiles on Factory", () =>

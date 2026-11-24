@@ -153,6 +153,11 @@ const windowsDetails = (
         ]
       );
 
+const skipLine = (card: UsageCardValue): string | null =>
+  card.skip === null
+    ? null
+    : `Skipped until ${card.skip.untilText} (${card.skip.reason})`;
+
 const usageCard = (
   card: UsageCardValue,
   burn: BurnByWindowValue,
@@ -162,6 +167,7 @@ const usageCard = (
   const reset = resetLine(card);
   const summary = bigNumber(card);
   const pace = paceLine(card, h);
+  const skip = skipLine(card);
   const details = windowsDetails(card.windows, h);
 
   return h.li(
@@ -181,6 +187,12 @@ const usageCard = (
         [summary]
       ),
       ...(pace === null ? [] : [pace]),
+      ...(skip === null
+        ? []
+        : [h.p([h.Class(classes(factoryStyles.small))], [skip])]),
+      ...(card.note === null
+        ? []
+        : [h.p([h.Class(classes(factoryStyles.small))], [card.note])]),
       h.p(
         [h.Class(classes(factoryStyles.small))],
         [burnLine(card, burn, windowKey)]

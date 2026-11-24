@@ -8,6 +8,9 @@ export const PlanKey = Schema.Literals([
   "vercel",
   "deepseek",
   "openrouter",
+  "antigravity",
+  "commandcode",
+  "cursor",
 ]);
 
 export type PlanKeyValue = typeof PlanKey.Type;
@@ -57,6 +60,11 @@ const Reviewer = Schema.Struct({
   tip: Schema.String,
 });
 
+const CardSkip = Schema.Struct({
+  reason: Schema.NonEmptyString,
+  untilText: Schema.NonEmptyString,
+});
+
 const UsageCard = Schema.Struct({
   creditAsOf: Schema.NullOr(Schema.String),
   creditReadAt: Schema.NullOr(Schema.String),
@@ -64,6 +72,7 @@ const UsageCard = Schema.Struct({
   creditUsd: Schema.NullOr(Schema.Number),
   mode: UsageMode,
   name: Schema.NonEmptyString,
+  note: Schema.NullOr(Schema.NonEmptyString),
   paceDelta: Schema.NullOr(Schema.Number),
   plan: PlanKey,
   primaryWindow: PrimaryWindowKey,
@@ -71,6 +80,7 @@ const UsageCard = Schema.Struct({
   reviewer: Reviewer,
   runnersLive: Schema.Boolean,
   runnersText: Schema.String,
+  skip: Schema.NullOr(CardSkip),
   tone: Tone,
   usedPct: Schema.NullOr(Schema.Number),
   windows: Schema.Array(WindowReading),
@@ -97,6 +107,9 @@ const BurnByPlan = Schema.Struct({
   vercel: Schema.optional(BurnCell),
   deepseek: Schema.optional(BurnCell),
   openrouter: Schema.optional(BurnCell),
+  antigravity: Schema.optional(BurnCell),
+  commandcode: Schema.optional(BurnCell),
+  cursor: Schema.optional(BurnCell),
 });
 
 const BurnByWindow = Schema.Struct({
