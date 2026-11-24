@@ -55,6 +55,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: No direct model calls
+        uses: valentinyeo/token-ladder/.github/actions/lint-direct-model-calls@main
       - name: Use Node.js 24.18.0
         uses: actions/setup-node@v4
         with:
