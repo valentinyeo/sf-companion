@@ -496,7 +496,9 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           .getByRole("heading", { name: "Usage", exact: true })
           .waitFor();
         assert.equal(
-          await page.getByRole("heading", { name: "Grok", exact: true }).count(),
+          await page
+            .getByRole("heading", { name: "Grok", exact: true })
+            .count(),
           0,
           `${id}: the outdated Grok card still rendered`
         );

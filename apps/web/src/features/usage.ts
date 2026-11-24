@@ -67,9 +67,7 @@ const resetLine = (card: UsageCardValue): string => {
       return `estimate${card.creditAsOf ?? ""}`;
     }
 
-    return card.creditAsOf === null
-      ? ""
-      : card.creditAsOf.replace(/^ · /u, "");
+    return card.creditAsOf === null ? "" : card.creditAsOf.replace(/^ · /u, "");
   }
 
   const prefix =
