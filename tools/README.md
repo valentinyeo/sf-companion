@@ -29,6 +29,8 @@ The file is written to a temp path and then renamed, so a crash never leaves hal
 
 Before writing, the script checks the feed against the contract and refuses to write an invalid one. Unset required environment variables exit with a setup message. The script only reads source state; it never runs the advisor's writers.
 
-KPIs read Hypertask, GitHub, token-ladder pools and the fleet watchdog independently. Their source windows, configuration, missing-data behavior and focused test command are documented in [Factory KPI sources](factory-kpis.md). The old advisor KPI windows and violations chart are no longer exported.
+KPIs read Hypertask, GitHub, token-ladder pools and the fleet watchdog independently. Their source windows, configuration, missing-data behavior, the `FACTORY_CACHE` GitHub call store, and the focused test command are documented in [Factory KPI sources](factory-kpis.md). The old advisor KPI windows and violations chart are no longer exported.
+
+GitHub reads are incremental. Finished Actions runs and their failure classifications are kept per run id, and the PR query stops at the previous export instead of paging the whole window again. If the shared `gh` wrapper refuses a read (exit 75), the script exits non-zero, prints one line and leaves the previous feed file alone, so a refused hour never replaces the numbers with an empty feed.
 
 The field contract is the `FactoryFeed` schema in `apps/web/src/content/feed.ts`. KPIs are named tiles with source, window and measurement details, plus explanations for sources that could not supply a tile.

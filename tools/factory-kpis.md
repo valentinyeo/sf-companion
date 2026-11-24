@@ -27,6 +27,19 @@ Drain health includes chief, lead and solo-dev roster rows, including missing se
 
 `command_json` uses a 90-second per-call timeout and logs no raw CLI errors. The first complete live GitHub read took 45 seconds across 1,088 recently updated PRs; the first full exporter run took 67 seconds. These timings describe this host's observed source reads, not a benchmark claim.
 
+## GitHub call budget
+
+The export runs hourly, so every read it repeats is charged again by the shared `gh` wrapper, hour after hour. Two reads carried almost all of that cost, and both are now incremental against a disk store at `~/.local/state/factory-feed-cache` (`FACTORY_CACHE` moves it):
+
+- Actions runs. The rolling 24-hour list is fetched only for the window since the previous export, with a two-hour overlap for a missed run. Every finished run stays in the store, because a completed run never changes, and its failure classification is stored with it so annotations are read once. Runs still in flight are refreshed in one batched GraphQL `nodes(ids:)` call per 100. The store keeps a day plus an hour of runs and drops the rest.
+- Pull requests. The query still pages newest-updated first, but stops at the first page that reaches the previous export's timestamp instead of at the 30-day edge, and merges into the saved set. A PR whose comments or merge time changed moves up in that ordering and is re-read; one nobody touched is not. The store keeps 30 days and a seven-day read from it returns only seven days.
+
+The store is a cache, never a source of truth. A missing, unreadable or corrupt file falls back to a full read, and nothing is written until a repo's read and classification both succeed. Deleting the directory costs one cold run, not correctness.
+
+Measured on this host: a cold run took 339 GitHub calls per export; with the store warm the same export takes 83. The per-run tables are in the pull request that introduced the cache.
+
+When the wrapper refuses a read with exit 75, the exporter exits non-zero after one line on stderr and leaves the previous feed file untouched. It never writes an empty or partly measured feed; the next hourly run retries, and a store that is a few hours stale still reads correctly from the overlap.
+
 ## Remaining metric boundaries
 
 The merge and verifier tiles share one PR snapshot per export. Merge duration includes draft time. Missing or backwards creation dates omit the merge tile rather than shrink its duration sample silently.
@@ -41,9 +54,9 @@ Merge-to-live uses the earliest successful deployment status for an exact merge 
 
 The hourly wrapper's existing `ADVISOR_BIN` and `TOKEN_LADDER_STATUS` variables still supply Usage. KPIs additionally require the `hypertask`, `gh` and `token-ladder` executables on PATH, with read access to all scoped boards and repositories. No new key is needed.
 
-Optional `FACTORY_ROSTER` and `FACTORY_LOOP_LOG` select the roster JSON and watchdog text log. Their defaults are the installed fleet files. These paths are never copied into the page. `FACTORY_REPOS` is a comma-separated `owner/repo` list.
+Optional `FACTORY_ROSTER` and `FACTORY_LOOP_LOG` select the roster JSON and watchdog text log. Their defaults are the installed fleet files. These paths are never copied into the page. `FACTORY_REPOS` is a comma-separated `owner/repo` list. `FACTORY_CACHE` moves the GitHub call store from its default `~/.local/state/factory-feed-cache`.
 
-Run the focused exporter test with `python3 -m unittest discover -s tools -p 'test_factory_kpis.py' -v`. It seeds ticket, PR, pool and loop facts, changes each source independently and checks only the corresponding tile changes. GitHub-hosted CI runs it alongside the existing full checks, tests and build.
+Run the focused exporter test with `python3 -m unittest discover -s tools -p 'test_factory_kpis.py' -v`. It seeds ticket, PR, pool and loop facts, changes each source independently and checks only the corresponding tile changes, and proves a second export over an unchanged store reads no finished run twice. GitHub-hosted CI runs it alongside the existing full checks, tests and build.
 
 ## Current source gaps
 
