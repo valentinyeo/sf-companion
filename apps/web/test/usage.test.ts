@@ -1,5 +1,5 @@
-import { describe, it } from "@effect/vitest";
-import { Effect, Option } from "effect";
+import { describe, expect, it } from "@effect/vitest";
+import { Effect, Exit, Option } from "effect";
 import {
   expect as expectElement,
   given,
@@ -44,7 +44,7 @@ const usageFeed = {
         creditReadAt: null,
         creditSubLabel: null,
         creditUsd: null,
-        inactive: false,
+        loadText: "41 chats · 3 runners",
         mode: "percent",
         name: "Fixture Plan",
         note: null,
@@ -65,7 +65,7 @@ const usageFeed = {
         creditReadAt: "2026-11-14T23:41:00Z",
         creditSubLabel: "estimate",
         creditUsd: 6.2,
-        inactive: false,
+        loadText: "2 runners",
         mode: "credit",
         name: "OpenCode",
         note: "Anchored credit estimate (lane-credits.json)",
@@ -86,21 +86,18 @@ const usageFeed = {
         creditReadAt: null,
         creditSubLabel: null,
         creditUsd: null,
-        inactive: true,
+        loadText: "idle",
         mode: "none",
-        name: "Retired Plan",
-        note: "Quota used up at 2026-11-24T00:46:05Z",
+        name: "Idle Plan",
+        note: null,
         paceDelta: null,
-        plan: "cursor",
+        plan: "vercel",
         primaryWindow: "week",
         resetsText: null,
         reviewer: { known: true, show: false, tip: "" },
         runnersLive: true,
         runnersText: "0 runners",
-        skip: {
-          reason: "manual skip (lane-limits)",
-          untilText: "2036-11-20 20:22 UTC",
-        },
+        skip: null,
         tone: "plain",
         usedPct: null,
         windows: [],
@@ -111,7 +108,7 @@ const usageFeed = {
 
 describe("usage page", () => {
   it.effect(
-    "shows one card per plan with fixed 1h burn, live runners, and no window picker",
+    "shows one card per plan with fixed 1h burn, load, live runners, and no window picker",
     () =>
       Effect.gen(function* showCards() {
         const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
@@ -138,38 +135,34 @@ describe("usage page", () => {
           expectElement(text("$6.20 left")).toExist(),
           expectElement(text("estimate · as of 1h ago")).toExist(),
           expectElement(text("2 DeepSeek 4.1 Flash medium")).toExist(),
+          expectElement(text("41 chats · 3 runners")).toExist(),
+          expectElement(text("2 runners")).toExist(),
+          expectElement(text("idle")).toExist(),
+          expectElement(text("inactive")).not.toExist(),
           expectElement(text("Weekly 67%")).toExist(),
           expectElement(text("29 / day · 87 / week")).not.toExist()
         );
       })
   );
 
-  it.effect(
-    "shows a retired plan as inactive with no reading or skip line",
-    () =>
-      Effect.gen(function* showInactive() {
-        const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
-
-        scene(
-          { update, view },
-          given(
-            initialModel(
-              { items: [], route: SiteRoute.Usage() },
-              Option.some(feed)
-            )
+  it.effect("rejects a card for a retired plan", () =>
+    Effect.gen(function* rejectRetiredPlan() {
+      const retired = {
+        ...usageFeed,
+        usage: {
+          ...usageFeed.usage,
+          cards: usageFeed.usage.cards.map((card, index) =>
+            index === 0 ? { ...card, plan: "grok" } : card
           ),
-          expectElement(text("Retired Plan")).toExist(),
-          expectElement(text("inactive")).toExist(),
-          expectElement(
-            text(
-              "Skipped until 2036-11-20 20:22 UTC (manual skip (lane-limits))"
-            )
-          ).not.toExist(),
-          expectElement(
-            text("Quota used up at 2026-11-24T00:46:05Z")
-          ).not.toExist()
-        );
-      })
+        },
+      };
+
+      const attempt = yield* Effect.exit(
+        decodeFeed(fixturePath, JSON.stringify(retired))
+      );
+
+      expect(Exit.isFailure(attempt)).toBe(true);
+    })
   );
 
   it.effect("says so when the feed is missing", () =>

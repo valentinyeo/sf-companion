@@ -496,40 +496,43 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           .getByRole("heading", { name: "Usage", exact: true })
           .waitFor();
         const cards = [
-          ["Claude Code", ["67%", "+13.2 vs pace · over pace"]],
-          ["Codex", ["100%", "+21.5 vs pace · well over pace"]],
+          ["Claude Code", ["67%", "+13.2 vs pace · over pace", "41 chats"]],
           [
-            "OpenCode",
-            [
-              "100%",
-              "Prepaid credit estimate: $6.20 left",
-              "1 DeepSeek 4.1 Flash medium",
-            ],
+            "Codex",
+            ["100%", "+21.5 vs pace · well over pace", "3 chats · 2 runners"],
           ],
-          [
-            "Vercel",
-            ["$105.28 left", "credit · resets Tue 00:00 · as of 2h ago"],
-          ],
-          ["OpenRouter", ["$45.85 left"]],
           [
             "Antigravity",
             [
               "no reading",
               "Quota used up at 2026-11-24T00:46:05Z · limit unknown",
+              "2 runners",
               "2 gemini-4-neon high",
             ],
           ],
+          [
+            "OpenCode",
+            [
+              "100%",
+              "Prepaid credit estimate: $6.20 left",
+              "1 runner",
+              "1 DeepSeek 4.1 Flash medium",
+            ],
+          ],
+          [
+            "Vercel",
+            ["$105.28 left", "credit · resets Tue 00:00 · as of 2h ago", "idle"],
+          ],
+          ["OpenRouter", ["$45.85 left", "idle"]],
           [
             "CommandCode",
             [
               "5%",
               "resets Tue 21:52",
               "66.4095/70 monthly credits left (~$94.87 Flash usage)",
+              "idle",
             ],
           ],
-          ["Cursor", ["inactive"]],
-          ["Grok", ["inactive"]],
-          ["DeepSeek", ["inactive"]],
         ];
         for (const [name, readings] of cards) {
           await widget(name)
@@ -539,11 +542,19 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             await widget(name).getByText(reading, { exact: true }).waitFor();
           }
         }
+        const headings = await page
+          .getByRole("heading", { level: 3 })
+          .allInnerTexts();
+        assert.deepEqual(
+          headings,
+          cards.map(([name]) => name),
+          `${id}: the usage cards are not ordered by load, heaviest first`
+        );
         for (const name of ["Grok", "DeepSeek", "Cursor"]) {
           assert.equal(
-            await widget(name).getByText("0 runners", { exact: true }).count(),
+            await widget(name).count(),
             0,
-            `${id}: the inactive ${name} card showed a runner line`
+            `${id}: the retired ${name} card is still on the page`
           );
         }
         await widget("Claude Code")
@@ -554,7 +565,7 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           fullPage: true,
         });
         await record(
-          "usage: every plan card shows its reading, resets and burn, or reads inactive for retired plans",
+          "usage: every plan card shows its reading, resets, burn, load and live runners, heaviest load first",
           "usage-cards"
         );
       }

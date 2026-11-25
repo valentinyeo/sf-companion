@@ -51,11 +51,14 @@ AGY_WINDOWS = (
     (("claude-gpt", "5h"), "claude/gpt 5h"),
 )
 PICKER_WINDOWS = ("1h",)
-PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel", "deepseek", "openrouter",
-             "antigravity", "commandcode", "cursor")
-PLAN_NAMES = ("Claude", "Codex", "Grok", "OpenCode", "Vercel", "DeepSeek", "OpenRouter",
-              "Antigravity", "CommandCode", "Cursor")
-INACTIVE_PLANS = ("cursor", "grok", "deepseek")
+PLAN_ENUM = ("claude", "codex", "opencode", "vercel", "openrouter",
+             "antigravity", "commandcode")
+PLAN_NAMES = ("Claude", "Codex", "OpenCode", "Vercel", "OpenRouter",
+              "Antigravity", "CommandCode")
+ROSTER_BIN = Path(os.environ.get("ROSTER_BIN") or Path.home() / ".local/share/house-rules/fleet/roster-live")
+ROSTER_TIMEOUT_SECONDS = 10
+ROSTER_LINE = re.compile(r"^.+ \((?P<id>[^,]+), (?P<harness>claude|codex), .+\)$")
+ROSTER_PLANS = {"claude": "claude", "codex": "codex"}
 PLAN_LANES = {"antigravity": ("antigravity", "google"), "commandcode": ("commandcode", "credit:commandcode")}
 LANE_TO_PLAN = {"google": "antigravity", "vercel-zai": "vercel"}
 COMMANDCODE_MONTHLY_CREDITS = 70.0
@@ -491,6 +494,34 @@ def merge_runner_groups(advisor_groups, plan_pick_groups):
     return merged
 
 
+def roster_chats():
+    try:
+        done = subprocess.run([str(ROSTER_BIN)], capture_output=True, text=True,
+                              timeout=ROSTER_TIMEOUT_SECONDS, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    live = {}
+    for line in done.stdout.splitlines():
+        match = ROSTER_LINE.match(line.strip())
+        if match is None or match.group("id") in live:
+            continue
+        live[match.group("id")] = ROSTER_PLANS[match.group("harness")]
+    return Counter(live.values())
+
+
+def load_text(chats, runners):
+    parts = []
+    if chats:
+        parts.append(f"{chats} chat" + ("s" if chats > 1 else ""))
+    if runners:
+        parts.append(f"{runners} runner" + ("s" if runners > 1 else ""))
+    if parts:
+        return " · ".join(parts)
+    return "idle" if chats is not None and runners is not None else "–"
+
+
 def usage_part(ub, g, now):
     status = read_status()
     sampled_at = number(status.get("ts"))
@@ -501,35 +532,13 @@ def usage_part(ub, g, now):
     vercel_credit = vercel_reading(now)
     other_credit = {"openrouter": openrouter_reading(now)}
     groups = merge_runner_groups(ub.runner_groups(), plan_pick_runner_groups(ub))
+    chats = roster_chats()
     limits = read_json(TOKEN_LADDER_LIMITS)
     credits = read_json(TOKEN_LADDER_CREDITS)
     opencode_estimate = opencode_anchored_credit(credits, now)
     pools = status.get("pools") if isinstance(status.get("pools"), dict) else {}
     cards = []
     for plan, label in zip(PLAN_ENUM, PLAN_NAMES):
-        if plan in INACTIVE_PLANS:
-            cards.append({
-                "plan": plan,
-                "name": label,
-                "primaryWindow": ub.PRIMARY.get(plan, "week"),
-                "mode": "none",
-                "usedPct": None,
-                "resetsText": None,
-                "paceDelta": None,
-                "tone": "plain",
-                "creditUsd": None,
-                "creditSubLabel": None,
-                "creditReadAt": None,
-                "creditAsOf": None,
-                "windows": [],
-                "runnersText": "0 runners",
-                "runnersLive": groups is not None,
-                "reviewer": {"show": False, "known": False, "tip": ""},
-                "note": None,
-                "skip": None,
-                "inactive": True,
-            })
-            continue
         credit = vercel_credit if plan == "vercel" else other_credit.get(plan)
         credit_sub_label = "credit" if credit else None
         reading = status.get(plan) if plan in ("claude", "codex") and fresh else None
@@ -585,7 +594,11 @@ def usage_part(ub, g, now):
                     windows.append({"label": window_label, "usedPct": value})
         age = max(0, int((now - credit[2]) / 60)) if credit else None
         age_text = f"{age // 60}h ago" if age is not None and age >= 60 else f"{age}m ago"
-        cards.append({
+        runners = sum(groups.get(plan, {}).values()) if groups is not None else None
+        plan_chats = 0
+        if plan in ROSTER_PLANS:
+            plan_chats = chats.get(plan, 0) if chats is not None else None
+        cards.append(((plan_chats or 0) + (runners or 0), {
             "plan": plan,
             "name": label,
             "primaryWindow": "month" if plan == "commandcode" else ub.PRIMARY.get(plan, "week"),
@@ -604,9 +617,9 @@ def usage_part(ub, g, now):
             "reviewer": review_of(ub, plan, label),
             "note": note,
             "skip": skip,
-            "inactive": False,
-        })
-    cards.sort(key=lambda card: card["inactive"])
+            "loadText": load_text(plan_chats, runners),
+        }))
+    cards = [card for _, card in sorted(cards, key=lambda entry: -entry[0])]
     burn = {}
     plans_by_window = g.get("windows") if isinstance(g, dict) else None
     for window in PICKER_WINDOWS:
@@ -616,8 +629,6 @@ def usage_part(ub, g, now):
         raw = entry.get("plans") or {}
         burn[window] = {}
         for card in cards:
-            if card["inactive"]:
-                continue
             v = raw.get(card["plan"]) or {}
             burn[window][card["plan"]] = {
                 "pts": number(v.get("pts")),
@@ -674,16 +685,10 @@ def validate(feed):
         where = f"usage.cards[{i}]"
         ok(set(card) == {"plan", "name", "primaryWindow", "mode", "usedPct", "resetsText", "paceDelta", "tone", "creditUsd",
                          "creditSubLabel", "creditReadAt", "creditAsOf", "windows", "runnersText", "runnersLive", "reviewer",
-                         "note", "skip", "inactive"},
+                         "note", "skip", "loadText"},
            f"{where}: field set does not match the contract")
         ok(card.get("plan") in PLAN_ENUM, f"{where}.plan: needs one of {PLAN_ENUM}")
-        ok(isinstance(card.get("inactive"), bool), f"{where}.inactive: needs true or false")
-        if card.get("inactive"):
-            ok(card.get("plan") in INACTIVE_PLANS, f"{where}: {card.get('plan')} is not an inactive plan")
-            ok(card.get("mode") == "none" and card.get("usedPct") is None and card.get("resetsText") is None,
-               f"{where}: an inactive card has no reading")
-            ok(card.get("paceDelta") is None and card.get("tone") == "plain", f"{where}: an inactive card has no pace")
-            ok(card.get("creditUsd") is None and card.get("windows") == [], f"{where}: an inactive card has no credit or windows")
+        ok(isinstance(card.get("loadText"), str) and card["loadText"], f"{where}.loadText: needs text")
         ok(isinstance(card.get("name"), str) and card["name"], f"{where}.name: needs text")
         ok(card.get("primaryWindow") in WINDOW_ENUM, f"{where}.primaryWindow: needs week or month")
         ok(card.get("mode") in MODE_ENUM, f"{where}.mode: needs percent, credit or none")
