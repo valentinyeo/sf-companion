@@ -1,10 +1,10 @@
-Coverage: 16 of 16 features across 12 files.
+Coverage: 17 of 17 features across 13 files.
 
 # Companion verification map
 
 `scripts/feature_coverage.py` derives every user-facing feature from source — the route union, the hub sections, the factory sections, the share handlers, the deployed Website, and the PR verifier picker invocation — and fails when a feature has no file here, a file covers a feature the source no longer has, or the coverage line above goes stale.
 
-Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json` for the factory feed and `../fixture-hub/` for the hub content store, through the same files production reads. The fixture holds 30 days of shipping data, all seven KPI tiles, eight KPI notes, seven usage cards, every usage window, and five shipping notes; the hub store holds ten items per section. Those counts are the production floor in the Scale section below. A third launch, `sparse`, writes a copy of the same fixture with `usage.cards` emptied and `kpis.shipping` dropped, so the unavailability states are driven on a real feed rather than on a missing file. Every sub-feature id is a journey id: `run.sh --journeys=<ids>` drives only those journeys. Each feature file lists the source files it covers on its `Code paths:` line, so a diff selects its journeys, and its `Covers:` line names the features the coverage check counts.
+Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.sh` from the repo root. Each run owns a disposable checkout copy and fresh browser contexts. Synthetic data comes from `../fixture.json` for the factory feed and `../fixture-hub/` for the hub content store, through the same files production reads. The fixture holds 30 days of shipping data, all seven KPI tiles, eight KPI notes, seven usage cards, every usage window, five shipping notes, and 73 live chats; the hub store holds ten items per section. Those counts are the production floor in the Scale section below. A third launch, `sparse`, writes a copy of the same fixture with `usage.cards` emptied and `kpis.shipping` dropped, and the chat snapshot with the inne server marked not connected, so the unavailability states are driven on real files rather than on a missing one. Every sub-feature id is a journey id: `run.sh --journeys=<ids>` drives only those journeys. Each feature file lists the source files it covers on its `Code paths:` line, so a diff selects its journeys, and its `Covers:` line names the features the coverage check counts.
 
 ## Features
 
@@ -14,6 +14,7 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 - [Stored items](items.md) covers item serving: GET, HEAD, missing, and invalid slugs.
 - [Factory page](factory.md) covers entry, export time, navigation, layout, and the link to Usage.
 - [Usage page](usage.md) covers the menu entry, every plan card, each card heading's link to its plan's own usage page, the page's data age line, fixed 1h burn with no window picker, and the Windows disclosure.
+- [Chats page](chats.md) covers the menu entry, one table per server with its live chat count, every row's harness, model and effort, the data age line, a server that is not connected yet, and the empty state.
 - [KPI tiles](kpis.md) covers all seven tiles, their own windows, cues, and measurement details.
 - [Shipping chart](shipping.md) covers the 30-date chart, cell sources, and stated omissions.
 - [Empty and missing states](empty.md) covers a missing feed, a feed with no shipping block, a feed with no plan cards, the KPI unavailability notes, an empty hub, and the not-found page.
@@ -29,7 +30,7 @@ A journey for a page the checkout does not declare sits in `result.json` under `
 
 Every browser case also saves a Playwright trace, and `traces.json` names the trace files that cover each journey. A release needs that trace or video for each journey of every changed feature, and `scripts/release_gate.py` fails when one is missing, when the trace holds no recorded browser action, or when its case log never drove that journey. The live `access-anonymous` request, share journeys, and verifier-selection CLI run with no browser page, so they are listed as untraced with a reason rather than claimed as recorded.
 
-The map covers Home, Explorations, Reports, Items, Factory, Usage, KPI tiles, Shipping, Empty states, Access, Share, and verifier selection. Stored items are served as the bytes kept in the content store, so the map does not claim site-styled item pages, authenticated production access, or deployed build parity.
+The map covers Home, Explorations, Reports, Items, Factory, Usage, Chats, KPI tiles, Shipping, Empty states, Access, Share, and verifier selection. Stored items are served as the bytes kept in the content store, so the map does not claim site-styled item pages, authenticated production access, or deployed build parity.
 
 ## Caught bugs
 
@@ -50,6 +51,7 @@ The journeys start at the size production runs at, not at a toy size, so a journ
 | Shipping days      | 30         | 30      |
 | Shipping omissions | 2          | 2       |
 | Shipping notes     | 5          | 5       |
+| Chats              | 73         | 73      |
 
 Re-measure after production changes:
 

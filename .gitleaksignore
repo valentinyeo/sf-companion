@@ -1,0 +1,2 @@
+# Synthetic test value: a fake token used to prove the chats collector redacts it. It has never been a real credential.
+4945524c61eb3173d7190b1f14e09d3c8267d295:tools/test_collect_chats.py:generic-api-key:69

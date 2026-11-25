@@ -8,6 +8,7 @@ from pathlib import Path
 README = ".claude/skills/verify-sf-companion/features/README.md"
 FIXTURE = ".claude/skills/verify-sf-companion/fixture.json"
 HUB_INDEX = ".claude/skills/verify-sf-companion/fixture-hub/index.json"
+CHATS_FIXTURE = ".claude/skills/verify-sf-companion/fixture-chats.json"
 SCALE_HEADING = "## Scale"
 COLUMNS = ["Measure", "Production", "Fixture"]
 ANY_HEADING = re.compile(r"^## ")
@@ -24,6 +25,7 @@ MEASURES = [
     ("Shipping days", ("feed", ("kpis", "shipping", "days"))),
     ("Shipping omissions", ("feed", ("kpis", "shipping", "omissions"))),
     ("Shipping notes", ("feed", ("kpis", "shipping", "notes"))),
+    ("Chats", ("chats", ("chats",))),
 ]
 
 
@@ -80,7 +82,7 @@ def tables(lines):
     return found
 
 
-def count(measure, feed, hub):
+def count(measure, feed, hub, chats):
     kind, where = measure
     if kind == "hub":
         return sum(
@@ -88,14 +90,14 @@ def count(measure, feed, hub):
             for entry in hub
             if isinstance(entry, dict) and str(entry.get("key", "")).startswith(where)
         )
-    value = feed
+    value = chats if kind == "chats" else feed
     for step in where:
         value = value[step]
     return len(value)
 
 
-def counts(feed, hub):
-    return {name: count(measure, feed, hub) for name, measure in MEASURES}
+def counts(feed, hub, chats):
+    return {name: count(measure, feed, hub, chats) for name, measure in MEASURES}
 
 
 def check(root):
@@ -108,6 +110,7 @@ def check(root):
     try:
         feed = load(root, FIXTURE)
         hub = load(root, HUB_INDEX)
+        chats = load(root, CHATS_FIXTURE)
     except FileNotFoundError as missing:
         return [
             f"{missing.args[0]} is missing, so the fixture scale cannot be counted. Fix: restore the fixture, or point scripts/check_fixture_scale.py at the file that replaced it."
@@ -136,7 +139,7 @@ def check(root):
         return errors + [
             f"The Scale table's header is {' | '.join(header)} instead of {' | '.join(COLUMNS)}. Fix: restore the three columns."
         ]
-    actual = counts(feed, hub)
+    actual = counts(feed, hub, chats)
     known = dict(MEASURES)
     seen = set()
     for row in parsed[0][1:]:
@@ -184,20 +187,23 @@ def check(root):
     return []
 
 
-def measure(feed_path, hub_path):
+def measure(feed_path, hub_path, chats_path):
     feed = (
         json.loads(Path(feed_path).read_text(encoding="utf-8")) if feed_path else None
     )
     hub = (
         json.loads(Path(hub_path).read_text(encoding="utf-8")) if hub_path else None
     )
+    chats = (
+        json.loads(Path(chats_path).read_text(encoding="utf-8")) if chats_path else None
+    )
     for name, (kind, where) in MEASURES:
-        source = hub if kind == "hub" else feed
+        source = {"hub": hub, "chats": chats}.get(kind, feed)
         if source is None:
-            missing = "hub index" if kind == "hub" else "feed"
+            missing = {"hub": "hub index", "chats": "chats snapshot"}.get(kind, "feed")
             print(f"{name}: not measured, no {missing} given")
             continue
-        print(f"{name}: {count((kind, where), feed, hub)}")
+        print(f"{name}: {count((kind, where), feed, hub, chats)}")
     return 0
 
 
@@ -212,9 +218,10 @@ def main():
     )
     parser.add_argument("--feed", help="a factory feed JSON to count")
     parser.add_argument("--hub-index", help="a hub index.json to count")
+    parser.add_argument("--chats", help="a chat snapshot JSON to count")
     arguments = parser.parse_args()
     if arguments.measure:
-        return measure(arguments.feed, arguments.hub_index)
+        return measure(arguments.feed, arguments.hub_index, arguments.chats)
     root = Path(__file__).resolve().parent.parent
     errors = check(root)
     for error in errors:

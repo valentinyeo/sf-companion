@@ -1,0 +1,601 @@
+{
+  "generatedAt": "2026-11-25T18:00:00Z",
+  "servers": [
+    {
+      "server": "Contabo",
+      "state": "live",
+      "collectedAt": "2026-11-25T18:00:00Z"
+    },
+    {
+      "server": "inne Hetzner",
+      "state": "live",
+      "collectedAt": "2026-11-25T18:00:00Z"
+    }
+  ],
+  "chats": [
+    {
+      "name": "HT Bugs",
+      "server": "Contabo",
+      "project": "hypertask",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "name": "HT Features",
+      "server": "Contabo",
+      "project": "multiprompt",
+      "harness": "claude",
+      "model": "claude-fable-5-2",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Security",
+      "server": "Contabo",
+      "project": "multiprompt-android",
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Verification",
+      "server": "Contabo",
+      "project": "vstack",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Product Lead",
+      "server": "Contabo",
+      "project": "pecunia",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "medium"
+    },
+    {
+      "name": "Multi Bot",
+      "server": "Contabo",
+      "project": "wazig",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    {
+      "name": "Multi Bot Desktop",
+      "server": "Contabo",
+      "project": "chromescribe",
+      "harness": "pi",
+      "model": "deepseek-v4.1-flash",
+      "effort": "high"
+    },
+    {
+      "name": "Postbox",
+      "server": "Contabo",
+      "project": "last30days",
+      "harness": "cursor",
+      "model": "composer-2",
+      "effort": "medium"
+    },
+    {
+      "name": "Postbox Verify",
+      "server": "Contabo",
+      "project": "clickshades-theme",
+      "harness": "antigravity",
+      "model": "gemini-4-neon",
+      "effort": "high"
+    },
+    {
+      "name": "Chromescribe",
+      "server": "Contabo",
+      "project": "faceless-channels",
+      "harness": "claude",
+      "model": "unknown",
+      "effort": "unknown"
+    },
+    {
+      "name": "Fleet Watch",
+      "server": "Contabo",
+      "project": "software-factory",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "name": "Pecunia",
+      "server": "Contabo",
+      "project": "hypertask",
+      "harness": "claude",
+      "model": "claude-fable-5-2",
+      "effort": "medium"
+    },
+    {
+      "name": "Last 30 Days",
+      "server": "Contabo",
+      "project": "multiprompt",
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Board Drain",
+      "server": "Contabo",
+      "project": "multiprompt-android",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "PR Housekeeping",
+      "server": "Contabo",
+      "project": "vstack",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "medium"
+    },
+    {
+      "name": "Design Lead",
+      "server": "Contabo",
+      "project": "pecunia",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    {
+      "name": "HT Mistake Proofing",
+      "server": "Contabo",
+      "project": "wazig",
+      "harness": "pi",
+      "model": "deepseek-v4.1-flash",
+      "effort": "high"
+    },
+    {
+      "name": "HT Reconciler",
+      "server": "Contabo",
+      "project": "chromescribe",
+      "harness": "cursor",
+      "model": "composer-2",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Bugs 2",
+      "server": "Contabo",
+      "project": "last30days",
+      "harness": "antigravity",
+      "model": "gemini-4-neon",
+      "effort": "high"
+    },
+    {
+      "name": "HT Features 2",
+      "server": "Contabo",
+      "project": "clickshades-theme",
+      "harness": "claude",
+      "model": "unknown",
+      "effort": "unknown"
+    },
+    {
+      "name": "HT Security 2",
+      "server": "Contabo",
+      "project": "faceless-channels",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "name": "HT Verification 2",
+      "server": "Contabo",
+      "project": "software-factory",
+      "harness": "claude",
+      "model": "claude-fable-5-2",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Product Lead 2",
+      "server": "Contabo",
+      "project": "hypertask",
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Multi Bot 2",
+      "server": "Contabo",
+      "project": "multiprompt",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Multi Bot Desktop 2",
+      "server": "Contabo",
+      "project": "multiprompt-android",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "medium"
+    },
+    {
+      "name": "Postbox 2",
+      "server": "Contabo",
+      "project": "vstack",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    {
+      "name": "Postbox Verify 2",
+      "server": "Contabo",
+      "project": "pecunia",
+      "harness": "pi",
+      "model": "deepseek-v4.1-flash",
+      "effort": "high"
+    },
+    {
+      "name": "Chromescribe 2",
+      "server": "Contabo",
+      "project": "wazig",
+      "harness": "cursor",
+      "model": "composer-2",
+      "effort": "medium"
+    },
+    {
+      "name": "Fleet Watch 2",
+      "server": "Contabo",
+      "project": "chromescribe",
+      "harness": "antigravity",
+      "model": "gemini-4-neon",
+      "effort": "high"
+    },
+    {
+      "name": "Pecunia 2",
+      "server": "Contabo",
+      "project": "last30days",
+      "harness": "claude",
+      "model": "unknown",
+      "effort": "unknown"
+    },
+    {
+      "name": "Last 30 Days 2",
+      "server": "Contabo",
+      "project": "clickshades-theme",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "name": "Board Drain 2",
+      "server": "Contabo",
+      "project": "faceless-channels",
+      "harness": "claude",
+      "model": "claude-fable-5-2",
+      "effort": "medium"
+    },
+    {
+      "name": "PR Housekeeping 2",
+      "server": "Contabo",
+      "project": "software-factory",
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Design Lead 2",
+      "server": "Contabo",
+      "project": "hypertask",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Mistake Proofing 2",
+      "server": "Contabo",
+      "project": "multiprompt",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Reconciler 2",
+      "server": "Contabo",
+      "project": "multiprompt-android",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    {
+      "name": "HT Bugs 3",
+      "server": "Contabo",
+      "project": "vstack",
+      "harness": "pi",
+      "model": "deepseek-v4.1-flash",
+      "effort": "high"
+    },
+    {
+      "name": "HT Features 3",
+      "server": "Contabo",
+      "project": "pecunia",
+      "harness": "cursor",
+      "model": "composer-2",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Security 3",
+      "server": "Contabo",
+      "project": "wazig",
+      "harness": "antigravity",
+      "model": "gemini-4-neon",
+      "effort": "high"
+    },
+    {
+      "name": "HT Verification 3",
+      "server": "Contabo",
+      "project": "chromescribe",
+      "harness": "claude",
+      "model": "unknown",
+      "effort": "unknown"
+    },
+    {
+      "name": "HT Product Lead 3",
+      "server": "Contabo",
+      "project": "last30days",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "name": "Multi Bot 3",
+      "server": "Contabo",
+      "project": "clickshades-theme",
+      "harness": "claude",
+      "model": "claude-fable-5-2",
+      "effort": "medium"
+    },
+    {
+      "name": "Multi Bot Desktop 3",
+      "server": "Contabo",
+      "project": "faceless-channels",
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Postbox 3",
+      "server": "Contabo",
+      "project": "software-factory",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Postbox Verify 3",
+      "server": "Contabo",
+      "project": "hypertask",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "medium"
+    },
+    {
+      "name": "Chromescribe 3",
+      "server": "Contabo",
+      "project": "multiprompt",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    {
+      "name": "Fleet Watch 3",
+      "server": "Contabo",
+      "project": "multiprompt-android",
+      "harness": "pi",
+      "model": "deepseek-v4.1-flash",
+      "effort": "high"
+    },
+    {
+      "name": "Pecunia 3",
+      "server": "Contabo",
+      "project": "vstack",
+      "harness": "cursor",
+      "model": "composer-2",
+      "effort": "medium"
+    },
+    {
+      "name": "Last 30 Days 3",
+      "server": "Contabo",
+      "project": "pecunia",
+      "harness": "antigravity",
+      "model": "gemini-4-neon",
+      "effort": "high"
+    },
+    {
+      "name": "Board Drain 3",
+      "server": "Contabo",
+      "project": "wazig",
+      "harness": "claude",
+      "model": "unknown",
+      "effort": "unknown"
+    },
+    {
+      "name": "PR Housekeeping 3",
+      "server": "Contabo",
+      "project": "chromescribe",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "name": "Design Lead 3",
+      "server": "Contabo",
+      "project": "last30days",
+      "harness": "claude",
+      "model": "claude-fable-5-2",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Mistake Proofing 3",
+      "server": "Contabo",
+      "project": "clickshades-theme",
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Multi Bot",
+      "server": "inne Hetzner",
+      "project": "wazig",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    {
+      "name": "Multi Bot Desktop",
+      "server": "inne Hetzner",
+      "project": "chromescribe",
+      "harness": "pi",
+      "model": "deepseek-v4.1-flash",
+      "effort": "high"
+    },
+    {
+      "name": "Postbox",
+      "server": "inne Hetzner",
+      "project": "last30days",
+      "harness": "cursor",
+      "model": "composer-2",
+      "effort": "medium"
+    },
+    {
+      "name": "Postbox Verify",
+      "server": "inne Hetzner",
+      "project": "clickshades-theme",
+      "harness": "antigravity",
+      "model": "gemini-4-neon",
+      "effort": "high"
+    },
+    {
+      "name": "Chromescribe",
+      "server": "inne Hetzner",
+      "project": "faceless-channels",
+      "harness": "claude",
+      "model": "unknown",
+      "effort": "unknown"
+    },
+    {
+      "name": "Fleet Watch",
+      "server": "inne Hetzner",
+      "project": "software-factory",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "name": "Pecunia",
+      "server": "inne Hetzner",
+      "project": "hypertask",
+      "harness": "claude",
+      "model": "claude-fable-5-2",
+      "effort": "medium"
+    },
+    {
+      "name": "Last 30 Days",
+      "server": "inne Hetzner",
+      "project": "multiprompt",
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Board Drain",
+      "server": "inne Hetzner",
+      "project": "multiprompt-android",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "PR Housekeeping",
+      "server": "inne Hetzner",
+      "project": "vstack",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "medium"
+    },
+    {
+      "name": "Design Lead",
+      "server": "inne Hetzner",
+      "project": "pecunia",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    {
+      "name": "HT Mistake Proofing",
+      "server": "inne Hetzner",
+      "project": "wazig",
+      "harness": "pi",
+      "model": "deepseek-v4.1-flash",
+      "effort": "high"
+    },
+    {
+      "name": "HT Reconciler",
+      "server": "inne Hetzner",
+      "project": "chromescribe",
+      "harness": "cursor",
+      "model": "composer-2",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Bugs",
+      "server": "inne Hetzner",
+      "project": "last30days",
+      "harness": "antigravity",
+      "model": "gemini-4-neon",
+      "effort": "high"
+    },
+    {
+      "name": "HT Features",
+      "server": "inne Hetzner",
+      "project": "clickshades-theme",
+      "harness": "claude",
+      "model": "unknown",
+      "effort": "unknown"
+    },
+    {
+      "name": "HT Security",
+      "server": "inne Hetzner",
+      "project": "faceless-channels",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "name": "HT Verification",
+      "server": "inne Hetzner",
+      "project": "software-factory",
+      "harness": "claude",
+      "model": "claude-fable-5-2",
+      "effort": "medium"
+    },
+    {
+      "name": "HT Product Lead",
+      "server": "inne Hetzner",
+      "project": "hypertask",
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Multi Bot 2",
+      "server": "inne Hetzner",
+      "project": "multiprompt",
+      "harness": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    {
+      "name": "Multi Bot Desktop 2",
+      "server": "inne Hetzner",
+      "project": "multiprompt-android",
+      "harness": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "medium"
+    }
+  ]
+}

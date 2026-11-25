@@ -5,6 +5,7 @@ import { Section } from "../content/item.js";
 import type { SectionValue } from "../content/item.js";
 
 export const SiteRoute = Route.defineRouteUnion({
+  Chats: {},
   Entry: { section: Section, slug: Schema.String },
   Factory: {},
   Home: {},
@@ -20,6 +21,11 @@ const sectionSegment = Route.schemaSegment("section", Section);
 export const homeRouter = pipe(Route.root, Route.mapTo(SiteRoute.Home));
 
 export const listRouter = pipe(sectionSegment, Route.mapTo(SiteRoute.List));
+
+export const chatsRouter = pipe(
+  Route.literal("chats"),
+  Route.mapTo(SiteRoute.Chats)
+);
 
 export const factoryRouter = pipe(
   Route.literal("factory"),
@@ -38,7 +44,14 @@ export const entryRouter = pipe(
 );
 
 export const parseRoute = Route.parseUrlWithFallback(
-  Route.oneOf(homeRouter, factoryRouter, usageRouter, listRouter, entryRouter),
+  Route.oneOf(
+    homeRouter,
+    chatsRouter,
+    factoryRouter,
+    usageRouter,
+    listRouter,
+    entryRouter
+  ),
   SiteRoute.NotFound
 );
 
