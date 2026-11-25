@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -26,6 +27,7 @@ TOKEN_LADDER_STATUS = Path(os.environ["TOKEN_LADDER_STATUS"])
 TOKEN_LADDER_LIMITS = Path(os.environ.get("TOKEN_LADDER_LIMITS") or TOKEN_LADDER_STATUS.with_name("lane-limits.json"))
 TOKEN_LADDER_CREDITS = Path(os.environ.get("TOKEN_LADDER_CREDITS") or TOKEN_LADDER_STATUS.with_name("lane-credits.json"))
 TOKEN_LADDER_LAUNCHES = Path(os.environ.get("TOKEN_LADDER_LAUNCHES") or TOKEN_LADDER_STATUS.with_name("launches.jsonl"))
+AGY_BIN = Path(os.environ["AGY_BIN"]) if os.environ.get("AGY_BIN") else Path.home() / ".local/bin/agy"
 PROC_ROOT = Path("/proc")
 OPENCODE_USAGE_API = "https://opencode.ai/zen/go/v1/usage"
 OPENCODE_AUTH_FILES = (
@@ -34,6 +36,20 @@ OPENCODE_AUTH_FILES = (
 )
 OPENCODE_MONTHLY_SECONDS = 30 * 24 * 3600
 OPENCODE_ANCHOR_MAX_AGE = 7 * 86400
+AGY_TIMEOUT_SECONDS = 60
+AGY_PRINT_TIMEOUT = "45s"
+AGY_PERCENT = re.compile(r"^(\d{1,3})%$")
+AGY_ROWS = {
+    ("Gemini Models", "Weekly Limit Remaining"): ("gemini", "week"),
+    ("Gemini Models", "Five Hour Limit Remaining"): ("gemini", "5h"),
+    ("Claude and GPT models", "Weekly Limit Remaining"): ("claude-gpt", "week"),
+    ("Claude and GPT models", "Five Hour Limit Remaining"): ("claude-gpt", "5h"),
+}
+AGY_WINDOWS = (
+    (("gemini", "5h"), "gemini 5h"),
+    (("claude-gpt", "week"), "claude/gpt week"),
+    (("claude-gpt", "5h"), "claude/gpt 5h"),
+)
 PICKER_WINDOWS = ("1h",)
 PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel", "deepseek", "openrouter",
              "antigravity", "commandcode", "cursor")
@@ -138,6 +154,48 @@ def antigravity_note(pools):
     if used_pct is not None:
         return f"Quota {used_pct:.0f}% used"
     return f"Quota unknown: {pool.get('source') or 'no reading'}"
+
+
+def parse_agy_usage(text):
+    readings = {}
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if len(fields) != 4:
+            continue
+        group, label, percent_text, stamp = (field.strip() for field in fields)
+        match = AGY_PERCENT.match(percent_text)
+        key = AGY_ROWS.get((group, label))
+        reset = iso_timestamp(stamp)
+        if match is None or key is None or reset is None:
+            continue
+        remaining = int(match.group(1))
+        if 0 <= remaining <= 100:
+            readings[key] = {"usedPct": float(100 - remaining), "resetsAt": reset}
+    return readings
+
+
+def agy_usage():
+    if not AGY_BIN.is_file():
+        return {}
+    try:
+        with tempfile.TemporaryDirectory() as cwd:
+            done = subprocess.run(
+                [str(AGY_BIN), "-p", "/usage", "--print-timeout", AGY_PRINT_TIMEOUT],
+                cwd=cwd, capture_output=True, text=True, timeout=AGY_TIMEOUT_SECONDS, check=False,
+            )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    return parse_agy_usage(done.stdout) if done.returncode == 0 else {}
+
+
+def agy_reading():
+    rows = agy_usage()
+    primary = rows.get(("gemini", "week"))
+    if primary is None:
+        return None
+    return {"usedPct": primary["usedPct"], "resetsAt": primary["resetsAt"],
+            "windows": [{"label": label, "usedPct": rows[key]["usedPct"]}
+                        for key, label in AGY_WINDOWS if key in rows]}
 
 
 def commandcode_reading(credits, now):
@@ -439,6 +497,7 @@ def usage_part(ub, g, now):
     fresh = sampled_at is not None and now - sampled_at <= 30 * 60
     opencode_api = opencode_usage_api(now)
     opencode_credit = opencode_reading()
+    antigravity = agy_reading()
     vercel_credit = vercel_reading(now)
     other_credit = {"openrouter": openrouter_reading(now)}
     groups = merge_runner_groups(ub.runner_groups(), plan_pick_runner_groups(ub))
@@ -501,6 +560,11 @@ def usage_part(ub, g, now):
                 credit = opencode_estimate
                 credit_sub_label = "estimate"
                 note = "Anchored credit estimate (lane-credits.json)"
+        if plan == "antigravity" and antigravity is not None:
+            used = antigravity["usedPct"]
+            resets = antigravity["resetsAt"]
+            windows = antigravity["windows"]
+            note = None
         if plan == "commandcode":
             commandcode = commandcode_reading(credits, now)
             if commandcode is not None:
@@ -659,8 +723,8 @@ def validate(feed):
             ok(card.get("creditUsd") is None, f"{where}: percent mode has no creditUsd")
         if card.get("mode") == "credit":
             ok(is_num(card.get("creditUsd")) and is_iso(card.get("creditReadAt")), f"{where}: credit mode needs creditUsd and creditReadAt")
-        if card.get("plan") not in ("claude", "codex", "opencode"):
-            ok(card.get("windows") == [], f"{where}.windows: empty outside Claude, Codex or OpenCode")
+        if card.get("plan") not in ("claude", "codex", "opencode", "antigravity"):
+            ok(card.get("windows") == [], f"{where}.windows: empty outside Claude, Codex, OpenCode or Antigravity")
     burn = usage["burn"]
     ok(isinstance(burn, dict), "usage.burn: needs an object")
     for window, per_plan in (burn if isinstance(burn, dict) else {}).items():

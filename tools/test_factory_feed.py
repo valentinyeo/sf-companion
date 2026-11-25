@@ -15,6 +15,13 @@ BLANK = ("OPENCODE_HISTORY", "AI_GATEWAY_API_KEY", "GROK_STATE", "DEEPSEEK_API_K
 
 NOW = 1795525000
 
+AGY_SAMPLE = "\n".join((
+    "Gemini Models\tWeekly Limit Remaining\t65%\t2026-11-30T20:03:27Z",
+    "Gemini Models\tFive Hour Limit Remaining\t100%\t2026-11-25T14:38:33Z",
+    "Claude and GPT models\tWeekly Limit Remaining\t100%\t2026-12-02T09:38:33Z",
+    "Claude and GPT models\tFive Hour Limit Remaining\t100%\t2026-11-25T14:38:33Z",
+)) + "\n"
+
 
 class Advisor:
     PRIMARY = {"opencode": "month", "vercel": "month"}
@@ -49,6 +56,7 @@ def load_exporter(status_path):
         "TOKEN_LADDER_CREDITS": "",
         "TOKEN_LADDER_LAUNCHES": "",
         "OPENCODE_AUTH_FILE": str(status_path.with_name("missing-auth.json")),
+        "AGY_BIN": str(status_path.with_name("missing-agy")),
     })
     with patch.dict(os.environ, env, clear=False):
         loader = importlib.machinery.SourceFileLoader("export_factory_feed", str(EXPORTER))
@@ -66,6 +74,13 @@ def write_fake_proc(root, pid, cmdline=None, cwd=None, state="S"):
         (proc_dir / "cmdline").write_bytes(b"\x00".join(part.encode() for part in cmdline) + b"\x00")
     if cwd is not None:
         os.symlink(str(cwd), proc_dir / "cwd")
+
+
+def write_fake_agy(directory, body):
+    path = directory / "agy"
+    path.write_text("#!/bin/sh\n" + body + "\n")
+    path.chmod(0o755)
+    return path
 
 
 class FeedPlanCards(unittest.TestCase):
@@ -159,6 +174,65 @@ class FeedPlanCards(unittest.TestCase):
         commandcode = self.card("commandcode")
         self.assertEqual(commandcode["mode"], "none")
         self.assertIsNone(commandcode["usedPct"])
+
+    def test_antigravity_reads_its_limits_from_the_agy_cli(self):
+        self.limits("{}")
+        agy = write_fake_agy(self.state, "cat <<'ROWS'\n" + AGY_SAMPLE + "ROWS")
+        with patch.object(self.feed, "AGY_BIN", agy):
+            antigravity = self.card("antigravity")
+        self.assertEqual(antigravity["mode"], "percent")
+        self.assertEqual(antigravity["usedPct"], 35.0)
+        self.assertEqual(antigravity["primaryWindow"], "week")
+        self.assertEqual(antigravity["resetsText"], "Mon 20:03")
+        self.assertEqual(antigravity["windows"], [
+            {"label": "gemini 5h", "usedPct": 0.0},
+            {"label": "claude/gpt week", "usedPct": 0.0},
+            {"label": "claude/gpt 5h", "usedPct": 0.0},
+        ])
+        self.assertIsNone(antigravity["note"])
+
+    def test_antigravity_runs_agy_in_an_empty_directory(self):
+        self.limits("{}")
+        log = self.state / "agy.log"
+        agy = write_fake_agy(self.state, "\n".join((
+            f"printf '%s\\n' \"$@\" > {log}",
+            f"ls -A | wc -l >> {log}",
+            "cat <<'ROWS'",
+            AGY_SAMPLE + "ROWS",
+        )))
+        with patch.object(self.feed, "AGY_BIN", agy):
+            self.card("antigravity")
+        self.assertEqual(log.read_text().split(), ["-p", "/usage", "--print-timeout", "45s", "0"])
+
+    def test_antigravity_skips_rows_that_are_not_four_fields(self):
+        self.limits("{}")
+        junk = "\n".join((
+            "Gemini Models\tWeekly Limit Remaining\t65%",
+            "Gemini Models\tWeekly Limit Remaining\t65\t2026-11-30T20:03:27Z",
+            "Gemini Models\tWeekly Limit Remaining\t65%\tsoon",
+            "Gemini Models\tMonthly Limit Remaining\t40%\t2026-11-30T20:03:27Z",
+            "no tabs here at all",
+        ))
+        agy = write_fake_agy(self.state, "cat <<'ROWS'\n" + junk + "\n" + AGY_SAMPLE + "ROWS")
+        with patch.object(self.feed, "AGY_BIN", agy):
+            antigravity = self.card("antigravity")
+        self.assertEqual(antigravity["usedPct"], 35.0)
+        self.assertEqual([window["label"] for window in antigravity["windows"]],
+                         ["gemini 5h", "claude/gpt week", "claude/gpt 5h"])
+
+    def test_a_failing_agy_keeps_the_card_and_marks_the_source_unavailable(self):
+        self.limits("{}")
+        self.status.write_text(
+            '{"pools": {"google": {"used_up": true, "used_up_at": "2026-11-24T00:46:05Z",'
+            ' "used_pct": null, "source": "agy local history timestamps"}}}'
+        )
+        agy = write_fake_agy(self.state, "printf 'no limits\\n' >&2\nexit 1")
+        with patch.object(self.feed, "AGY_BIN", agy):
+            antigravity = self.card("antigravity")
+        self.assertEqual(antigravity["mode"], "none")
+        self.assertIsNone(antigravity["usedPct"])
+        self.assertEqual(antigravity["windows"], [])
+        self.assertEqual(antigravity["note"], "Quota used up at 2026-11-24T00:46:05Z · limit unknown")
 
     def test_opencode_reads_go_usage_endpoint_with_auth_file_key(self):
         self.limits("{}")
