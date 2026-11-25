@@ -52,6 +52,7 @@ const UsageCard = Schema.Struct({
   creditReadAt: Schema.NullOr(Schema.String),
   creditSubLabel: Schema.NullOr(CreditSubLabel),
   creditUsd: Schema.NullOr(Schema.Number),
+  inactive: Schema.Boolean,
   mode: UsageMode,
   name: Schema.NonEmptyString,
   note: Schema.NullOr(Schema.NonEmptyString),

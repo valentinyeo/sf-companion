@@ -44,6 +44,7 @@ const usageFeed = {
         creditReadAt: null,
         creditSubLabel: null,
         creditUsd: null,
+        inactive: false,
         mode: "percent",
         name: "Fixture Plan",
         note: null,
@@ -64,6 +65,7 @@ const usageFeed = {
         creditReadAt: "2026-11-14T23:41:00Z",
         creditSubLabel: "estimate",
         creditUsd: 6.2,
+        inactive: false,
         mode: "credit",
         name: "OpenCode",
         note: "Anchored credit estimate (lane-credits.json)",
@@ -84,6 +86,7 @@ const usageFeed = {
         creditReadAt: null,
         creditSubLabel: null,
         creditUsd: null,
+        inactive: true,
         mode: "none",
         name: "Retired Plan",
         note: "Quota used up at 2026-11-24T00:46:05Z",
@@ -142,9 +145,9 @@ describe("usage page", () => {
   );
 
   it.effect(
-    "shows a skipped plan with the skip's end date and its reason",
+    "shows a retired plan as inactive with no reading or skip line",
     () =>
-      Effect.gen(function* showSkip() {
+      Effect.gen(function* showInactive() {
         const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
 
         scene(
@@ -156,15 +159,15 @@ describe("usage page", () => {
             )
           ),
           expectElement(text("Retired Plan")).toExist(),
+          expectElement(text("inactive")).toExist(),
           expectElement(
             text(
               "Skipped until 2036-11-20 20:22 UTC (manual skip (lane-limits))"
             )
-          ).toExist(),
+          ).not.toExist(),
           expectElement(
             text("Quota used up at 2026-11-24T00:46:05Z")
-          ).toExist(),
-          expectElement(text("no reading")).toExist()
+          ).not.toExist()
         );
       })
   );

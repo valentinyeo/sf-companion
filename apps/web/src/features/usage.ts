@@ -164,6 +164,19 @@ const usageCard = (
   burn: BurnByWindowValue,
   h: HtmlBuilder<AppMessage>
 ): Html => {
+  if (card.inactive) {
+    return h.li(
+      [
+        h.Key(card.plan),
+        h.Class(classes(factoryStyles.card, factoryStyles.cardInactive)),
+      ],
+      [
+        h.h3([h.Class(classes(factoryStyles.cardName))], [card.name]),
+        h.p([h.Class(classes(factoryStyles.inactiveLabel))], ["inactive"]),
+      ]
+    );
+  }
+
   const reset = resetLine(card);
   const summary = bigNumber(card);
   const pace = paceLine(card, h);
