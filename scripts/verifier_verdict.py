@@ -5,13 +5,16 @@ import re
 import sys
 from pathlib import Path
 
-DECORATION = r"[ \t>*_`#~\-]*"
-BARE = re.compile(
-    rf"^{DECORATION}(?:verdict\s*[:\-]?\s*)?{DECORATION}(PASS\+NOTES|PASS|FAIL){DECORATION}[.!]?{DECORATION}$",
+WORD = r"(PASS\+NOTES|PASS|FAIL)"
+EMPHASIS = r"[ \t*_`#~]*"
+ANY_DECORATION = r"[ \t>*_`#~\-]*"
+LABEL = r"(?:verdict\s*[:\-]?\s*)?"
+STRONG = re.compile(
+    rf"^{EMPHASIS}{LABEL}{EMPHASIS}{WORD}{EMPHASIS}[.!]?{EMPHASIS}$",
     re.IGNORECASE | re.MULTILINE,
 )
-LABELLED = re.compile(
-    rf"^{DECORATION}(?:verdict\s*[:\-]?\s*)?{DECORATION}(PASS\+NOTES|PASS|FAIL){DECORATION}(?=[:,.!—–-]\s*\S)[^\n]{{0,140}}$",
+WEAK = re.compile(
+    rf"^{ANY_DECORATION}{LABEL}{ANY_DECORATION}{WORD}(?:{EMPHASIS}[.]?$|{EMPHASIS}[:,.!—–\-]\s*\S[^\n]{{0,160}}$)",
     re.IGNORECASE | re.MULTILINE,
 )
 TURN_ENDS_ON_A_TOOL_CALL = ("toolUse", "tool_use")
@@ -51,46 +54,43 @@ def read_reply(trace):
     return "\n\n".join(texts), stop
 
 
+def lines_of(pattern, text):
+    return [match.group(1).upper() for match in pattern.finditer(text)]
+
+
 def find_verdict(text):
-    for pattern in (BARE, LABELLED):
-        match = pattern.search(text)
-        if match is not None:
-            return match.group(1).upper()
+    strong = lines_of(STRONG, text)
+    weak = lines_of(WEAK, text)
+    if "FAIL" in strong or "FAIL" in weak:
+        return "FAIL"
+    if strong:
+        return strong[-1]
+    if weak:
+        return weak[-1]
     return None
 
 
-def why_no_verdict(reads):
-    if not any(text.strip() for text, _ in reads):
-        stop = reads[-1][1] if reads else None
+def why_no_verdict(text, stop):
+    if not text.strip():
         if stop in TURN_ENDS_ON_A_TOOL_CALL:
             return "The verifier stopped on a tool call and never wrote a reply."
         return "The verifier produced no reply."
     return "The reply holds no verdict line."
 
 
-def decide(traces):
-    reads = [read_reply(trace) for trace in traces]
-    for lane, (text, _) in enumerate(reads, start=1):
-        verdict = find_verdict(text)
-        if verdict is not None:
-            return {
-                "verdict": verdict,
-                "lane": lane,
-                "reply": text,
-                "reason": None,
-            }
-    longest = max(reads, key=lambda read: len(read[0]))[0] if reads else ""
+def decide(trace):
+    text, stop = read_reply(trace)
+    verdict = find_verdict(text)
     return {
-        "verdict": None,
-        "lane": None,
-        "reply": longest,
-        "reason": why_no_verdict(reads),
+        "verdict": verdict,
+        "reply": text,
+        "reason": None if verdict is not None else why_no_verdict(text, stop),
     }
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trace", action="append", default=[])
+    parser.add_argument("--trace", required=True)
     parser.add_argument("--out")
     args = parser.parse_args()
     result = decide(args.trace)

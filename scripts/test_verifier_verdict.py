@@ -42,12 +42,11 @@ class CutResponseTest(unittest.TestCase):
     def test_keeps_the_whole_reply_for_the_comment(self):
         text = reply_of(FIXTURES / "bolded-verdict.jsonl")
         self.assertIn("## What I ran", text)
-        self.assertTrue(text.endswith("the layout handle it."))
+        self.assertTrue(text.endswith("and layout handle it."))
 
     def test_decides_the_stored_run(self):
-        result = parsed.decide([FIXTURES / "bolded-verdict.jsonl"])
+        result = parsed.decide(FIXTURES / "bolded-verdict.jsonl")
         self.assertEqual(result["verdict"], "PASS+NOTES")
-        self.assertEqual(result["lane"], 1)
         self.assertIsNone(result["reason"])
 
 
@@ -55,21 +54,17 @@ class WholeTraceTest(unittest.TestCase):
     def test_reads_a_verdict_the_last_message_dropped(self):
         trace = FIXTURES / "verdict-in-earlier-turn.jsonl"
         self.assertIsNone(parsed.find_verdict(text_of(messages_of(trace)[-1])))
-        self.assertEqual(parsed.decide([trace])["verdict"], "PASS+NOTES")
-
-    def test_reads_the_first_lane_that_answers(self):
-        trace = FIXTURES / "bolded-verdict.jsonl"
-        self.assertEqual(parsed.decide([trace, trace])["lane"], 1)
+        self.assertEqual(parsed.decide(trace)["verdict"], "PASS+NOTES")
 
 
 class NoVerdictTest(unittest.TestCase):
     def test_reports_a_run_that_never_wrote_a_reply(self):
-        result = parsed.decide([FIXTURES / "progress-only.jsonl"])
+        result = parsed.decide(FIXTURES / "progress-only.jsonl")
         self.assertIsNone(result["verdict"])
         self.assertIn("tool call", result["reason"])
 
     def test_reports_a_missing_trace(self):
-        result = parsed.decide([FIXTURES / "absent.jsonl"])
+        result = parsed.decide(FIXTURES / "absent.jsonl")
         self.assertIsNone(result["verdict"])
         self.assertIn("no reply", result["reason"])
 
@@ -90,17 +85,10 @@ class NoVerdictTest(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            result = parsed.decide([trace])
+            result = parsed.decide(trace)
             self.assertIsNone(result["verdict"])
             self.assertIn("no verdict line", result["reason"])
             self.assertIn("The head looks fine.", result["reply"])
-
-    def test_the_second_lane_supplies_a_verdict_the_first_lane_lost(self):
-        result = parsed.decide(
-            [FIXTURES / "progress-only.jsonl", FIXTURES / "bolded-verdict.jsonl"]
-        )
-        self.assertEqual(result["verdict"], "PASS+NOTES")
-        self.assertEqual(result["lane"], 2)
 
 
 class DecorationTest(unittest.TestCase):
@@ -143,9 +131,34 @@ class DecorationTest(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertIsNone(parsed.find_verdict(body))
 
-    def test_prefers_a_bare_line_over_a_quoted_rubric_line(self):
-        body = "- FAIL: a case failed, a person would see something wrong.\n\n**PASS**"
-        self.assertEqual(parsed.find_verdict(body), "PASS")
+
+class DisagreementTest(unittest.TestCase):
+    def test_a_fail_line_anywhere_outranks_a_bare_pass(self):
+        for body in (
+            "PASS\n\nlater in the reply\n\nFAIL",
+            "**PASS+NOTES**\n\n## What I ran\n\n- read both proofs\n\nFAIL",
+            "PASS+NOTES\n\n- FAIL: a case failed, a person would see something wrong.",
+            "```\nPASS\n```\n\nFAIL - the head drops the age line.",
+        ):
+            with self.subTest(body=body):
+                self.assertEqual(parsed.find_verdict(body), "FAIL")
+
+    def test_a_per_case_checklist_does_not_outrank_the_labelled_fail(self):
+        body = (
+            "- PASS\n- PASS\n- FAIL\n\n"
+            "FAIL - the head drops the age line for a first paint."
+        )
+        self.assertEqual(parsed.find_verdict(body), "FAIL")
+
+    def test_the_vetoed_rubric_line_wins_over_a_quoted_pass(self):
+        body = (
+            "- PASS: head passes every selected journey, the screenshots show it working.\n\n"
+            "FAIL - the head drops the age line."
+        )
+        self.assertEqual(parsed.find_verdict(body), "FAIL")
+
+    def test_reads_the_last_line_when_two_answers_agree(self):
+        self.assertEqual(parsed.find_verdict("PASS+NOTES\n\nlater\n\nPASS+NOTES"), "PASS+NOTES")
 
 
 class CommandLineTest(unittest.TestCase):
@@ -167,7 +180,7 @@ class CommandLineTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             written = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(written["verdict"], "PASS+NOTES")
-            self.assertEqual(json.loads(result.stdout)["lane"], 1)
+            self.assertEqual(json.loads(result.stdout)["verdict"], "PASS+NOTES")
 
 
 class LaneTest(unittest.TestCase):

@@ -195,14 +195,15 @@ jobs:
           fi
           parser=$PWD/scripts/verifier_verdict.py
           [[ -f "$parser" ]] || parser=$GITHUB_WORKSPACE/base/scripts/verifier_verdict.py
+          echo '{"verdict": null, "lane": null, "reply": "", "reason": "No verifier lane ran. Fix: check the provider secrets the lanes need."}' > "$RECORDS/verdict.json"
           record_verdict() {
             if [[ -f "$parser" ]]; then
-              python3 "$parser" "${traces[@]}" --out "$1" > /dev/null
+              python3 "$parser" --trace "$1" --out "$RECORDS/verdict-$2.json" > /dev/null
             else
-              echo '{"verdict": null, "lane": null, "reply": "", "reason": "Neither checkout holds scripts/verifier_verdict.py. Fix: push the branch again so the job reads the verdict."}' > "$1"
+              echo '{"verdict": null, "reply": "", "reason": "Neither checkout holds scripts/verifier_verdict.py. Fix: push the branch again so the job reads the verdict."}' > "$RECORDS/verdict-$2.json"
             fi
+            jq --argjson lane "$3" '. + {lane: $lane}' "$RECORDS/verdict-$2.json" > "$RECORDS/verdict.json"
           }
-          traces=()
           for attempt in 1 2; do
             lane=$(( attempt < ${#families[@]} ? attempt : ${#families[@]} ))
             index=$(( lane - 1 ))
@@ -220,14 +221,12 @@ jobs:
               --no-prompt-templates --no-themes --tools read,bash \
               --no-session --mode json -p "$prompt" \
               > "$RECORDS/verifier-$attempt.jsonl" 2> "$RECORDS/verifier-$attempt.stderr" || true
-            traces+=("--trace" "$RECORDS/verifier-$attempt.jsonl")
-            record_verdict "$RECORDS/verdict-$attempt.json"
-            if [[ -n "$(jq -r '.verdict // ""' "$RECORDS/verdict-$attempt.json")" ]]; then
+            record_verdict "$RECORDS/verifier-$attempt.jsonl" "$attempt" "$lane"
+            if [[ -n "$(jq -r '.verdict // ""' "$RECORDS/verdict.json")" ]]; then
               break
             fi
           done
-          record_verdict "$RECORDS/verdict.json"
-          jq -r '.verdict // "none"' "$RECORDS/verdict.json"
+          jq -r '.verdict // "none", .reason // ""' "$RECORDS/verdict.json"
       - name: Keep the change checkout clean
         id: clean
         if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
