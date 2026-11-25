@@ -225,15 +225,17 @@ const usageCard = (
         [h.Class(classes(factoryStyles.cardTop))],
         [
           h.h3(
-            [h.Class(classes(factoryStyles.cardName))],
+            [h.AriaLabel(card.name), h.Class(classes(factoryStyles.cardName))],
             [
               h.a(
                 [
+                  h.AriaLabel(`Open ${card.name} usage page`),
+                  h.Class(classes(factoryStyles.cardLink)),
                   h.Href(USAGE_PAGES[card.plan]),
                   h.Rel("noopener"),
                   h.Target("_blank"),
                 ],
-                [card.name]
+                [card.name, h.small([h.AriaHidden(true)], [" ↗"])]
               ),
             ]
           ),

@@ -134,7 +134,9 @@ describe("usage page", () => {
           expectElement(text("resets Sun 18:00")).toExist(),
           expectElement(text("+2% · £0.00 in 1h on runners")).toExist(),
           expectElement(text("OpenCode")).toExist(),
-          expectElement(role("link", { name: "OpenCode" })).toExist(),
+          expectElement(
+            role("link", { name: "Open OpenCode usage page" })
+          ).toExist(),
           expectElement(text("$6.20 left")).toExist(),
           expectElement(text("estimate · as of 1h ago")).toExist(),
           expectElement(text("2 DeepSeek 4.1 Flash medium")).toExist(),
@@ -184,6 +186,10 @@ describe("usage page", () => {
         })
       );
 
+      const head = (name: string) => role("heading", { name });
+      const link = (name: string) =>
+        role("link", { name: `Open ${name} usage page` });
+
       scene(
         { update, view },
         given(
@@ -192,40 +198,40 @@ describe("usage page", () => {
             Option.some(feed)
           )
         ),
-        expectElement(role("heading", { name: "Claude Code" })).toExist(),
-        expectElement(role("link", { name: "Claude Code" })).toHaveAttr(
+        expectElement(head("Claude Code")).toHaveText("Claude Code ↗"),
+        expectElement(head("Codex")).toHaveText("Codex ↗"),
+        expectElement(head("Vercel")).toHaveText("Vercel ↗"),
+        expectElement(head("OpenCode")).toHaveText("OpenCode ↗"),
+        expectElement(head("Antigravity")).toHaveText("Antigravity ↗"),
+        expectElement(head("CommandCode")).toHaveText("CommandCode ↗"),
+        expectElement(head("OpenRouter")).toHaveText("OpenRouter ↗"),
+        expectElement(link("Claude Code")).toHaveAttr(
           "href",
           "https://claude.ai/new#settings/usage"
         ),
-        expectElement(role("link", { name: "Claude Code" })).toHaveAttr(
-          "target",
-          "_blank"
-        ),
-        expectElement(role("link", { name: "Claude Code" })).toHaveAttr(
-          "rel",
-          "noopener"
-        ),
-        expectElement(role("link", { name: "Codex" })).toHaveAttr(
+        expectElement(link("Claude Code")).toHaveAttr("target", "_blank"),
+        expectElement(link("Claude Code")).toHaveAttr("rel", "noopener"),
+        expectElement(link("Codex")).toHaveAttr(
           "href",
           "https://chatgpt.com/settings/usage?tab=overview"
         ),
-        expectElement(role("link", { name: "Vercel" })).toHaveAttr(
+        expectElement(link("Vercel")).toHaveAttr(
           "href",
           "https://vercel.com/hypertaskai/~/ai-gateway/token-pass"
         ),
-        expectElement(role("link", { name: "OpenCode" })).toHaveAttr(
+        expectElement(link("OpenCode")).toHaveAttr(
           "href",
           "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go"
         ),
-        expectElement(role("link", { name: "Antigravity" })).toHaveAttr(
+        expectElement(link("Antigravity")).toHaveAttr(
           "href",
           "https://antigravity.google/"
         ),
-        expectElement(role("link", { name: "CommandCode" })).toHaveAttr(
+        expectElement(link("CommandCode")).toHaveAttr(
           "href",
           "https://commandcode.ai/"
         ),
-        expectElement(role("link", { name: "OpenRouter" })).toHaveAttr(
+        expectElement(link("OpenRouter")).toHaveAttr(
           "href",
           "https://openrouter.ai/settings/credits"
         )

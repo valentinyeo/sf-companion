@@ -579,13 +579,21 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           await widget(name)
             .getByRole("heading", { name, exact: true })
             .waitFor();
+          const headingText = await widget(name)
+            .getByRole("heading", { name, exact: true })
+            .innerText();
+          assert.equal(
+            headingText.trim(),
+            `${name} ↗`,
+            `${id}: the ${name} card heading does not show the ↗ link cue`
+          );
           for (const reading of readings) {
             await widget(name).getByText(reading, { exact: true }).waitFor();
           }
         }
         for (const [name, href] of usageLinks) {
           const headingLink = widget(name).getByRole("link", {
-            name,
+            name: `Open ${name} usage page`,
             exact: true,
           });
           await headingLink.waitFor();
@@ -604,13 +612,22 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             "noopener",
             `${id}: the ${name} card heading link does not carry rel noopener`
           );
+          await headingLink.hover();
+          assert.equal(
+            await headingLink.evaluate(
+              (node) => getComputedStyle(node).textDecorationLine
+            ),
+            "underline",
+            `${id}: the ${name} card heading link does not underline on hover`
+          );
         }
+        await page.mouse.move(0, 0);
         const headings = await page
           .getByRole("heading", { level: 3 })
           .allInnerTexts();
         assert.deepEqual(
           headings,
-          cards.map(([name]) => name),
+          cards.map(([name]) => `${name} ↗`),
           `${id}: the usage cards are not ordered by load, heaviest first`
         );
         for (const name of ["Grok", "DeepSeek", "Cursor"]) {
