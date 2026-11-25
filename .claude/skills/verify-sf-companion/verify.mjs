@@ -145,7 +145,10 @@ const usageLinks = [
   ["Codex", "https://chatgpt.com/settings/usage?tab=overview"],
   ["Antigravity", "https://antigravity.google/"],
   ["OpenCode", "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go"],
-  ["Vercel Token Pass", "https://vercel.com/hypertaskai/~/ai-gateway/token-pass"],
+  [
+    "Vercel Token Pass",
+    "https://vercel.com/hypertaskai/~/ai-gateway/token-pass",
+  ],
   ["OpenRouter", "https://openrouter.ai/settings/credits"],
   ["CommandCode", "https://commandcode.ai/"],
 ];
