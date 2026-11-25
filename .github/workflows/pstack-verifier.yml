@@ -60,7 +60,7 @@ jobs:
           printf '%s' "$PR_BODY" > "$RECORDS/pr-body.txt"
           python3 scripts/pick_verifier.py --body-file "$RECORDS/pr-body.txt" > "$RECORDS/pick.json"
           cat "$RECORDS/pick.json"
-          for field in status family provider model secret reason; do
+          for field in status reason; do
             value=$(jq -r --arg field "$field" '.[$field] // ""' "$RECORDS/pick.json")
             printf '%s=%s\n' "$field" "$value" >> "$GITHUB_OUTPUT"
           done
@@ -147,18 +147,21 @@ jobs:
         id: verifier
         if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
         continue-on-error: true
+        timeout-minutes: 12
         working-directory: change
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PROVIDER: ${{ steps.pick.outputs.provider }}
-          MODEL: ${{ steps.pick.outputs.model }}
-          FAMILY: ${{ steps.pick.outputs.family }}
-          FEATURES: ${{ steps.scope.outputs.features }}
-          JOURNEYS: ${{ steps.scope.outputs.journeys }}
           PROMPT: |
-            You are the independent verifier for pull request ${{ github.event.pull_request.number }} "${{ github.event.pull_request.title }}" in valentinyeo/sf-companion. You did not write this change. You are ${{ steps.pick.outputs.family }} ${{ steps.pick.outputs.model }}.
+            You are __LANE__ and the independent verifier for pull request ${{ github.event.pull_request.number }} "${{ github.event.pull_request.title }}" in valentinyeo/sf-companion. You did not write this change.
+
+            Your reply starts with the verdict: one standalone line that holds nothing but the word, with no bold, no heading, no bullet, no label and no trailing sentence. Then your findings, below it.
+
+            That line is one of:
+            - PASS: head passes every selected journey, the screenshots show it working, and nothing regressed against base.
+            - PASS+NOTES: head passes but a reviewer should know something you saw.
+            - FAIL: head fails a journey, misbehaves for a user, or the evidence is missing or untrustworthy. A FAIL needs an executable reproduction.
 
             Touched features: ${{ steps.scope.outputs.features }}.
             Journeys: ${{ steps.scope.outputs.journeys }}.
@@ -175,24 +178,55 @@ jobs:
             Do this:
             1. Read both result.json files and compare every selected journey, case by case. Look at the head PNG screenshots and ARIA snapshots, not only the status fields. Read the head logs when a case failed.
             2. Make one adversarial attempt beyond the happy path with bash only, in /tmp/verifier-break: copy .claude/skills/verify-sf-companion/fixture.json, corrupt or stretch a value, and check what the feed contract in apps/web/src/content/feed.ts does with it, or probe the cheapest boundary this diff touches. A few commands, no install, no server, no browser. Never edit tracked files in the checkouts; the job fails if you do.
-            3. Finish with exactly one standalone line: PASS, PASS+NOTES, or FAIL.
-               - PASS: head passes every selected journey, the screenshots show it working, and nothing regressed against base.
-               - PASS+NOTES: head passes but a reviewer should know something you saw.
-               - FAIL: head fails a journey, misbehaves for a user, or the evidence is missing or untrustworthy. A FAIL needs an executable reproduction.
 
-            After the verdict line, say what you ran, what you saw on base and on head, and your concrete findings. Plain and specific, no praise.
+            Below the verdict line, say what you ran, what you saw on base and on head, and your concrete findings. Plain and specific, no praise.
         run: |
-          set -o pipefail
-          case "$PROVIDER" in
-            opencode-go) test -n "$OPENCODE_API_KEY" ;;
-            vercel-ai-gateway) test -n "$AI_GATEWAY_API_KEY" ;;
-            openrouter) test -n "$OPENROUTER_API_KEY" ;;
-            *) echo "No verifier provider: $PROVIDER" >&2; exit 1 ;;
-          esac
-          pi --provider "$PROVIDER" --model "$MODEL" --thinking low \
-            --no-extensions --no-mcp --no-skills --no-context-files \
-            --no-prompt-templates --no-themes --tools read,bash \
-            --no-session --mode json -p "$PROMPT" > "$RECORDS/verifier.jsonl"
+          set -uo pipefail
+          mkdir -p "$RECORDS"
+          printf '%s\n' "$PROMPT" > "$RECORDS/prompt.txt"
+          python3 scripts/pick_verifier.py --body-file "$RECORDS/pr-body.txt" > "$RECORDS/lanes.json"
+          mapfile -t families < <(jq -r '.lanes[].family' "$RECORDS/lanes.json")
+          mapfile -t providers < <(jq -r '.lanes[].provider' "$RECORDS/lanes.json")
+          mapfile -t models < <(jq -r '.lanes[].model' "$RECORDS/lanes.json")
+          mapfile -t secrets < <(jq -r '.lanes[].secret' "$RECORDS/lanes.json")
+          if [[ "${#families[@]}" -eq 0 ]]; then
+            echo "No verifier lane is free: $(jq -r '.reason // ""' "$RECORDS/lanes.json")" >&2
+            exit 1
+          fi
+          parser=$PWD/scripts/verifier_verdict.py
+          [[ -f "$parser" ]] || parser=$GITHUB_WORKSPACE/base/scripts/verifier_verdict.py
+          echo '{"verdict": null, "lane": null, "reply": "", "reason": "No verifier lane ran. Fix: check the provider secrets the lanes need."}' > "$RECORDS/verdict.json"
+          record_verdict() {
+            if [[ -f "$parser" ]]; then
+              python3 "$parser" --trace "$1" --out "$RECORDS/verdict-$2.json" > /dev/null
+            else
+              echo '{"verdict": null, "reply": "", "reason": "Neither checkout holds scripts/verifier_verdict.py. Fix: push the branch again so the job reads the verdict."}' > "$RECORDS/verdict-$2.json"
+            fi
+            jq --argjson lane "$3" '. + {lane: $lane}' "$RECORDS/verdict-$2.json" > "$RECORDS/verdict.json"
+          }
+          for attempt in 1 2; do
+            lane=$(( attempt < ${#families[@]} ? attempt : ${#families[@]} ))
+            index=$(( lane - 1 ))
+            provider=${providers[$index]}
+            model=${models[$index]}
+            secret=${secrets[$index]}
+            if [[ -z "${!secret:-}" ]]; then
+              echo "No $secret secret for $provider." >&2
+              continue
+            fi
+            prompt=${PROMPT/__LANE__/"${families[$index]} $model"}
+            echo "Attempt $attempt: ${families[$index]} $model via $provider"
+            pi --provider "$provider" --model "$model" --thinking low \
+              --no-extensions --no-mcp --no-skills --no-context-files \
+              --no-prompt-templates --no-themes --tools read,bash \
+              --no-session --mode json -p "$prompt" \
+              > "$RECORDS/verifier-$attempt.jsonl" 2> "$RECORDS/verifier-$attempt.stderr" || true
+            record_verdict "$RECORDS/verifier-$attempt.jsonl" "$attempt" "$lane"
+            if [[ -n "$(jq -r '.verdict // ""' "$RECORDS/verdict.json")" ]]; then
+              break
+            fi
+          done
+          jq -r '.verdict // "none", .reason // ""' "$RECORDS/verdict.json"
       - name: Keep the change checkout clean
         id: clean
         if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
@@ -212,7 +246,11 @@ jobs:
         with:
           name: verifier-records
           path: |
-            records/verifier.jsonl
+            records/verifier-*.jsonl
+            records/verifier-*.stderr
+            records/verdict*.json
+            records/lanes.json
+            records/prompt.txt
             records/pick.json
             records/scope.json
             records/diff.txt
@@ -224,7 +262,8 @@ jobs:
         env:
           PICK_FILE: ${{ github.workspace }}/records/pick.json
           SCOPE_FILE: ${{ github.workspace }}/records/scope.json
-          TRACE_FILE: ${{ github.workspace }}/records/verifier.jsonl
+          LANES_FILE: ${{ github.workspace }}/records/lanes.json
+          RECORDS: ${{ github.workspace }}/records
           BASE_PROOF: ${{ github.workspace }}/proof-base
           HEAD_PROOF: ${{ github.workspace }}/proof-head
           JOURNEYS_LABEL: ${{ steps.scope.outputs.journeys }}
@@ -251,9 +290,20 @@ jobs:
             const head = readJson(`${process.env.HEAD_PROOF}/result.json`);
             const pick = readJson(process.env.PICK_FILE);
             const scope = readJson(process.env.SCOPE_FILE);
+            const lanes = readJson(process.env.LANES_FILE);
+            const read = ["verdict.json", "verdict-2.json", "verdict-1.json"]
+              .map((name) => readJson(`${process.env.RECORDS}/${name}`))
+              .find((value) => value !== null) || null;
+            const laneOf = (answered) => {
+              if (answered === null || !answered.lane || lanes === null || !Array.isArray(lanes.lanes) || lanes.lanes.length === 0) {
+                return null;
+              }
+              return lanes.lanes[Math.min(answered.lane, lanes.lanes.length) - 1];
+            };
+            const chosen = laneOf(read) || (pick && pick.status === "ok" ? pick : null);
             const headSha = context.payload.pull_request.head.sha;
             const baseSha = context.payload.pull_request.base.sha;
-            const model = pick && pick.status === "ok" ? `${pick.family} ${pick.model} via ${pick.provider}` : "none";
+            const model = chosen === null ? "none" : `${chosen.family} ${chosen.model} via ${chosen.provider}`;
             let verdict = "FAIL";
             let detail = "";
             const facts = `Model: ${model}\nHead: ${headSha}\nBase: ${baseSha}\nJourneys: ${process.env.JOURNEYS_LABEL || "none"}\nRun: ${run}`;
@@ -263,24 +313,14 @@ jobs:
               detail = `No verifier model ran. ${(pick && pick.reason) || "The model picker produced no result."}`;
             } else if (scope === null || scope.status !== "ok") {
               detail = `No verifier ran. ${(scope && scope.reason) || "The journey selector produced no result."}`;
+            } else if (read !== null && read.verdict) {
+              verdict = read.verdict;
+              detail = (read.reply || "").slice(0, 12000);
             } else {
-              const events = readText(process.env.TRACE_FILE).split("\n").filter(Boolean).flatMap((line) => {
-                try {
-                  return [JSON.parse(line)];
-                } catch {
-                  return [];
-                }
-              });
-              const messages = events.filter((event) => event.type === "message_end" && event.message && event.message.role === "assistant");
-              const last = messages.at(-1);
-              const text = last ? (last.message.content || []).filter((part) => part.type === "text").map((part) => part.text).join("\n") : "";
-              const match = text.match(/^(PASS\+NOTES|PASS|FAIL)\s*$/m);
-              if (match === null) {
-                detail = `The verifier returned no verdict line. Response:\n\n${text.slice(-3000) || "(empty trace)"}`;
-              } else {
-                verdict = match[1];
-                detail = text.slice(0, 12000);
-              }
+              const reply = read === null ? "" : read.reply;
+              const reason = read === null ? "The verifier's answer could not be read; see the job log." : read.reason;
+              const stderr = readText(`${process.env.RECORDS}/verifier-2.stderr`).trim() || readText(`${process.env.RECORDS}/verifier-1.stderr`).trim();
+              detail = `${reason}\n\n${reply || stderr || "(no reply)"}`;
             }
             const headState = head === null ? "missing" : head.status;
             const completed = pick !== null && pick.status === "ok" && scope !== null && scope.status === "ok";

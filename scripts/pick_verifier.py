@@ -92,11 +92,8 @@ def pick_verifier(body):
         }
     used = {author["family"] for author in authors}
     candidates = OTHER_VERIFIERS if "deepseek" in used else (DEEPSEEK_VERIFIER,)
-    choice = next(
-        (candidate for candidate in candidates if candidate["family"] not in used),
-        None,
-    )
-    if choice is None:
+    lanes = [candidate for candidate in candidates if candidate["family"] not in used]
+    if not lanes:
         return {
             "authors": authors,
             "status": "fail",
@@ -106,7 +103,7 @@ def pick_verifier(body):
                 f"Verifier families: {', '.join(c['family'] for c in candidates)}."
             ),
         }
-    return {"authors": authors, "status": "ok", **choice}
+    return {"authors": authors, "status": "ok", "lanes": lanes, **lanes[0]}
 
 
 def main():
