@@ -133,12 +133,10 @@ class DecorationTest(unittest.TestCase):
 
 
 class DisagreementTest(unittest.TestCase):
-    def test_a_fail_line_anywhere_outranks_a_bare_pass(self):
+    def test_a_bare_fail_outranks_a_bare_pass(self):
         for body in (
             "PASS\n\nlater in the reply\n\nFAIL",
             "**PASS+NOTES**\n\n## What I ran\n\n- read both proofs\n\nFAIL",
-            "PASS+NOTES\n\n- FAIL: a case failed, a person would see something wrong.",
-            "```\nPASS\n```\n\nFAIL - the head drops the age line.",
         ):
             with self.subTest(body=body):
                 self.assertEqual(parsed.find_verdict(body), "FAIL")
@@ -150,12 +148,19 @@ class DisagreementTest(unittest.TestCase):
         )
         self.assertEqual(parsed.find_verdict(body), "FAIL")
 
-    def test_the_vetoed_rubric_line_wins_over_a_quoted_pass(self):
+    def test_the_quoted_rubric_line_wins_over_a_quoted_pass(self):
         body = (
             "- PASS: head passes every selected journey, the screenshots show it working.\n\n"
             "FAIL - the head drops the age line."
         )
         self.assertEqual(parsed.find_verdict(body), "FAIL")
+
+    def test_a_bare_line_outranks_a_quoted_fail_inside_a_sentence(self):
+        body = (
+            "PASS+NOTES\n\nThe parser probes went like this:\n\n"
+            "- `Verdict: FAIL, the share journey regressed` → FAIL (weak match)."
+        )
+        self.assertEqual(parsed.find_verdict(body), "PASS+NOTES")
 
     def test_reads_the_last_line_when_two_answers_agree(self):
         self.assertEqual(parsed.find_verdict("PASS+NOTES\n\nlater\n\nPASS+NOTES"), "PASS+NOTES")

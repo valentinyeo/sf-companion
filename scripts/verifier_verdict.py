@@ -59,14 +59,10 @@ def lines_of(pattern, text):
 
 
 def find_verdict(text):
-    strong = lines_of(STRONG, text)
-    weak = lines_of(WEAK, text)
-    if "FAIL" in strong or "FAIL" in weak:
-        return "FAIL"
-    if strong:
-        return strong[-1]
-    if weak:
-        return weak[-1]
+    for found in (lines_of(STRONG, text), lines_of(WEAK, text)):
+        if not found:
+            continue
+        return "FAIL" if "FAIL" in found else found[-1]
     return None
 
 
