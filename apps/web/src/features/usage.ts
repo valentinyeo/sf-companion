@@ -16,20 +16,20 @@ import { factoryStyles } from "./factory.stylex.js";
 
 const BURN_WINDOW = "1h";
 
-const consoleUrl = (plan: UsageCardValue["plan"]): string | null =>
-  plan === "opencode"
-    ? "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go"
-    : null;
+const planHrefs: Partial<Record<UsageCardValue["plan"], string>> = {
+  opencode: "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go",
+  vercel: "https://vercel.com/hypertaskai/~/ai-gateway/token-pass",
+};
 
 const cardHeading = (
   card: UsageCardValue,
   h: HtmlBuilder<AppMessage>
 ): Html => {
-  const url = consoleUrl(card.plan);
+  const url = planHrefs[card.plan];
 
   return h.h3(
     [h.Class(classes(factoryStyles.cardName))],
-    [url === null ? card.name : h.a([h.Href(url)], [card.name])]
+    [url === undefined ? card.name : h.a([h.Href(url)], [card.name])]
   );
 };
 
