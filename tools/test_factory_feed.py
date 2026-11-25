@@ -11,8 +11,7 @@ from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
 EXPORTER = HERE / "export-factory-feed.py"
-BLANK = ("OPENCODE_HISTORY", "AI_GATEWAY_API_KEY", "GROK_STATE", "DEEPSEEK_API_KEY",
-         "OPENROUTER_MANAGEMENT_KEY", "OPENROUTER_MANAGEMENT_KEY_AGENTS")
+BLANK = ("OPENCODE_HISTORY", "AI_GATEWAY_API_KEY", "GROK_STATE", "DEEPSEEK_API_KEY")
 
 NOW = 1795525000
 
@@ -222,6 +221,36 @@ class FeedPlanCards(unittest.TestCase):
         commandcode = self.card("commandcode")
         self.assertEqual(commandcode["mode"], "none")
         self.assertIsNone(commandcode["usedPct"])
+
+    def test_openrouter_reads_the_published_balance_and_keeps_a_negative(self):
+        self.limits("{}")
+        (self.state / "lane-credits.json").write_text(
+            json.dumps({"openrouter": {"usd": -0.2, "at": NOW - 3 * 3600}})
+        )
+        openrouter = self.card("openrouter")
+        self.assertEqual(openrouter["mode"], "credit")
+        self.assertEqual(openrouter["creditUsd"], -0.2)
+        self.assertEqual(openrouter["creditSubLabel"], "credit")
+        self.assertEqual(openrouter["tone"], "hot")
+        self.assertEqual(openrouter["creditAsOf"], " \u00b7 as of 3h ago")
+        self.assertIsNone(openrouter["usedPct"])
+
+    def test_openrouter_credit_above_zero_stays_plain(self):
+        self.limits("{}")
+        (self.state / "lane-credits.json").write_text(
+            json.dumps({"openrouter": {"usd": 40.1, "at": NOW}})
+        )
+        openrouter = self.card("openrouter")
+        self.assertEqual(openrouter["creditUsd"], 40.1)
+        self.assertEqual(openrouter["tone"], "plain")
+
+    def test_openrouter_without_a_published_balance_shows_no_reading(self):
+        self.limits("{}")
+        (self.state / "lane-credits.json").write_text(json.dumps({"vercel": {"usd": 30, "at": NOW}}))
+        openrouter = self.card("openrouter")
+        self.assertEqual(openrouter["mode"], "none")
+        self.assertIsNone(openrouter["creditUsd"])
+        self.assertIsNone(openrouter["creditAsOf"])
 
     def test_vercel_shows_the_token_pass_percent_not_the_gateway_balance(self):
         self.limits("{}")

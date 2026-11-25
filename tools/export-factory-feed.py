@@ -372,22 +372,15 @@ def vercel_reading(now, credits):
         return None
 
 
-def openrouter_reading(now):
-    keys = [os.environ.get(name) for name in ("OPENROUTER_MANAGEMENT_KEY", "OPENROUTER_MANAGEMENT_KEY_AGENTS")]
-    keys = [key for key in keys if key]
-    if not keys:
+def openrouter_anchored_credit(credits):
+    entry = credits.get("openrouter") if isinstance(credits, dict) else None
+    if not isinstance(entry, dict):
         return None
-    left = 0.0
-    try:
-        for key in keys:
-            data = fetch_json("https://openrouter.ai/api/v1/credits", key).get("data") or {}
-            total, used = number(data.get("total_credits")), number(data.get("total_usage"))
-            if total is None or used is None:
-                return None
-            left += max(0.0, total - used)
-    except (OSError, urllib.error.URLError, ValueError, TypeError, AttributeError):
+    usd = number(entry.get("usd"))
+    at = number(entry.get("at"))
+    if usd is None or at is None:
         return None
-    return round(left, 2), None, now, iso_utc(now)
+    return round(usd, 2), None, at, iso_utc(at)
 
 
 def proc_state_alive(stat_path):
@@ -577,7 +570,7 @@ def usage_part(ub, g, now):
     limits = read_json(TOKEN_LADDER_LIMITS)
     credits = read_json(TOKEN_LADDER_CREDITS)
     vercel = vercel_reading(now, credits)
-    other_credit = {"openrouter": openrouter_reading(now)}
+    other_credit = {"openrouter": openrouter_anchored_credit(credits)}
     groups = merge_runner_groups(ub.runner_groups(), plan_pick_runner_groups(ub))
     chats = roster_chats()
     opencode_estimate = opencode_anchored_credit(credits, now)
@@ -647,6 +640,9 @@ def usage_part(ub, g, now):
         plan_chats = 0
         if plan in ROSTER_PLANS:
             plan_chats = chats.get(plan, 0) if chats is not None else None
+        tone = ub.tone(delta).strip() or "plain"
+        if plan == "openrouter" and credit is not None and credit[0] <= 0:
+            tone = "hot"
         cards.append(((plan_chats or 0) + (runners or 0), {
             "plan": plan,
             "name": label,
@@ -655,7 +651,7 @@ def usage_part(ub, g, now):
             "usedPct": used,
             "resetsText": resets_text,
             "paceDelta": delta,
-            "tone": ub.tone(delta).strip() or "plain",
+            "tone": tone,
             "creditUsd": credit[0] if credit else None,
             "creditSubLabel": credit_sub_label,
             "creditReadAt": credit[3] if credit else None,

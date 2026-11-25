@@ -2377,7 +2377,7 @@
         "creditAsOf": " · as of 3h ago",
         "creditReadAt": "2026-11-14T21:41:00Z",
         "creditSubLabel": "credit",
-        "creditUsd": 45.85,
+        "creditUsd": -0.2,
         "loadText": "idle",
         "mode": "credit",
         "name": "OpenRouter",
@@ -2394,7 +2394,7 @@
         "runnersLive": true,
         "runnersText": "0 runners",
         "skip": null,
-        "tone": "plain",
+        "tone": "hot",
         "usedPct": null,
         "windows": []
       },
