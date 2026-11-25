@@ -26,12 +26,15 @@ AGY_SAMPLE = "\n".join((
 class Advisor:
     PRIMARY = {"opencode": "month", "vercel": "month"}
 
+    def __init__(self, groups=None):
+        self.groups = groups
+
     def runner_groups(self):
-        return None
+        return self.groups
 
     def runners_text(self, groups):
         if groups is None:
-            return "0 runners"
+            return "–"
         parts = sorted(groups.items(), key=lambda kv: (-kv[1], kv[0]))
         return " · ".join(f"{c} {m} {eff}".strip() for (m, eff), c in parts) or "0 runners"
 
@@ -83,6 +86,23 @@ def write_fake_agy(directory, body):
     return path
 
 
+def write_fake_roster(directory, body):
+    path = directory / "roster-live"
+    path.write_text("#!/bin/sh\n" + body + "\n")
+    path.chmod(0o755)
+    return path
+
+
+ROSTER_ROWS = "\n".join((
+    "Board Drain Loop (live-2abf0cb7, claude, ~/projects/vstack)",
+    "HT Features (live-7afb95d9, claude, ~/projects/hypertask)",
+    "Board Drain Loop (live-2abf0cb7, claude, ~/projects/vstack)",
+    "Claude CRO (pid 720312, claude, ~/projects/claude-cro)",
+    "Pi Runner (live-9dbc7da5, codex, ~/projects/multiprompt)",
+    "Pi Runner (live-9dbc7da5, codex, ~/projects/multiprompt)",
+)) + "\n"
+
+
 class FeedPlanCards(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
@@ -92,6 +112,7 @@ class FeedPlanCards(unittest.TestCase):
         self.status.write_text('{"pools": {}}')
         self.feed = load_exporter(self.status)
         self.feed.OPENCODE_AUTH_FILES = ()
+        self.feed.ROSTER_BIN = self.state / "missing-roster"
 
     def limits(self, payload):
         (self.state / "lane-limits.json").write_text(payload)
@@ -100,34 +121,59 @@ class FeedPlanCards(unittest.TestCase):
         cards = self.feed.usage_part(Advisor(), metric or {}, NOW)["cards"]
         return next(card for card in cards if card["plan"] == plan)
 
-    def test_every_lane_plan_gets_a_card_and_retired_plans_come_last(self):
+    def test_every_lane_plan_gets_a_card_in_plan_order(self):
         self.limits("{}")
         cards = self.feed.usage_part(Advisor(), {}, NOW)["cards"]
-        plans = [card["plan"] for card in cards]
-        self.assertEqual(plans, sorted(self.feed.PLAN_ENUM, key=lambda plan: plan in self.feed.INACTIVE_PLANS))
-        self.assertEqual([card["name"] for card in cards][-3:], ["Grok", "DeepSeek", "Cursor"])
-        self.assertEqual({card["plan"] for card in cards if card["inactive"]}, set(self.feed.INACTIVE_PLANS))
+        self.assertEqual([card["plan"] for card in cards], list(self.feed.PLAN_ENUM))
+        self.assertEqual([card["name"] for card in cards],
+                         ["Claude", "Codex", "OpenCode", "Vercel", "OpenRouter", "Antigravity", "CommandCode"])
         for card in cards:
             self.assertIn("skip", card)
             self.assertIn("note", card)
+            self.assertNotIn("inactive", card)
 
-    def test_an_inactive_plan_shows_no_reading_and_ignores_lane_limits(self):
-        self.limits('{"cursor": 2110825352.5}')
-        cursor = self.card("cursor")
-        self.assertTrue(cursor["inactive"])
-        self.assertIsNone(cursor["skip"])
-        self.assertEqual(cursor["mode"], "none")
-        self.assertIsNone(cursor["usedPct"])
-        self.assertIsNone(cursor["resetsText"])
-        self.assertIsNone(cursor["paceDelta"])
-        self.assertEqual(cursor["windows"], [])
-
-    def test_inactive_plans_make_no_api_calls(self):
+    def test_retired_plans_are_gone_from_the_cards_and_the_burn(self):
         self.limits("{}")
-        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "test-key"}, clear=False), \
-                patch.object(self.feed, "fetch_json", side_effect=AssertionError("unexpected API call")):
-            for plan in self.feed.INACTIVE_PLANS:
-                self.assertTrue(self.card(plan)["inactive"])
+        metric = {"windows": {"1h": {"plans": {"grok": {"pts": 3, "gbp": 1.0, "priced_pts": 3}}}}}
+        usage = self.feed.usage_part(Advisor(), metric, NOW)
+        plans = {card["plan"] for card in usage["cards"]}
+        self.assertFalse(plans & {"grok", "deepseek", "cursor"})
+        self.assertEqual(set(usage["burn"]["1h"]), set(self.feed.PLAN_ENUM))
+
+    def test_live_chats_count_once_per_session_and_follow_their_harness(self):
+        self.limits("{}")
+        roster = write_fake_roster(self.state, "cat <<'ROWS'\n" + ROSTER_ROWS + "ROWS")
+        with patch.object(self.feed, "ROSTER_BIN", roster):
+            cards = {card["plan"]: card for card in self.feed.usage_part(Advisor(), {}, NOW)["cards"]}
+        self.assertEqual(cards["claude"]["loadText"], "3 chats")
+        self.assertEqual(cards["codex"]["loadText"], "1 chat")
+        self.assertEqual(cards["opencode"]["loadText"], "–")
+
+    def test_an_unreadable_roster_shows_no_chat_count(self):
+        self.limits("{}")
+        roster = write_fake_roster(self.state, "printf 'boom\\n' >&2\nexit 1")
+        with patch.object(self.feed, "ROSTER_BIN", roster):
+            cards = {card["plan"]: card for card in self.feed.usage_part(Advisor(groups={"vercel": {("glm-5.3-flash", "medium"): 2}}), {}, NOW)["cards"]}
+        self.assertEqual(cards["claude"]["loadText"], "–")
+        self.assertEqual(cards["vercel"]["loadText"], "2 runners")
+
+    def test_cards_sort_by_chats_plus_runners_and_idle_cards_come_last(self):
+        self.limits("{}")
+        roster = write_fake_roster(self.state, "cat <<'ROWS'\n" + ROSTER_ROWS + "ROWS")
+        groups = {
+            "claude": {("Sonnet", "high"): 1},
+            "codex": {("GPT 6.1 Sol", "high"): 1},
+            "opencode": {("DeepSeek 4.1 Flash", "medium"): 2},
+        }
+        with patch.object(self.feed, "ROSTER_BIN", roster):
+            cards = self.feed.usage_part(Advisor(groups=groups), {}, NOW)["cards"]
+        self.assertEqual([card["plan"] for card in cards],
+                         ["claude", "codex", "opencode", "vercel", "openrouter", "antigravity", "commandcode"])
+        by_plan = {card["plan"]: card for card in cards}
+        self.assertEqual(by_plan["claude"]["loadText"], "3 chats · 1 runner")
+        self.assertEqual(by_plan["codex"]["loadText"], "1 chat · 1 runner")
+        self.assertEqual(by_plan["opencode"]["loadText"], "2 runners")
+        self.assertEqual(by_plan["vercel"]["loadText"], "idle")
 
     def test_a_recorded_reason_wins_over_the_default_wording(self):
         self.limits('{"opencode": {"until": 2110825352.5, "reason": "retired"}}')

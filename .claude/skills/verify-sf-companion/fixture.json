@@ -2226,6 +2226,7 @@
         "creditReadAt": null,
         "creditSubLabel": null,
         "creditUsd": null,
+        "loadText": "41 chats",
         "mode": "percent",
         "name": "Claude Code",
         "note": null,
@@ -2252,14 +2253,14 @@
             "label": "Session",
             "usedPct": null
           }
-        ],
-        "inactive": false
+        ]
       },
       {
         "creditAsOf": null,
         "creditReadAt": null,
         "creditSubLabel": null,
         "creditUsd": null,
+        "loadText": "3 chats · 2 runners",
         "mode": "percent",
         "name": "Codex",
         "note": null,
@@ -2282,14 +2283,39 @@
             "label": "Weekly",
             "usedPct": 100
           }
-        ],
-        "inactive": false
+        ]
       },
       {
         "creditAsOf": null,
         "creditReadAt": null,
         "creditSubLabel": null,
         "creditUsd": null,
+        "loadText": "2 runners",
+        "mode": "none",
+        "name": "Antigravity",
+        "note": "Quota used up at 2026-11-24T00:46:05Z · limit unknown",
+        "paceDelta": null,
+        "plan": "antigravity",
+        "primaryWindow": "week",
+        "resetsText": null,
+        "reviewer": {
+          "known": true,
+          "show": false,
+          "tip": ""
+        },
+        "runnersLive": true,
+        "runnersText": "2 gemini-4-neon high",
+        "skip": null,
+        "tone": "plain",
+        "usedPct": null,
+        "windows": []
+      },
+      {
+        "creditAsOf": null,
+        "creditReadAt": null,
+        "creditSubLabel": null,
+        "creditUsd": null,
+        "loadText": "1 runner",
         "mode": "percent",
         "name": "OpenCode",
         "note": "Prepaid credit estimate: $6.20 left",
@@ -2320,14 +2346,14 @@
             "label": "5h",
             "usedPct": 0
           }
-        ],
-        "inactive": false
+        ]
       },
       {
         "creditAsOf": " · as of 2h ago",
         "creditReadAt": "2026-11-14T22:41:00Z",
         "creditSubLabel": "credit",
         "creditUsd": 105.28,
+        "loadText": "idle",
         "mode": "credit",
         "name": "Vercel",
         "note": null,
@@ -2345,14 +2371,14 @@
         "skip": null,
         "tone": "plain",
         "usedPct": null,
-        "windows": [],
-        "inactive": false
+        "windows": []
       },
       {
         "creditAsOf": " · as of 3h ago",
         "creditReadAt": "2026-11-14T21:41:00Z",
         "creditSubLabel": "credit",
         "creditUsd": 45.85,
+        "loadText": "idle",
         "mode": "credit",
         "name": "OpenRouter",
         "note": null,
@@ -2370,39 +2396,14 @@
         "skip": null,
         "tone": "plain",
         "usedPct": null,
-        "windows": [],
-        "inactive": false
+        "windows": []
       },
       {
         "creditAsOf": null,
         "creditReadAt": null,
         "creditSubLabel": null,
         "creditUsd": null,
-        "mode": "none",
-        "name": "Antigravity",
-        "note": "Quota used up at 2026-11-24T00:46:05Z · limit unknown",
-        "paceDelta": null,
-        "plan": "antigravity",
-        "primaryWindow": "week",
-        "resetsText": null,
-        "reviewer": {
-          "known": true,
-          "show": false,
-          "tip": ""
-        },
-        "runnersLive": true,
-        "runnersText": "2 gemini-4-neon high",
-        "skip": null,
-        "tone": "plain",
-        "usedPct": null,
-        "windows": [],
-        "inactive": false
-      },
-      {
-        "creditAsOf": null,
-        "creditReadAt": null,
-        "creditSubLabel": null,
-        "creditUsd": null,
+        "loadText": "idle",
         "mode": "percent",
         "name": "CommandCode",
         "note": "66.4095/70 monthly credits left (~$94.87 Flash usage)",
@@ -2420,82 +2421,6 @@
         "skip": null,
         "tone": "plain",
         "usedPct": 5.1,
-        "windows": [],
-        "inactive": false
-      },
-      {
-        "creditAsOf": null,
-        "creditReadAt": null,
-        "creditSubLabel": null,
-        "creditUsd": null,
-        "inactive": true,
-        "mode": "none",
-        "name": "Grok",
-        "note": null,
-        "paceDelta": null,
-        "plan": "grok",
-        "primaryWindow": "week",
-        "resetsText": null,
-        "reviewer": {
-          "known": false,
-          "show": false,
-          "tip": ""
-        },
-        "runnersLive": true,
-        "runnersText": "0 runners",
-        "skip": null,
-        "tone": "plain",
-        "usedPct": null,
-        "windows": []
-      },
-      {
-        "creditAsOf": null,
-        "creditReadAt": null,
-        "creditSubLabel": null,
-        "creditUsd": null,
-        "inactive": true,
-        "mode": "none",
-        "name": "DeepSeek",
-        "note": null,
-        "paceDelta": null,
-        "plan": "deepseek",
-        "primaryWindow": "week",
-        "resetsText": null,
-        "reviewer": {
-          "known": false,
-          "show": false,
-          "tip": ""
-        },
-        "runnersLive": true,
-        "runnersText": "0 runners",
-        "skip": null,
-        "tone": "plain",
-        "usedPct": null,
-        "windows": []
-      },
-      {
-        "creditAsOf": null,
-        "creditReadAt": null,
-        "creditSubLabel": null,
-        "creditUsd": null,
-        "inactive": true,
-        "mode": "none",
-        "name": "Cursor",
-        "note": null,
-        "paceDelta": null,
-        "plan": "cursor",
-        "primaryWindow": "week",
-        "resetsText": null,
-        "reviewer": {
-          "known": false,
-          "show": false,
-          "tip": ""
-        },
-        "runnersLive": true,
-        "runnersText": "0 runners",
-        "skip": null,
-        "tone": "plain",
-        "usedPct": null,
         "windows": []
       }
     ]

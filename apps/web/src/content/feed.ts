@@ -15,6 +15,16 @@ export const PlanKey = Schema.Literals([
 
 export type PlanKeyValue = typeof PlanKey.Type;
 
+const UsagePlan = Schema.Literals([
+  "claude",
+  "codex",
+  "opencode",
+  "vercel",
+  "openrouter",
+  "antigravity",
+  "commandcode",
+]);
+
 export const WindowKey = Schema.Literals(["1h"]);
 
 export type WindowKeyValue = typeof WindowKey.Type;
@@ -52,12 +62,12 @@ const UsageCard = Schema.Struct({
   creditReadAt: Schema.NullOr(Schema.String),
   creditSubLabel: Schema.NullOr(CreditSubLabel),
   creditUsd: Schema.NullOr(Schema.Number),
-  inactive: Schema.Boolean,
+  loadText: Schema.NonEmptyString,
   mode: UsageMode,
   name: Schema.NonEmptyString,
   note: Schema.NullOr(Schema.NonEmptyString),
   paceDelta: Schema.NullOr(Schema.Number),
-  plan: PlanKey,
+  plan: UsagePlan,
   primaryWindow: PrimaryWindowKey,
   resetsText: Schema.NullOr(Schema.String),
   reviewer: Reviewer,
@@ -85,14 +95,11 @@ export type BurnCellValue = typeof BurnCell.Type;
 const BurnByPlan = Schema.Struct({
   claude: Schema.optional(BurnCell),
   codex: Schema.optional(BurnCell),
-  grok: Schema.optional(BurnCell),
   opencode: Schema.optional(BurnCell),
   vercel: Schema.optional(BurnCell),
-  deepseek: Schema.optional(BurnCell),
   openrouter: Schema.optional(BurnCell),
   antigravity: Schema.optional(BurnCell),
   commandcode: Schema.optional(BurnCell),
-  cursor: Schema.optional(BurnCell),
 });
 
 const BurnByWindow = Schema.Struct({
