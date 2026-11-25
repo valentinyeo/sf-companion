@@ -59,9 +59,12 @@ const toneWord = (tone: ToneValue): string => {
   return tone === "warm" ? "over pace" : "at pace";
 };
 
+const dollars = (value: number): string =>
+  `${value < 0 ? "-" : ""}$${Math.abs(value).toFixed(2)}`;
+
 const bigNumber = (card: UsageCardValue): string => {
   if (card.mode === "credit" && card.creditUsd !== null) {
-    return `$${card.creditUsd.toFixed(2)} left`;
+    return `${dollars(card.creditUsd)} left`;
   }
 
   return card.mode === "percent" && card.usedPct !== null

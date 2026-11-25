@@ -569,7 +569,7 @@ async function drive(browser, state, width, colorScheme, baseURL) {
               "idle",
             ],
           ],
-          ["OpenRouter", ["$45.85 left", "idle"]],
+          ["OpenRouter", ["-$0.20 left", "idle"]],
           [
             "CommandCode",
             [

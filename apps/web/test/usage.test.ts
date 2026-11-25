@@ -156,6 +156,43 @@ describe("usage page", () => {
       })
   );
 
+  it.effect("shows a negative credit as a negative balance", () =>
+    Effect.gen(function* showNegativeCredit() {
+      const feed = yield* decodeFeed(
+        fixturePath,
+        JSON.stringify({
+          ...usageFeed,
+          usage: {
+            ...usageFeed.usage,
+            cards: [
+              {
+                ...usageFeed.usage.cards[1],
+                creditAsOf: " · as of 3h ago",
+                creditSubLabel: "credit",
+                creditUsd: -0.2,
+                name: "OpenRouter",
+                plan: "openrouter",
+                tone: "hot",
+              },
+            ],
+          },
+        })
+      );
+
+      scene(
+        { update, view },
+        given(
+          initialModel(
+            { items: [], route: SiteRoute.Usage() },
+            Option.some(feed)
+          )
+        ),
+        expectElement(text("-$0.20 left")).toExist(),
+        expectElement(text("$-0.20 left")).not.toExist()
+      );
+    })
+  );
+
   it.effect("links each card heading to that plan's own usage page", () =>
     Effect.gen(function* linkHeadings() {
       const linked = [
