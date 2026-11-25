@@ -27,6 +27,17 @@ class FeedScriptTests(unittest.TestCase):
         refusal = self.at('cannot fast-forward to origin/main"; exit 1; }')
         self.assertLess(guard, refusal)
 
+    def test_refuses_a_head_ahead_of_origin_main(self):
+        merge = self.at("merge --ff-only -q origin/main")
+        head = self.at('git -C "$REPO" rev-parse HEAD')
+        origin = self.at('git -C "$REPO" rev-parse origin/main')
+        refusal = self.at('is not origin/main $origin; refusing to deploy')
+        export = self.at("export-factory-feed.py")
+        self.assertLess(merge, head)
+        self.assertLess(merge, origin)
+        self.assertLess(head, refusal)
+        self.assertLess(refusal, export)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,11 @@ branch=$(git -C "$REPO" rev-parse --abbrev-ref HEAD) || { echo "feed: cannot rea
 [ "$branch" = "main" ] || { echo "feed: $REPO is on $branch, not main"; exit 1; }
 git -C "$REPO" fetch -q origin main && git -C "$REPO" merge --ff-only -q origin/main \
   || { echo "feed: $REPO cannot fast-forward to origin/main"; exit 1; }
+# --ff-only is silent when local main is ahead of origin/main. Deploy origin/main or nothing.
+head=$(git -C "$REPO" rev-parse HEAD) && origin=$(git -C "$REPO" rev-parse origin/main) \
+  || { echo "feed: cannot read HEAD and origin/main in $REPO"; exit 1; }
+[ "$head" = "$origin" ] \
+  || { echo "feed: $REPO HEAD $head is not origin/main $origin; refusing to deploy"; exit 1; }
 
 mkdir -p "$(dirname "$FEED")"
 # Usage sources: token-ladder (Claude, Codex), OpenCode credit history, Vercel AI Gateway credits.
