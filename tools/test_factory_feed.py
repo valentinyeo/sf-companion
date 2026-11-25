@@ -225,6 +225,9 @@ class FeedPlanCards(unittest.TestCase):
 
     def test_vercel_shows_the_token_pass_percent_not_the_gateway_balance(self):
         self.limits("{}")
+        (self.state / "lane-credits.json").write_text(
+            json.dumps({"vercel": {"usd": 30, "at": NOW, "limit_usd": 110}})
+        )
         payload = json.dumps({
             "balance": "19.9740337796",
             "token_pass": {"remaining": "30", "resets_at": "2026-12-05T08:00:00.000Z"},
@@ -249,13 +252,37 @@ class FeedPlanCards(unittest.TestCase):
         self.assertEqual(seen, ["https://ai-gateway.vercel.sh/v1/credits"])
         self.assertEqual(vercel["name"], "Vercel Token Pass")
         self.assertEqual(vercel["mode"], "percent")
-        self.assertAlmostEqual(vercel["usedPct"], 80.0, places=2)
+        self.assertAlmostEqual(vercel["usedPct"], 72.73, places=2)
         self.assertGreater(vercel["paceDelta"], 0)
         self.assertEqual(vercel["primaryWindow"], "month")
         self.assertEqual(vercel["resetsText"], "5 Dec")
-        self.assertEqual(vercel["note"], "$30.00 of $150 pass credit left")
+        self.assertEqual(vercel["note"], "$30.00 of $110 pass credit left")
         self.assertIsNone(vercel["creditUsd"])
         self.assertIsNone(vercel["skip"])
+
+    def test_vercel_without_a_published_total_quotes_no_number_of_its_own(self):
+        self.limits("{}")
+        (self.state / "lane-credits.json").write_text(json.dumps({"vercel": {"usd": 30, "at": NOW}}))
+        payload = json.dumps({
+            "balance": "19.9740337796",
+            "token_pass": {"remaining": "30", "resets_at": "2026-12-05T08:00:00.000Z"},
+            "total_used": "661.1272349684",
+        })
+
+        class Response:
+            def __enter__(self):
+                return io.StringIO(payload)
+
+            def __exit__(self, *args):
+                return False
+
+        with patch.dict(os.environ, {"AI_GATEWAY_API_KEY": "test-key"}, clear=False), \
+                patch.object(self.feed.urllib.request, "urlopen", side_effect=lambda *a, **k: Response()):
+            vercel = self.card("vercel")
+        self.assertEqual(vercel["mode"], "none")
+        self.assertIsNone(vercel["usedPct"])
+        self.assertIsNone(vercel["resetsText"])
+        self.assertEqual(vercel["note"], "$30.00 of unknown total pass credit left")
 
     def test_antigravity_reads_its_limits_from_the_agy_cli(self):
         self.limits("{}")
