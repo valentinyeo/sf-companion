@@ -1,5 +1,5 @@
 import type * as stylex from "@stylexjs/stylex";
-import { Option } from "effect";
+import { DateTime, Option } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 
 import type { AppMessage } from "../client/app/message.js";
@@ -16,21 +16,16 @@ import { factoryStyles } from "./factory.stylex.js";
 
 const BURN_WINDOW = "1h";
 
-const planHrefs: Partial<Record<UsageCardValue["plan"], string>> = {
+const MILLIS_PER_MINUTE = 60_000;
+
+const USAGE_PAGES: Readonly<Record<UsageCardValue["plan"], string>> = {
+  antigravity: "https://antigravity.google/",
+  claude: "https://claude.ai/new#settings/usage",
+  codex: "https://chatgpt.com/settings/usage?tab=overview",
+  commandcode: "https://commandcode.ai/",
   opencode: "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go",
+  openrouter: "https://openrouter.ai/settings/credits",
   vercel: "https://vercel.com/hypertaskai/~/ai-gateway/token-pass",
-};
-
-const cardHeading = (
-  card: UsageCardValue,
-  h: HtmlBuilder<AppMessage>
-): Html => {
-  const url = planHrefs[card.plan];
-
-  return h.h3(
-    [h.Class(classes(factoryStyles.cardName))],
-    [url === undefined ? card.name : h.a([h.Href(url)], [card.name])]
-  );
 };
 
 const trimmed = (value: number): string => {
@@ -176,6 +171,42 @@ const skipLine = (card: UsageCardValue): string | null =>
     ? null
     : `Skipped until ${card.skip.untilText} (${card.skip.reason})`;
 
+const updatedText = (generatedAt: string, nowMs: number): string | null =>
+  Option.match(DateTime.make(generatedAt), {
+    onNone: () => null,
+    onSome: (generated) => {
+      const minutes = Math.floor(
+        Math.max(0, nowMs - DateTime.toEpochMillis(generated)) /
+          MILLIS_PER_MINUTE
+      );
+
+      const clock = DateTime.formatLocal(generated, {
+        hour: "2-digit",
+        hourCycle: "h23",
+        locale: "en-GB",
+        minute: "2-digit",
+      });
+
+      return `Updated ${clock} (${minutes} min ago)`;
+    },
+  });
+
+const updatedLine = (
+  generatedAt: string,
+  nowMs: Option.Option<number>,
+  h: HtmlBuilder<AppMessage>
+): Html | null =>
+  Option.match(nowMs, {
+    onNone: () => null,
+    onSome: (measured) => {
+      const line = updatedText(generatedAt, measured);
+
+      return line === null
+        ? null
+        : h.p([h.Class(classes(factoryStyles.small))], [line]);
+    },
+  });
+
 const usageCard = (
   card: UsageCardValue,
   burn: BurnByWindowValue,
@@ -193,7 +224,21 @@ const usageCard = (
       h.div(
         [h.Class(classes(factoryStyles.cardTop))],
         [
-          cardHeading(card, h),
+          h.h3(
+            [h.AriaLabel(card.name), h.Class(classes(factoryStyles.cardName))],
+            [
+              h.a(
+                [
+                  h.AriaLabel(`Open ${card.name} usage page`),
+                  h.Class(classes(factoryStyles.cardLink)),
+                  h.Href(USAGE_PAGES[card.plan]),
+                  h.Rel("noopener"),
+                  h.Target("_blank"),
+                ],
+                [card.name, h.small([h.AriaHidden(true)], [" ↗"])]
+              ),
+            ]
+          ),
           ...(reset === ""
             ? []
             : [h.p([h.Class(classes(factoryStyles.reset))], [reset])]),
@@ -237,8 +282,16 @@ export const usageView = (
 ): readonly Html[] =>
   Option.match(model.feed, {
     onNone: () => [h.h1([], ["Usage"]), h.p([], ["No usage numbers yet."])],
-    onSome: (feed) => [
-      h.h1([], ["Usage"]),
-      h.section([h.Class(classes(factoryStyles.section))], usageCards(feed, h)),
-    ],
+    onSome: (feed) => {
+      const age = updatedLine(feed.generatedAt, model.nowMs, h);
+
+      return [
+        h.h1([], ["Usage"]),
+        ...(age === null ? [] : [age]),
+        h.section(
+          [h.Class(classes(factoryStyles.section))],
+          usageCards(feed, h)
+        ),
+      ];
+    },
   });

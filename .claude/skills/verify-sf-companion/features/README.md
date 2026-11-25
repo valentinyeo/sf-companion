@@ -13,7 +13,7 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 - [Reports](reports.md) covers the reports index, one stored item, and its scope.
 - [Stored items](items.md) covers item serving: GET, HEAD, missing, and invalid slugs.
 - [Factory page](factory.md) covers entry, export time, navigation, layout, and the link to Usage.
-- [Usage page](usage.md) covers the menu entry, every plan card, fixed 1h burn with no window picker, and the Windows disclosure.
+- [Usage page](usage.md) covers the menu entry, every plan card, each card heading's link to its plan's own usage page, the page's data age line, fixed 1h burn with no window picker, and the Windows disclosure.
 - [KPI tiles](kpis.md) covers all seven tiles, their own windows, cues, and measurement details.
 - [Shipping chart](shipping.md) covers the 30-date chart, cell sources, and stated omissions.
 - [Empty and missing states](empty.md) covers a missing feed, a feed with no shipping block, a feed with no plan cards, the KPI unavailability notes, an empty hub, and the not-found page.

@@ -61,6 +61,12 @@ export const factoryStyles = stylex.create({
     gap: reader.spaceTight,
     padding: reader.spaceSmall,
   },
+  cardLink: {
+    color: "inherit",
+    textDecorationLine: "none",
+    ":focus-visible": { textDecorationLine: "underline" },
+    ":hover": { textDecorationLine: "underline" },
+  },
   cardName: {
     fontSize: reader.fontSize,
     marginBlock: 0,

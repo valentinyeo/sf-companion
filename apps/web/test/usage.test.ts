@@ -1,13 +1,15 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Exit, Option } from "effect";
+import { DateTime, Effect, Exit, Option } from "effect";
 import {
   expect as expectElement,
   given,
   role,
   scene,
+  Subscription,
   text,
 } from "foldkit/scene";
 
+import { Message } from "../src/client/app/message.js";
 import { initialModel } from "../src/client/app/model.js";
 import { update } from "../src/client/app/update.js";
 import { decodeFeed } from "../src/content/feed.js";
@@ -15,6 +17,11 @@ import { view } from "../src/features/page.js";
 import { SiteRoute } from "../src/features/route.js";
 
 const fixturePath = "content/feed/factory.json";
+
+const head = (name: string) => role("heading", { name });
+
+const link = (name: string) =>
+  role("link", { name: `Open ${name} usage page` });
 
 const usageFeed = {
   generatedAt: "2026-11-15T00:41:07Z",
@@ -132,7 +139,9 @@ describe("usage page", () => {
           expectElement(text("resets Sun 18:00")).toExist(),
           expectElement(text("+2% · £0.00 in 1h on runners")).toExist(),
           expectElement(text("OpenCode")).toExist(),
-          expectElement(role("link", { name: "OpenCode" })).toExist(),
+          expectElement(
+            role("link", { name: "Open OpenCode usage page" })
+          ).toExist(),
           expectElement(text("$6.20 left")).toExist(),
           expectElement(text("estimate · as of 1h ago")).toExist(),
           expectElement(text("2 DeepSeek 4.1 Flash medium")).toExist(),
@@ -140,10 +149,125 @@ describe("usage page", () => {
           expectElement(text("2 runners")).toExist(),
           expectElement(text("idle")).toExist(),
           expectElement(text("inactive")).not.toExist(),
+          expectElement(text(/^Updated /u)).not.toExist(),
           expectElement(text("Weekly 67%")).toExist(),
           expectElement(text("29 / day · 87 / week")).not.toExist()
         );
       })
+  );
+
+  it.effect("links each card heading to that plan's own usage page", () =>
+    Effect.gen(function* linkHeadings() {
+      const linked = [
+        ["claude", "Claude Code", "https://claude.ai/new#settings/usage"],
+        ["codex", "Codex", "https://chatgpt.com/settings/usage?tab=overview"],
+        [
+          "vercel",
+          "Vercel Token Pass",
+          "https://vercel.com/hypertaskai/~/ai-gateway/token-pass",
+        ],
+        [
+          "opencode",
+          "OpenCode",
+          "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go",
+        ],
+        ["antigravity", "Antigravity", "https://antigravity.google/"],
+        ["commandcode", "CommandCode", "https://commandcode.ai/"],
+        ["openrouter", "OpenRouter", "https://openrouter.ai/settings/credits"],
+      ] as const;
+
+      const feed = yield* decodeFeed(
+        fixturePath,
+        JSON.stringify({
+          ...usageFeed,
+          usage: {
+            ...usageFeed.usage,
+            cards: linked.map(([plan, name]) => ({
+              ...usageFeed.usage.cards[0],
+              name,
+              plan,
+            })),
+          },
+        })
+      );
+
+      scene(
+        { update, view },
+        given(
+          initialModel(
+            { items: [], route: SiteRoute.Usage() },
+            Option.some(feed)
+          )
+        ),
+        expectElement(head("Claude Code")).toHaveText("Claude Code ↗"),
+        expectElement(head("Codex")).toHaveText("Codex ↗"),
+        expectElement(head("Vercel Token Pass")).toHaveText(
+          "Vercel Token Pass ↗"
+        ),
+        expectElement(head("OpenCode")).toHaveText("OpenCode ↗"),
+        expectElement(head("Antigravity")).toHaveText("Antigravity ↗"),
+        expectElement(head("CommandCode")).toHaveText("CommandCode ↗"),
+        expectElement(head("OpenRouter")).toHaveText("OpenRouter ↗"),
+        expectElement(link("Claude Code")).toHaveAttr(
+          "href",
+          "https://claude.ai/new#settings/usage"
+        ),
+        expectElement(link("Claude Code")).toHaveAttr("target", "_blank"),
+        expectElement(link("Claude Code")).toHaveAttr("rel", "noopener"),
+        expectElement(link("Codex")).toHaveAttr(
+          "href",
+          "https://chatgpt.com/settings/usage?tab=overview"
+        ),
+        expectElement(link("Vercel Token Pass")).toHaveAttr(
+          "href",
+          "https://vercel.com/hypertaskai/~/ai-gateway/token-pass"
+        ),
+        expectElement(link("OpenCode")).toHaveAttr(
+          "href",
+          "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go"
+        ),
+        expectElement(link("Antigravity")).toHaveAttr(
+          "href",
+          "https://antigravity.google/"
+        ),
+        expectElement(link("CommandCode")).toHaveAttr(
+          "href",
+          "https://commandcode.ai/"
+        ),
+        expectElement(link("OpenRouter")).toHaveAttr(
+          "href",
+          "https://openrouter.ai/settings/credits"
+        )
+      );
+    })
+  );
+
+  it.effect("shows one data age line and updates it when the clock ticks", () =>
+    Effect.gen(function* showAge() {
+      const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
+
+      const generated = DateTime.toEpochMillis(
+        DateTime.makeUnsafe(usageFeed.generatedAt)
+      );
+
+      const at = (minutes: number) => Option.some(generated + minutes * 60_000);
+
+      scene(
+        { update, view },
+        given({
+          ...initialModel(
+            { items: [], route: SiteRoute.Usage() },
+            Option.some(feed)
+          ),
+          nowMs: at(5),
+        }),
+        expectElement(text(/^Updated \d{2}:\d{2} \(5 min ago\)$/u)).toExist(),
+        Subscription.emit(
+          Message.TickedClock({ nowMs: generated + 35 * 60_000 })
+        ),
+        expectElement(text(/^Updated \d{2}:\d{2} \(35 min ago\)$/u)).toExist()
+      );
+    })
   );
 
   it.effect("rejects a card for a retired plan", () =>

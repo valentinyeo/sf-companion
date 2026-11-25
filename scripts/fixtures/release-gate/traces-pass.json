@@ -17,6 +17,7 @@
     "usage-cards": ["seeded-1280-light.trace.zip"],
     "usage-burn": ["seeded-390-dark.trace.zip"],
     "usage-details": ["seeded-390-dark.trace.zip"],
+    "usage-updated": ["seeded-1280-light.trace.zip"],
     "kpi-tiles": ["seeded-1280-light.trace.zip"],
     "kpi-windows": ["seeded-390-dark.trace.zip"],
     "kpi-details": ["seeded-1280-light.trace.zip"],
