@@ -64,7 +64,6 @@ ROSTER_PLANS = {"claude": "claude", "codex": "codex"}
 PLAN_LANES = {"antigravity": ("antigravity", "google"), "commandcode": ("commandcode", "credit:commandcode")}
 LANE_TO_PLAN = {"google": "antigravity", "vercel-zai": "vercel"}
 COMMANDCODE_MONTHLY_CREDITS = 70.0
-TOKEN_PASS_CREDIT_USD = 150.0
 TOKEN_PASS_CYCLE_SECONDS = 30 * 86400
 TOKEN_PASS_CREDITS_URL = "https://ai-gateway.vercel.sh/v1/credits"
 WINDOW_ENUM = ("week", "month")
@@ -332,7 +331,13 @@ def opencode_anchored_credit(credits, now):
     return round(usd, 2), None, at, iso_utc(at)
 
 
-def vercel_reading(now):
+def vercel_cycle_total(credits):
+    entry = credits.get("vercel") if isinstance(credits, dict) else None
+    limit = number(entry.get("limit_usd")) if isinstance(entry, dict) else None
+    return limit if limit is not None and limit > 0 else None
+
+
+def vercel_reading(now, credits):
     key = os.environ.get("AI_GATEWAY_API_KEY")
     if not key:
         return None
@@ -351,14 +356,18 @@ def vercel_reading(now):
         credit = number(float(remaining))
         if credit is None or credit < 0:
             return None
-        used_pct = max(0.0, min(100.0, (TOKEN_PASS_CREDIT_USD - credit) / TOKEN_PASS_CREDIT_USD * 100))
         resets = iso_timestamp(token_pass.get("resets_at"))
+        total = vercel_cycle_total(credits)
+        if total is None:
+            return {"usedPct": None, "paceDelta": None, "resetsAt": resets,
+                    "note": f"${credit:.2f} of unknown total pass credit left"}
+        used_pct = max(0.0, min(100.0, (total - credit) / total * 100))
         pace = None
         if resets is not None:
             gone_pct = (now - (resets - TOKEN_PASS_CYCLE_SECONDS)) / TOKEN_PASS_CYCLE_SECONDS * 100
             pace = used_pct - gone_pct if 0 <= gone_pct <= 100 else None
         return {"usedPct": used_pct, "paceDelta": pace, "resetsAt": resets,
-                "note": f"${credit:.2f} of ${TOKEN_PASS_CREDIT_USD:.0f} pass credit left"}
+                "note": f"${credit:.2f} of ${total:g} pass credit left"}
     except (OSError, urllib.error.URLError, ValueError, TypeError, AttributeError):
         return None
 
@@ -565,12 +574,12 @@ def usage_part(ub, g, now):
     opencode_history = opencode_reading()
     opencode_credit = opencode_console_credit(now) or opencode_history
     antigravity = agy_reading()
-    vercel = vercel_reading(now)
+    limits = read_json(TOKEN_LADDER_LIMITS)
+    credits = read_json(TOKEN_LADDER_CREDITS)
+    vercel = vercel_reading(now, credits)
     other_credit = {"openrouter": openrouter_reading(now)}
     groups = merge_runner_groups(ub.runner_groups(), plan_pick_runner_groups(ub))
     chats = roster_chats()
-    limits = read_json(TOKEN_LADDER_LIMITS)
-    credits = read_json(TOKEN_LADDER_CREDITS)
     opencode_estimate = opencode_anchored_credit(credits, now)
     pools = status.get("pools") if isinstance(status.get("pools"), dict) else {}
     cards = []
