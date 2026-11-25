@@ -11,6 +11,7 @@ import check_fixture_scale as scale
 README = ".claude/skills/verify-sf-companion/features/README.md"
 FIXTURE = ".claude/skills/verify-sf-companion/fixture.json"
 HUB = ".claude/skills/verify-sf-companion/fixture-hub/index.json"
+CHATS = ".claude/skills/verify-sf-companion/fixture-chats.json"
 
 HEADER = "| Measure | Production | Fixture |\n| --- | --- | --- |\n"
 DATE = "Production counts were measured on 2026-11-19.\n"
@@ -38,6 +39,10 @@ def hub(reports=10, explorations=10):
     ]
 
 
+def chats(count=73):
+    return {"chats": [{"name": f"Chat {index}"} for index in range(count)]}
+
+
 def rows(**overrides):
     counts = {
         "Hub reports": (9, 10),
@@ -49,6 +54,7 @@ def rows(**overrides):
         "Shipping days": (30, 30),
         "Shipping omissions": (2, 2),
         "Shipping notes": (5, 5),
+        "Chats": (73, 73),
     }
     counts.update(overrides)
     return "".join(
@@ -63,6 +69,7 @@ class Repo:
         self.root = Path(self.directory.name)
         self.write(FIXTURE, json.dumps(feed(notes=8, ship_notes=5)))
         self.write(HUB, json.dumps(hub()))
+        self.write(CHATS, json.dumps(chats()))
 
     def scale(self, table=None, date=DATE):
         return f"## Scale\n\n{date}\n{table or HEADER + rows()}"
@@ -125,19 +132,23 @@ class FixtureScaleTest(unittest.TestCase):
         feed_path.write_text(json.dumps(feed(notes=3)), encoding="utf-8")
         hub_path = elsewhere / "index.json"
         hub_path.write_text(json.dumps(hub(reports=4)), encoding="utf-8")
+        chats_path = elsewhere / "chats.json"
+        chats_path.write_text(json.dumps(chats(count=4)), encoding="utf-8")
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            scale.measure(feed_path, hub_path)
+            scale.measure(feed_path, hub_path, chats_path)
         printed = buffer.getvalue().splitlines()
         self.assertIn("KPI notes: 3", printed)
         self.assertIn("Hub reports: 4", printed)
         self.assertIn("Hub explorations: 10", printed)
+        self.assertIn("Chats: 4", printed)
 
     def test_measure_says_what_it_could_not_read(self):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            scale.measure(None, None)
+            scale.measure(None, None, None)
         self.assertIn("Hub reports: not measured, no hub index given", buffer.getvalue())
+        self.assertIn("Chats: not measured, no chats snapshot given", buffer.getvalue())
 
 
 if __name__ == "__main__":

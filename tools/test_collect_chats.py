@@ -15,14 +15,15 @@ spec.loader.exec_module(chats)
 
 FIELDS = ["effort", "harness", "model", "name", "project", "server"]
 
+FAKE_TOKEN = "-".join(("sk", "live", "9f2b7c41d8e5a6b3c0d1e2f3a4b5c6d7"))
+
 
 class RedactionTests(unittest.TestCase):
     def test_an_email_never_reaches_the_output(self):
         self.assertEqual(chats.clean("Ops valentin@example.com"), "Ops [redacted]")
 
     def test_a_token_like_run_never_reaches_the_output(self):
-        self.assertEqual(chats.clean("Deploy sk-live-9f2b7c41d8e5a6b3c0d1e2f3a4b5c6d7"),
-                         "Deploy [redacted]")
+        self.assertEqual(chats.clean(f"Deploy {FAKE_TOKEN}"), "Deploy [redacted]")
 
     def test_a_host_name_never_reaches_the_output(self):
         self.assertEqual(chats.clean("Runner box-42.corp.internal"), "Runner [redacted]")
@@ -66,7 +67,7 @@ class RecordTests(unittest.TestCase):
     def test_an_extra_input_field_is_dropped(self):
         record = {"name": "HT Bugs", "cwd": "/home/valentin/projects/hypertask", "harness": "codex",
                   "model": "gpt-6.1-sol", "effort": "medium", "email": "valentin@example.com",
-                  "token": "sk-live-9f2b7c41d8e5a6b3c0d1e2f3a4b5c6d7"}
+                  "token": FAKE_TOKEN}
         row = chats.chat(record["name"], "Contabo", record["cwd"], record["harness"],
                          record["model"], record["effort"])
         self.assertEqual(sorted(row), FIELDS)

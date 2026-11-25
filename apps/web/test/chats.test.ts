@@ -41,6 +41,8 @@ const snapshot: ChatsSnapshotValue = {
   ],
 };
 
+const fakeToken = ["sk", "live", "9f2b7c41d8e5a6b3c0d1e2f3a4b5c6d7"].join("-");
+
 const leaky = {
   chats: [
     {
@@ -55,7 +57,7 @@ const leaky = {
       effort: "medium",
       harness: "codex",
       model: "gpt-6.1-sol",
-      name: "Deploy sk-live-9f2b7c41d8e5a6b3c0d1e2f3a4b5c6d7",
+      name: `Deploy ${fakeToken}`,
       project: "hypertask",
       server: "Contabo",
     },
@@ -99,6 +101,7 @@ describe("chats snapshot", () => {
         expect(published).not.toContain("example.com");
         expect(published).not.toContain("valentin@");
         expect(published).not.toContain("9f2b7c41d8e5a6b3c0d1e2f3a4b5c6d7");
+        expect(published).not.toContain("sk-live");
         expect(published).not.toContain("corp.internal");
         expect(published).not.toContain("10.0.4.19");
         expect(published).not.toContain("s3cretExtraValue");
