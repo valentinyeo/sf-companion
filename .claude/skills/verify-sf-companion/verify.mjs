@@ -145,7 +145,7 @@ const usageLinks = [
   ["Codex", "https://chatgpt.com/settings/usage?tab=overview"],
   ["Antigravity", "https://antigravity.google/"],
   ["OpenCode", "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go"],
-  ["Vercel", "https://vercel.com/hypertaskai/~/ai-gateway/token-pass"],
+  ["Vercel Token Pass", "https://vercel.com/hypertaskai/~/ai-gateway/token-pass"],
   ["OpenRouter", "https://openrouter.ai/settings/credits"],
   ["CommandCode", "https://commandcode.ai/"],
 ];
@@ -557,10 +557,12 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             ],
           ],
           [
-            "Vercel",
+            "Vercel Token Pass",
             [
-              "$105.28 left",
-              "credit · resets Tue 00:00 · as of 2h ago",
+              "81%",
+              "+14.2 vs pace · over pace",
+              "resets 5 Dec",
+              "$28.90 of $150 pass credit left",
               "idle",
             ],
           ],

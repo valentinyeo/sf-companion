@@ -158,7 +158,7 @@ describe("usage page", () => {
         ["codex", "Codex", "https://chatgpt.com/settings/usage?tab=overview"],
         [
           "vercel",
-          "Vercel",
+          "Vercel Token Pass",
           "https://vercel.com/hypertaskai/~/ai-gateway/token-pass",
         ],
         [
@@ -200,7 +200,9 @@ describe("usage page", () => {
         ),
         expectElement(head("Claude Code")).toHaveText("Claude Code ↗"),
         expectElement(head("Codex")).toHaveText("Codex ↗"),
-        expectElement(head("Vercel")).toHaveText("Vercel ↗"),
+        expectElement(head("Vercel Token Pass")).toHaveText(
+          "Vercel Token Pass ↗"
+        ),
         expectElement(head("OpenCode")).toHaveText("OpenCode ↗"),
         expectElement(head("Antigravity")).toHaveText("Antigravity ↗"),
         expectElement(head("CommandCode")).toHaveText("CommandCode ↗"),
@@ -215,7 +217,7 @@ describe("usage page", () => {
           "href",
           "https://chatgpt.com/settings/usage?tab=overview"
         ),
-        expectElement(link("Vercel")).toHaveAttr(
+        expectElement(link("Vercel Token Pass")).toHaveAttr(
           "href",
           "https://vercel.com/hypertaskai/~/ai-gateway/token-pass"
         ),
