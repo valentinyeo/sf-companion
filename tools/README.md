@@ -35,3 +35,5 @@ KPIs read Hypertask, GitHub, token-ladder pools and the fleet watchdog independe
 GitHub reads are incremental. Finished Actions runs and their failure classifications are kept per run id, and the PR query stops at the previous export instead of paging the whole window again. If the shared `gh` wrapper refuses a read (exit 75), the script exits non-zero, prints one line and leaves the previous feed file alone, so a refused hour never replaces the numbers with an empty feed.
 
 The field contract is the `FactoryFeed` schema in `apps/web/src/content/feed.ts`. KPIs are named tiles with source, window and measurement details, plus explanations for sources that could not supply a tile.
+
+`~/.local/bin/sf-companion-feed` is a symlink to `tools/sf-companion-feed` in this repo.
