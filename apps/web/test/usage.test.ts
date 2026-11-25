@@ -18,6 +18,11 @@ import { SiteRoute } from "../src/features/route.js";
 
 const fixturePath = "content/feed/factory.json";
 
+const head = (name: string) => role("heading", { name });
+
+const link = (name: string) =>
+  role("link", { name: `Open ${name} usage page` });
+
 const usageFeed = {
   generatedAt: "2026-11-15T00:41:07Z",
   kpis: {
@@ -185,10 +190,6 @@ describe("usage page", () => {
           },
         })
       );
-
-      const head = (name: string) => role("heading", { name });
-      const link = (name: string) =>
-        role("link", { name: `Open ${name} usage page` });
 
       scene(
         { update, view },
