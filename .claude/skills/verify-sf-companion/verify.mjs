@@ -39,6 +39,11 @@ const declaredRoutes =
         )
       );
 const journeyRoutes = {
+  "chats-age": "Chats",
+  "chats-empty": "Chats",
+  "chats-entry": "Chats",
+  "chats-not-connected": "Chats",
+  "chats-rows": "Chats",
   "usage-burn": "Usage",
   "usage-cards": "Usage",
   "usage-details": "Usage",
@@ -65,6 +70,9 @@ const usagePage = declaredRoutes === null || declaredRoutes.has("Usage");
 const shareToken = "verify-share-token";
 process.env.SF_SHARE_TOKEN = shareToken;
 const seededFactoryJourneys = [
+  "chats-entry",
+  "chats-rows",
+  "chats-age",
   "factory-entry",
   "factory-layout",
   "factory-timestamp",
@@ -109,12 +117,14 @@ const seededJourneys = [
   ...shareJourneys,
 ];
 const sparseJourneys = [
+  "chats-not-connected",
   "shipping-missing",
   "kpi-unavailable",
   "usage-no-plans",
 ];
 const runSeeded = seededJourneys.some(wants);
 const runEmpty = [
+  "chats-empty",
   "factory-empty",
   "usage-empty",
   "home-empty",
@@ -165,6 +175,9 @@ const { chromium, request } = await import(
 const proof = process.env.PROOF_DIR;
 const fixture = fileURLToPath(new URL("./fixture.json", import.meta.url));
 const fixtureHub = fileURLToPath(new URL("./fixture-hub", import.meta.url));
+const fixtureChats = fileURLToPath(
+  new URL("./fixture-chats.json", import.meta.url)
+);
 const result = {
   skipped: [...absentJourneys.entries()].map(([journey, reason]) => ({
     journey,
@@ -294,6 +307,22 @@ async function stop(child) {
     clearTimeout(force);
     children.delete(child);
   }
+}
+
+function chatsSnapshot(raw, notConnected = false) {
+  const snapshot = JSON.parse(raw);
+  const collectedAt = new Date(Date.now() - 3 * 60_000)
+    .toISOString()
+    .replace(/\.\d{3}Z$/u, "Z");
+  snapshot.generatedAt = collectedAt;
+  for (const line of snapshot.servers) {
+    line.collectedAt = collectedAt;
+    if (notConnected && line.server === "inne Hetzner") {
+      line.state = "not-connected";
+      line.collectedAt = null;
+    }
+  }
+  return `${JSON.stringify(snapshot, null, 2)}\n`;
 }
 
 function sparseFeed(raw) {
@@ -495,6 +524,146 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await record(
           "usage: /usage answers directly, and primary navigation, the Home section, and the Factory link all reach it",
           "usage-entry"
+        );
+      }
+      if (wants("chats-entry")) {
+        const direct = await page.goto("/chats", { waitUntil: "networkidle" });
+        assert.equal(direct.status(), 200, `${id}: /chats status`);
+        await page
+          .getByRole("heading", { name: "Chats", exact: true })
+          .waitFor();
+        await page
+          .getByRole("link", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .waitFor();
+        await page.goto("/", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .waitFor();
+        await homeSection("Chats")
+          .getByRole("link", { name: "Open", exact: true })
+          .click();
+        await page
+          .getByRole("heading", { name: "Chats", exact: true })
+          .waitFor();
+        await page
+          .getByRole("link", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .click();
+        await page
+          .getByRole("heading", {
+            name: "Software Factory Companion",
+            exact: true,
+          })
+          .waitFor();
+        await page
+          .getByRole("navigation", { name: "Primary navigation" })
+          .getByRole("link", { name: "Chats", exact: true })
+          .click();
+        await page
+          .getByRole("heading", { name: "Chats", exact: true })
+          .waitFor();
+        await record(
+          "load /chats directly, then open Chats from the Home section and from primary navigation",
+          "chats-entry"
+        );
+      }
+      if (wants("chats-rows")) {
+        await page.goto("/chats", { waitUntil: "networkidle" });
+        const sectionOf = (name) =>
+          page.locator("section").filter({
+            has: page.getByRole("heading", { name, exact: true }),
+          });
+        const contabo = sectionOf("Contabo");
+        await contabo.getByText("53 live chats", { exact: true }).waitFor();
+        const contaboTable = contabo.getByRole("region", {
+          name: "Live chats",
+        });
+        assert.equal(
+          await contaboTable.getByRole("row").count(),
+          54,
+          `${id}: Contabo row count`
+        );
+        const firstRow = contaboTable.getByRole("row").filter({
+          has: page.getByRole("rowheader", { name: "HT Bugs", exact: true }),
+        });
+        assert.equal(
+          await firstRow.count(),
+          1,
+          `${id}: the first Contabo chat row`
+        );
+        for (const field of [
+          "hypertask",
+          "Claude Code",
+          "claude-opus-5-5",
+          "high",
+        ]) {
+          assert.equal(
+            await firstRow
+              .getByRole("cell", { name: field, exact: true })
+              .count(),
+            1,
+            `${id}: the HT Bugs row has no ${field} cell`
+          );
+        }
+        const inner = sectionOf("inne Hetzner");
+        await inner.getByText("20 live chats", { exact: true }).waitFor();
+        assert.equal(
+          await inner
+            .getByRole("region", { name: "Live chats" })
+            .getByRole("row")
+            .count(),
+          21,
+          `${id}: inne Hetzner row count`
+        );
+        for (const harness of ["Cursor", "Antigravity", "Pi", "Codex"]) {
+          assert.ok(
+            await page
+              .getByRole("cell", { name: harness, exact: true })
+              .count(),
+            `${id}: no chat runs ${harness}`
+          );
+        }
+        assert.ok(
+          await page
+            .getByRole("cell", { name: "unknown", exact: true })
+            .count(),
+          `${id}: no row shows an unreadable model as unknown`
+        );
+        const body = await page.locator("body").innerText();
+        assert.ok(
+          !body.includes("/home/"),
+          `${id}: a full home path reached the chats page`
+        );
+        assert.ok(
+          !/[\w.+-]+@[\w-]+\.[\w.]+/u.test(body),
+          `${id}: an email address reached the chats page`
+        );
+        await record(
+          "chats: both servers list every live chat with its harness, model and effort, server and project only",
+          "chats-rows"
+        );
+      }
+      if (wants("chats-age")) {
+        await page.goto("/chats", { waitUntil: "networkidle" });
+        const age = page.getByText(/^Updated \d{2}:\d{2} \(\d+ min ago\)$/u);
+        await age.waitFor();
+        const shown = await age.innerText();
+        const minutes = Number(/(\d+) min ago/u.exec(shown)[1]);
+        assert.ok(
+          minutes >= 1 && minutes <= 8,
+          `${id}: the data age reads ${minutes} min, and the seeded snapshot is 3 min old`
+        );
+        await record(
+          "chats: the data age is computed from the snapshot stamp and the browser clock",
+          "chats-age"
         );
       }
       if (wants("usage-updated")) {
@@ -926,6 +1095,24 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           "kpi-unavailable"
         );
       }
+      if (wants("chats-not-connected")) {
+        await page.goto("/chats", { waitUntil: "networkidle" });
+        await page
+          .getByRole("heading", { name: "Chats", exact: true })
+          .waitFor();
+        const inner = page.locator("section").filter({
+          has: page.getByRole("heading", {
+            name: "inne Hetzner",
+            exact: true,
+          }),
+        });
+        await inner.getByText("not connected yet", { exact: true }).waitFor();
+        await page.getByText("53 live chats", { exact: true }).waitFor();
+        await record(
+          "chats: a server that does not answer reads not connected yet while the other keeps its rows",
+          "chats-not-connected"
+        );
+      }
       if (wants("usage-no-plans")) {
         const response = await page.goto("/usage", {
           waitUntil: "networkidle",
@@ -969,6 +1156,22 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await record(
           "missing feed shows explicit empty state, not measured zeroes",
           "factory-empty"
+        );
+      }
+      if (wants("chats-empty")) {
+        const response = await page.goto("/chats", {
+          waitUntil: "networkidle",
+        });
+        assert.equal(response.status(), 200, `${id}: empty /chats status`);
+        await page
+          .getByRole("heading", { name: "Chats", exact: true })
+          .waitFor();
+        await page
+          .getByText("No chat snapshot yet.", { exact: true })
+          .waitFor();
+        await record(
+          "chats: a missing snapshot says so instead of an empty table",
+          "chats-empty"
         );
       }
       if (wants("usage-empty")) {
@@ -1638,16 +1841,26 @@ try {
     ];
     if (!wanted) continue;
     const feed = join(site, "apps/web/content/feed/factory.json");
+    const chatsFeed = join(site, "apps/web/content/feed/chats.json");
     const hub = join(site, "apps/web/content/hub");
     await mkdir(join(site, "apps/web/content/feed"), { recursive: true });
     await rm(hub, { recursive: true, force: true });
     if (state === "seeded") {
       await copyFile(fixture, feed);
       await cp(fixtureHub, hub, { recursive: true });
+      await writeFile(
+        chatsFeed,
+        chatsSnapshot(await readFile(fixtureChats, "utf8"))
+      );
     } else if (state === "sparse") {
       await writeFile(feed, sparseFeed(await readFile(fixture, "utf8")));
+      await writeFile(
+        chatsFeed,
+        chatsSnapshot(await readFile(fixtureChats, "utf8"), true)
+      );
     } else {
       await rm(feed, { force: true });
+      await rm(chatsFeed, { force: true });
     }
     const build = start(
       ["--filter", "@sf-companion/web", "build"],

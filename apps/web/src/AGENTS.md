@@ -21,11 +21,13 @@ Rules for browser code under `apps/web/src/client/` and `apps/web/src/features/`
 | `src/content/share.ts` | The item surface: GET bytes, PUT upload, DELETE, slug and header rules |
 | `src/content/feed.ts` | The `FactoryFeed` Schema, the `FeedError` failure, and decoding |
 | `src/content/factory.ts` | Reads the one exported feed file and decodes it at load, or yields null |
+| `src/content/chats.ts` | The `ChatsSnapshot` Schema, the allowlist redaction every published string passes, the bucket read, and the bundled fallback |
 | `src/features/route.ts` | The page route union and its Routers; URLs come from calling a Router as a printer |
 | `src/features/page.ts` | The page view; it composes the template's `reader.stylex.ts` and base sheet |
 | `src/features/hub.stylex.ts` | StyleX styles for the home and index rows only |
 | `src/features/factory.ts` | The `/factory` view: the PRs shipped versus plan burn chart, the KPI tiles, and the link to Usage |
 | `src/features/usage.ts` | The `/usage` view: plan cards, fixed 1h burn, and the Windows disclosure |
+| `src/features/chats.ts` | The `/chats` view: one table per server, its live chat count, and the data age line |
 | `src/features/cue.ts` | The state cue and the class helper shared by the factory and usage views |
 | `src/features/factory.stylex.ts` | StyleX styles for the factory and usage views |
 | `src/client/rat.css` | The template's base sheet: monospace type, 80ch measure, grid, focus ring |
@@ -46,6 +48,8 @@ The bucket is the only durable fact. Indexes are derived from a listing on every
 An item URL serves the stored object's bytes with its own content type, `private, no-store`, and no site chrome. Upload and delete are the same contract `yeoshare` already sends: `PUT` and `DELETE` on `/<section>/<slug>` with `Authorization: Bearer <SHARE_TOKEN>` and the `X-Title`, `X-Project`, and `X-Date` headers.
 
 When no `CONTENT` binding exists (a local dev server or a test), `content/hub.ts` reads `apps/web/content/hub/`: an `index.json` listing object keys with their metadata, plus one file per object under its prefix. That folder is gitignored and only ever holds fixtures.
+
+The chat roster is one snapshot, `chats/latest.json` in the same bucket, written by `tools/collect-chats.py` through `tools/sf-companion-chats` every five minutes and read on every `/chats` request. `content/chats.ts` decodes it through `ChatsSnapshot` and rebuilds each row from six allowlisted fields, redacting emails, IP addresses, host names and token-like runs, so no other field collected on the host can reach a page. When no `CONTENT` binding exists, the same module reads `apps/web/content/feed/chats.json`, the file the collector writes on the host; that file is gitignored and never committed, so a build without it shows `No chat snapshot yet.`
 
 The factory numbers are one exported file, `apps/web/content/feed/factory.json`, decoded at load by `content/feed.ts`. It is not committed: when it is missing the site still builds and `/factory` shows the line `No factory numbers yet.` The exporter owns every state and every pre-formatted display string; the view writes numbers as text, dates, and bar heights, and decides nothing.
 

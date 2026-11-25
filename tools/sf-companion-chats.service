@@ -1,0 +1,6 @@
+[Unit]
+Description=Refresh the live chat roster for the SF companion site
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/sf-companion-chats

@@ -55,6 +55,7 @@ mkdir "$scratch/site" "$scratch/tools"
 tar -C "$repo" --exclude=.git --exclude=node_modules --exclude=dist \
   --exclude=.turbo --exclude=.alchemy --exclude=.agent_sources/github.com \
   --exclude=.env --exclude='.env.*local' --exclude=apps/web/content/feed/factory.json \
+  --exclude=apps/web/content/feed/chats.json \
   --exclude=apps/web/content/hub \
   -cf - . | tar -C "$scratch/site" -xf -
 git -C "$repo" rev-parse HEAD > "$PROOF_DIR/revision.txt"

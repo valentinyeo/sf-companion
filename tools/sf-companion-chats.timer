@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the live chat roster for the SF companion site
+
+[Timer]
+OnCalendar=*:0/5
+RandomizedDelaySec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

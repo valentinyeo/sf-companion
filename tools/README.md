@@ -38,3 +38,31 @@ GitHub reads are incremental. Finished Actions runs and their failure classifica
 The field contract is the `FactoryFeed` schema in `apps/web/src/content/feed.ts`. KPIs are named tiles with source, window and measurement details, plus explanations for sources that could not supply a tile.
 
 `~/.local/bin/sf-companion-feed` is a symlink to `tools/sf-companion-feed` in this repo.
+
+# Chat collector
+
+`collect-chats.py` writes the live chat roster the companion site shows at `/chats`. It reads four things and nothing else:
+
+- `~/.local/share/house-rules/fleet/roster-live` (`ROSTER_BIN` overrides it) for the chat name, harness and working folder of every live chat on this server.
+- `mp-sessions list` (`MP_SESSIONS_BIN` overrides it) for Multibot's own chat names.
+- Each harness's session record for the chat's model and effort: Claude Code's registry under `~/.claude/sessions` plus that session's transcript under `~/.claude/projects`, Codex's rollouts under `~/.codex/sessions` (the one the chat's process holds open), and Pi's records under `~/.pi/agent/sessions` (the one its process holds open). A chat whose record cannot be read shows `unknown`; a config default is never substituted.
+- `~/.local/state/roster/announce` (`ROSTER_ANNOUNCE_DIR` overrides it) for the Claude session id each chat announced, which is what maps a chat to its transcript.
+
+The inne server is one read-only `ssh` run as user `inne` through the same host `inne-comms` uses (`INNE_COMMS_HOST` overrides it). It prints the same fields from Claude Code's registry and transcripts there. When the run fails the server is published as `not-connected` and no rows are invented for it.
+
+Every published string passes the allowlist record: a chat is exactly `name`, `server`, `project`, `harness`, `model` and `effort`, and each of those is redacted for emails, IP addresses, host names and token-like runs first. `project` is a folder name, never a path. The file is written to a temp path and renamed, so a crash never leaves half a snapshot.
+
+```sh
+python3 tools/collect-chats.py --out apps/web/content/feed/chats.json
+```
+
+`tools/sf-companion-chats` runs the collector and publishes the snapshot to `chats/latest.json` in the `yeoux-site-content` bucket, which the Worker already binds as `CONTENT`. `/chats` reads that object on every request, so a refresh needs no build and no deploy. Install it on the host and enable the timer:
+
+```sh
+ln -sfn ~/projects/sf-companion/tools/sf-companion-chats ~/.local/bin/sf-companion-chats
+install -Dm644 ~/projects/sf-companion/tools/sf-companion-chats.service ~/.config/systemd/user/sf-companion-chats.service
+install -Dm644 ~/projects/sf-companion/tools/sf-companion-chats.timer ~/.config/systemd/user/sf-companion-chats.timer
+systemctl --user daemon-reload && systemctl --user enable --now sf-companion-chats.timer
+```
+
+The timer runs every five minutes, so the page's data age stays under ten. `tools/test_collect_chats.py` holds the collector's redaction and ordering tests; CI runs it.

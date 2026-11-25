@@ -6,10 +6,12 @@ import type { AppMessage } from "../client/app/message.js";
 import type { AppModel } from "../client/app/model.js";
 import { itemsIn, titleFromSlug } from "../content/item.js";
 import type { ItemValue, SectionValue } from "../content/item.js";
+import { chatsView } from "./chats.js";
 import { factoryView } from "./factory.js";
 import { hubStyles } from "./hub.stylex.js";
 import { readerStyles } from "./reader.stylex.js";
 import {
+  chatsRouter,
   entryPath,
   factoryRouter,
   homeRouter,
@@ -50,6 +52,7 @@ const sectionLinks = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
   h.li([], [h.a([h.Href(listPath("reports"))], ["Reports"])]),
   h.li([], [h.a([h.Href(factoryRouter())], ["Factory"])]),
   h.li([], [h.a([h.Href(usageRouter())], ["Usage"])]),
+  h.li([], [h.a([h.Href(chatsRouter())], ["Chats"])]),
 ];
 
 const siteHeader = (h: HtmlBuilder<AppMessage>): Html =>
@@ -166,6 +169,19 @@ const homeView = (
       ),
     ]
   ),
+  h.section(
+    [h.Class(className(hubStyles.section))],
+    [
+      h.div(
+        [h.Class(className(hubStyles.heading))],
+        [h.h2([], ["Chats"]), h.a([h.Href(chatsRouter())], ["Open"])]
+      ),
+      h.p(
+        [h.Class(className(hubStyles.empty))],
+        ["Every live chat on both servers, with its harness, model and effort."]
+      ),
+    ]
+  ),
 ];
 
 const listView = (
@@ -199,6 +215,7 @@ const missingView = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
 
 const titleOf = (route: SiteRouteValue): string =>
   SiteRoute.match(route, {
+    Chats: () => "Chats",
     Entry: ({ slug }) => titleFromSlug(slug),
     Factory: () => "Factory",
     Home: () => SITE_NAME,
@@ -213,6 +230,7 @@ const bodyOf = (
   h: HtmlBuilder<AppMessage>
 ): readonly Html[] =>
   SiteRoute.match(route, {
+    Chats: () => chatsView(model, h),
     Entry: () => missingView(h),
     Factory: () => factoryView(model, h),
     Home: () => homeView(model, h),

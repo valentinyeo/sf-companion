@@ -27,6 +27,7 @@ const hubRoutes = [
   "yeoux.net/explorations*",
   "yeoux.net/reports*",
   "yeoux.net/factory*",
+  "yeoux.net/chats*",
   "yeoux.net/usage*",
 
   "yeoux.net/assets/*",

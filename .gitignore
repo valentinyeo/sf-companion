@@ -28,6 +28,7 @@ env.d.ts
 
 # Factory numbers are exported on the host; the site builds without them
 apps/web/content/feed/factory.json
+apps/web/content/feed/chats.json
 
 # Local stand-in for the yeoux.net R2 bucket while developing and verifying
 apps/web/content/hub/

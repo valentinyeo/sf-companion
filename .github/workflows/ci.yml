@@ -78,6 +78,8 @@ jobs:
           python3 -m unittest discover -s tools -p "test_check_*.py" -v && pnpm exec vitest run scripts/rules.test.ts
       - name: Test factory KPI exporter
         run: python3 -m unittest discover -s tools -p "test_factory*.py" -v
+      - name: Test the chat collector
+        run: python3 -m unittest discover -s tools -p "test_collect*.py" -v
       - name: Test verifier scripts
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
       - name: Check and test

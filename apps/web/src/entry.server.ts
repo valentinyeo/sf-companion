@@ -1,4 +1,4 @@
-import { Effect, Option } from "effect";
+import { Clock, Effect, Option } from "effect";
 import {
   Rendered,
   Responded,
@@ -8,6 +8,8 @@ import { fromString } from "foldkit/url";
 
 import { Flags, initialModel } from "./client/app/model.js";
 import type { PageFlags } from "./client/app/model.js";
+import { chatsSnapshot } from "./content/chats-source.js";
+import type { ChatsSnapshotValue } from "./content/chats.js";
 import { factoryFeed } from "./content/factory.js";
 import { envShareToken, hubStore, isValidSlug } from "./content/hub.js";
 import type { HubFailure } from "./content/hub.js";
@@ -107,6 +109,7 @@ const itemsFor = (
   route: SiteRouteValue
 ): Effect.Effect<readonly ItemValue[], HubFailure> =>
   SiteRoute.match(route, {
+    Chats: () => Effect.succeed([]),
     Entry: () => Effect.succeed([]),
     Factory: () => Effect.succeed([]),
     Home: () => hubStore.pipe(Effect.flatMap((store) => store.list)),
@@ -143,6 +146,12 @@ const renderRoute = Effect.fn("site.renderRoute")(function* renderRoute(
   const route = parseRoute(Option.getOrThrow(fromString(request.url)));
   const items = yield* itemsFor(route);
 
+  const chats: ChatsSnapshotValue | null = SiteRoute.guards.Chats(route)
+    ? Option.getOrNull(yield* chatsSnapshot)
+    : null;
+
+  const fetchedAt = yield* Clock.currentTimeMillis;
+
   const application = yield* renderToString(
     {
       Flags,
@@ -151,7 +160,7 @@ const renderRoute = Effect.fn("site.renderRoute")(function* renderRoute(
       }),
       view,
     },
-    { flags: { items, route } }
+    { flags: { chats, items, nowMs: fetchedAt, route } }
   );
 
   return SiteRoute.guards.NotFound(route)
