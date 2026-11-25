@@ -521,7 +521,11 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           ],
           [
             "Vercel",
-            ["$105.28 left", "credit · resets Tue 00:00 · as of 2h ago", "idle"],
+            [
+              "$105.28 left",
+              "credit · resets Tue 00:00 · as of 2h ago",
+              "idle",
+            ],
           ],
           ["OpenRouter", ["$45.85 left", "idle"]],
           [
