@@ -132,6 +132,7 @@ describe("usage page", () => {
           expectElement(text("resets Sun 18:00")).toExist(),
           expectElement(text("+2% · £0.00 in 1h on runners")).toExist(),
           expectElement(text("OpenCode")).toExist(),
+          expectElement(role("link", { name: "OpenCode" })).toExist(),
           expectElement(text("$6.20 left")).toExist(),
           expectElement(text("estimate · as of 1h ago")).toExist(),
           expectElement(text("2 DeepSeek 4.1 Flash medium")).toExist(),

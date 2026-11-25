@@ -30,6 +30,8 @@ TOKEN_LADDER_LAUNCHES = Path(os.environ.get("TOKEN_LADDER_LAUNCHES") or TOKEN_LA
 AGY_BIN = Path(os.environ["AGY_BIN"]) if os.environ.get("AGY_BIN") else Path.home() / ".local/bin/agy"
 PROC_ROOT = Path("/proc")
 OPENCODE_USAGE_API = "https://opencode.ai/zen/go/v1/usage"
+OPENCODE_BALANCE_API = "https://opencode.ai/console/api/billing/status"
+OPENCODE_MICRO_CENTS_PER_DOLLAR = 100_000_000
 OPENCODE_AUTH_FILES = (
     Path.home() / ".pi/agent/auth.json",
     Path.home() / ".local/share/opencode/auth.json",
@@ -272,6 +274,29 @@ def opencode_usage_api(now):
         if 0 <= gone <= 100:
             delta = monthly_pct - gone
     return {"usedPct": monthly_pct, "paceDelta": delta, "resetsAt": monthly_resets, "windows": windows}
+
+
+def opencode_console_credit(now):
+    key = opencode_api_key()
+    if not key:
+        return None
+    try:
+        payload = fetch_json(OPENCODE_BALANCE_API, key)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    for field in ("balanceMicroCents", "availableMicroCents"):
+        raw = payload.get(field)
+        if isinstance(raw, bool):
+            continue
+        try:
+            micro = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(micro) and micro >= 0:
+            return round(micro / OPENCODE_MICRO_CENTS_PER_DOLLAR, 2), None, now, iso_utc(now)
+    return None
 
 
 def opencode_reading():
@@ -527,7 +552,8 @@ def usage_part(ub, g, now):
     sampled_at = number(status.get("ts"))
     fresh = sampled_at is not None and now - sampled_at <= 30 * 60
     opencode_api = opencode_usage_api(now)
-    opencode_credit = opencode_reading()
+    opencode_history = opencode_reading()
+    opencode_credit = opencode_console_credit(now) or opencode_history
     antigravity = agy_reading()
     vercel_credit = vercel_reading(now)
     other_credit = {"openrouter": openrouter_reading(now)}
@@ -558,10 +584,10 @@ def usage_part(ub, g, now):
                 delta = opencode_api["paceDelta"]
                 resets = opencode_api["resetsAt"]
                 windows = opencode_api["windows"]
-                if used >= 100 and opencode_estimate is not None:
-                    note = f"Prepaid credit estimate: ${opencode_estimate[0]:.2f} left"
-                elif used >= 100 and opencode_credit is not None:
+                if used >= 100 and opencode_credit is not None:
                     note = f"Prepaid credit: ${opencode_credit[0]:.2f} left"
+                elif used >= 100 and opencode_estimate is not None:
+                    note = f"Prepaid credit estimate: ${opencode_estimate[0]:.2f} left"
             elif opencode_credit is not None:
                 credit = opencode_credit
                 credit_sub_label = "credit"
@@ -634,7 +660,7 @@ def usage_part(ub, g, now):
                 "pts": number(v.get("pts")),
                 "gbp": number(v.get("gbp")),
                 "pricedPts": number(v.get("priced_pts")),
-                "todayUsd": number(opencode_credit[1]) if opencode_credit and card["plan"] == "opencode" else None,
+                "todayUsd": number(opencode_history[1]) if opencode_history and card["plan"] == "opencode" else None,
             }
     return {"cards": cards, "burn": burn}
 

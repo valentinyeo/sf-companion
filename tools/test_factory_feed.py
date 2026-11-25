@@ -298,14 +298,16 @@ class FeedPlanCards(unittest.TestCase):
 
         def fake_fetch(url, key):
             seen.append((url, key))
+            if url == self.feed.OPENCODE_BALANCE_API:
+                raise OSError("403 Forbidden")
             return payload
 
         with patch.dict(os.environ, {"OPENCODE_AUTH_FILE": str(auth_file)}, clear=False), \
                 patch.object(self.feed, "fetch_json", side_effect=fake_fetch):
             opencode = self.card("opencode")
-        self.assertEqual(len(seen), 1)
-        self.assertTrue(seen[0][0].endswith("/v1/usage"))
-        self.assertEqual(seen[0][1], "test-token")
+        self.assertEqual([url for url, _ in seen],
+                         [self.feed.OPENCODE_USAGE_API, self.feed.OPENCODE_BALANCE_API])
+        self.assertEqual({key for _, key in seen}, {"test-token"})
         self.assertEqual(opencode["mode"], "percent")
         self.assertEqual(opencode["usedPct"], 100.0)
         self.assertEqual(opencode["primaryWindow"], "month")
@@ -317,12 +319,61 @@ class FeedPlanCards(unittest.TestCase):
         ])
         self.assertEqual(opencode["note"], "Prepaid credit estimate: $6.20 left")
 
+    def test_opencode_reads_prepaid_credit_from_the_console_balance_endpoint(self):
+        self.limits("{}")
+        auth_file = self.state / "auth.json"
+        auth_file.write_text(json.dumps({"opencode-go": {"type": "api", "key": "test-token"}}))
+        (self.state / "lane-credits.json").write_text(
+            json.dumps({"opencode": {"usd": 8.01, "at": NOW - 600, "source": "plan-pick"}})
+        )
+        payload = {
+            "usage": {
+                "rolling": {"status": "ok", "percent": 12.5, "resetsAt": "2026-11-25T03:00:00.000Z"},
+                "weekly": {"status": "ok", "percent": 40.0, "resetsAt": "2026-11-30T00:00:00.000Z"},
+                "monthly": {"status": "rate-limited", "percent": 100.0, "resetsAt": "2026-11-30T23:01:10.000Z"},
+            }
+        }
+
+        def fake_fetch(url, key):
+            if url == self.feed.OPENCODE_BALANCE_API:
+                return {"balanceMicroCents": 577000000, "availableMicroCents": 577000000}
+            return payload
+
+        with patch.dict(os.environ, {"OPENCODE_AUTH_FILE": str(auth_file)}, clear=False), \
+                patch.object(self.feed, "fetch_json", side_effect=fake_fetch):
+            opencode = self.card("opencode")
+        self.assertEqual(opencode["mode"], "percent")
+        self.assertEqual(opencode["usedPct"], 100.0)
+        self.assertEqual(opencode["note"], "Prepaid credit: $5.77 left")
+
+    def test_opencode_carries_the_console_balance_when_go_usage_is_unreadable(self):
+        self.limits("{}")
+        auth_file = self.state / "auth.json"
+        auth_file.write_text(json.dumps({"opencode-go": {"type": "api", "key": "test-token"}}))
+        (self.state / "lane-credits.json").write_text(
+            json.dumps({"opencode": {"usd": 8.01, "at": NOW - 600, "source": "plan-pick"}})
+        )
+
+        def fake_fetch(url, key):
+            return {"balanceMicroCents": 577000000}
+
+        with patch.dict(os.environ, {"OPENCODE_AUTH_FILE": str(auth_file)}, clear=False), \
+                patch.object(self.feed, "opencode_usage_api", return_value=None), \
+                patch.object(self.feed, "fetch_json", side_effect=fake_fetch):
+            opencode = self.card("opencode")
+        self.assertEqual(opencode["mode"], "credit")
+        self.assertEqual(opencode["creditUsd"], 5.77)
+        self.assertEqual(opencode["creditSubLabel"], "credit")
+        self.assertEqual(opencode["creditAsOf"], " · as of 0m ago")
+        self.assertIsNone(opencode["note"])
+
     def test_opencode_falls_back_to_anchored_credit_estimate_when_api_fails(self):
         self.limits("{}")
         (self.state / "lane-credits.json").write_text(
             json.dumps({"opencode": {"usd": 6.2, "at": NOW - 3600, "source": "OpenCode live console"}})
         )
-        with patch.object(self.feed, "opencode_usage_api", return_value=None):
+        with patch.object(self.feed, "opencode_usage_api", return_value=None), \
+                patch.object(self.feed, "opencode_console_credit", return_value=None):
             opencode = self.card("opencode")
         self.assertEqual(opencode["mode"], "credit")
         self.assertEqual(opencode["creditUsd"], 6.2)
