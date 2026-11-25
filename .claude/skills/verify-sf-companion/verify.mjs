@@ -44,8 +44,6 @@ const journeyRoutes = {
   "usage-details": "Usage",
   "usage-empty": "Usage",
   "usage-entry": "Usage",
-  "usage-kpi-fixed": "Usage",
-  "usage-window": "Usage",
 };
 const absentJourneys = new Map(
   Object.entries(journeyRoutes)
@@ -71,9 +69,7 @@ const seededFactoryJourneys = [
   "factory-timestamp",
   "usage-entry",
   "usage-cards",
-  "usage-window",
   "usage-burn",
-  "usage-kpi-fixed",
   "usage-details",
   "kpi-tiles",
   "kpi-windows",
@@ -125,12 +121,7 @@ const runEmpty = [
   "not-found",
 ].some(wants);
 const runSparse = sparseJourneys.some(wants);
-const runWindows = [
-  "usage-window",
-  "usage-burn",
-  "usage-kpi-fixed",
-  "kpi-windows",
-].some(wants);
+const runWindows = ["usage-burn", "kpi-windows"].some(wants);
 const runShare = shareJourneys.some(wants);
 const untraced = JSON.parse(
   await readFile(
@@ -504,11 +495,24 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await page
           .getByRole("heading", { name: "Usage", exact: true })
           .waitFor();
+        assert.equal(
+          await page
+            .getByRole("heading", { name: "Grok", exact: true })
+            .count(),
+          0,
+          `${id}: the outdated Grok card still rendered`
+        );
         const cards = [
           ["Claude Code", ["67%", "+13.2 vs pace · over pace"]],
           ["Codex", ["100%", "+21.5 vs pace · well over pace"]],
-          ["Grok", ["89%", "+4.2 vs pace · well over pace"]],
-          ["OpenCode", ["no reading"]],
+          [
+            "OpenCode",
+            [
+              "100%",
+              "Prepaid credit estimate: $6.20 left",
+              "1 DeepSeek 4.1 Flash medium",
+            ],
+          ],
           [
             "Vercel",
             ["$105.28 left", "credit · resets Tue 00:00 · as of 2h ago"],
@@ -520,6 +524,7 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             [
               "no reading",
               "Quota used up at 2026-11-24T00:46:05Z · limit unknown",
+              "2 gemini-4-neon high",
             ],
           ],
           [
@@ -549,8 +554,12 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await widget("Claude Code")
           .getByText("+2% · £0.00 in 1h on runners", { exact: true })
           .waitFor();
+        await page.screenshot({
+          path: join(proof, `${id}-before.png`),
+          fullPage: true,
+        });
         await record(
-          "usage: every plan card shows its reading, resets, burn and skip",
+          "usage: every active plan card shows its reading, resets, burn, runners and skip",
           "usage-cards"
         );
       }
@@ -594,10 +603,9 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         );
       }
       if (
-        !runWindows &&
-        (wants("factory-layout") ||
-          wants("kpi-details") ||
-          wants("usage-cards"))
+        !wants("usage-cards") &&
+        !wants("usage-burn") &&
+        (wants("factory-layout") || wants("kpi-details"))
       ) {
         await page.screenshot({
           path: join(proof, `${id}-before.png`),
@@ -605,61 +613,35 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         });
       }
       if (runWindows) {
-        if (usagePage) {
+        if (usagePage && wants("usage-burn")) {
           await page.goto("/usage", { waitUntil: "networkidle" });
           await page
             .getByRole("heading", { name: "Usage", exact: true })
             .waitFor();
-          await page.screenshot({
-            path: join(proof, `${id}-before.png`),
-            fullPage: true,
-          });
-          for (const window of ["3h", "6h", "12h", "24h", "7d", "30d", "1h"]) {
-            const button = page
-              .getByRole("group", { name: "Usage window" })
-              .getByRole("button", { name: window, exact: true });
-            await button.click();
+          assert.equal(
+            await page.getByRole("group", { name: "Usage window" }).count(),
+            0,
+            `${id}: the usage page still showed window buttons`
+          );
+          assert.equal(
             await page
-              .locator(`button[aria-pressed="true"]`)
-              .filter({ hasText: new RegExp(`^${window}$`, "u") })
-              .waitFor();
-            if (wants("usage-window")) {
-              await record(
-                `usage: choose ${window}; its button reports pressed`,
-                "usage-window"
-              );
-            }
-            if (wants("usage-burn") && window === "7d") {
-              await page
-                .getByText("+14% · £7.00 in 7d on runners", { exact: true })
-                .waitFor();
-              await record(
-                "usage: the 7d window changes burn to the 7d reading",
-                "usage-burn"
-              );
-            }
-            if (wants("usage-kpi-fixed") || wants("kpi-windows")) {
-              assert.equal(
-                await page
-                  .getByRole("heading", { name: "Output and waste" })
-                  .count(),
-                0,
-                `${id}: the usage page carried the KPI tiles`
-              );
-            }
+              .getByText("The buttons change the burn window only.")
+              .count(),
+            0,
+            `${id}: the usage page still mentioned window buttons`
+          );
+          await widget("Claude Code")
+            .getByText("+2% · £0.00 in 1h on runners", { exact: true })
+            .waitFor();
+          if (!wants("usage-cards")) {
+            await page.screenshot({
+              path: join(proof, `${id}-before.png`),
+              fullPage: true,
+            });
           }
-        }
-        if (wants("usage-kpi-fixed")) {
-          await page.goto("/factory", { waitUntil: "networkidle" });
-          await page
-            .getByRole("heading", { name: "Factory", exact: true })
-            .waitFor();
-          await page
-            .getByText("29 / day · 87 / week", { exact: true })
-            .waitFor();
           await record(
-            "usage: the window buttons leave Factory's KPI reading fixed",
-            "usage-kpi-fixed"
+            "usage: fixed 1h burn renders with no window picker buttons",
+            "usage-burn"
           );
         }
         if (wants("kpi-windows")) {
@@ -696,8 +678,13 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await card
           .getByText("Weekly 67%", { exact: true })
           .waitFor({ state: "visible" });
+        const opencode = widget("OpenCode");
+        await opencode.getByText("Windows", { exact: true }).click();
+        await opencode
+          .getByText("month 100%", { exact: true })
+          .waitFor({ state: "visible" });
         await record(
-          "usage: open Windows and read the weekly reading",
+          "usage: open Windows and read the weekly and monthly readings",
           "usage-details"
         );
       }

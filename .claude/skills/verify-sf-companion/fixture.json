@@ -92,7 +92,7 @@
     "shipping": {
       "notes": [
         "GitHub mergedAt · fleet repos",
-        "30 UTC dates, newest first; today to export time. Bars start at zero; each column has its own maximum. Usage window buttons do not change this chart.",
+        "30 UTC dates, newest first; today to export time. Bars start at zero; each column has its own maximum.",
         "Quota points are observed rises, not tokens. Plans have different quotas; do not add their points. Resets add no burn. Gaps over 6h are excluded; measured values may undercount daily use.",
         "Vercel, DeepSeek and OpenRouter daily history is unavailable in these sources.",
         "£ and £/PR cover only the advisor's attributed priced subset, not the total bill. £/PR compares same-day fleet output, not the cost of an individual PR. Open days have no final cost."
@@ -2188,384 +2188,6 @@
           "pricedPts": 1,
           "todayUsd": null
         },
-        "grok": {
-          "pts": 1,
-          "gbp": 0.42,
-          "pricedPts": 1,
-          "todayUsd": null
-        },
-        "opencode": {
-          "pts": 0,
-          "gbp": 0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "vercel": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "deepseek": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "openrouter": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "antigravity": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "commandcode": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "cursor": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        }
-      },
-      "3h": {
-        "claude": {
-          "pts": 4,
-          "gbp": 1.0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "codex": {
-          "pts": 2,
-          "gbp": 0.4,
-          "pricedPts": 2,
-          "todayUsd": null
-        },
-        "grok": {
-          "pts": 2,
-          "gbp": 0.84,
-          "pricedPts": 2,
-          "todayUsd": null
-        },
-        "opencode": {
-          "pts": 0,
-          "gbp": 0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "vercel": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "deepseek": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "openrouter": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "antigravity": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "commandcode": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "cursor": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        }
-      },
-      "6h": {
-        "claude": {
-          "pts": 6,
-          "gbp": 2.0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "codex": {
-          "pts": 3,
-          "gbp": 1.1,
-          "pricedPts": 3,
-          "todayUsd": null
-        },
-        "grok": {
-          "pts": 3,
-          "gbp": 1.26,
-          "pricedPts": 3,
-          "todayUsd": null
-        },
-        "opencode": {
-          "pts": 0,
-          "gbp": 0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "vercel": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "deepseek": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "openrouter": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "antigravity": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "commandcode": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "cursor": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        }
-      },
-      "12h": {
-        "claude": {
-          "pts": 9,
-          "gbp": 3.5,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "codex": {
-          "pts": 5,
-          "gbp": 2.1,
-          "pricedPts": 5,
-          "todayUsd": null
-        },
-        "grok": {
-          "pts": 5,
-          "gbp": 2.1,
-          "pricedPts": 5,
-          "todayUsd": null
-        },
-        "opencode": {
-          "pts": 0,
-          "gbp": 0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "vercel": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "deepseek": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "openrouter": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "antigravity": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "commandcode": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "cursor": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        }
-      },
-      "24h": {
-        "claude": {
-          "pts": 11,
-          "gbp": 5.0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "codex": {
-          "pts": 7,
-          "gbp": 3.1,
-          "pricedPts": 7,
-          "todayUsd": null
-        },
-        "grok": {
-          "pts": 6,
-          "gbp": 2.52,
-          "pricedPts": 6,
-          "todayUsd": null
-        },
-        "opencode": {
-          "pts": 0,
-          "gbp": 0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "vercel": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "deepseek": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "openrouter": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "antigravity": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "commandcode": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "cursor": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        }
-      },
-      "7d": {
-        "claude": {
-          "pts": 14,
-          "gbp": 7.0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "codex": {
-          "pts": 9,
-          "gbp": 4.1,
-          "pricedPts": 9,
-          "todayUsd": null
-        },
-        "grok": {
-          "pts": 7,
-          "gbp": 2.94,
-          "pricedPts": 7,
-          "todayUsd": null
-        },
-        "opencode": {
-          "pts": 0,
-          "gbp": 0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "vercel": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "deepseek": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "openrouter": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "antigravity": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "commandcode": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "cursor": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        }
-      },
-      "30d": {
-        "claude": {
-          "pts": 41,
-          "gbp": 21.0,
-          "pricedPts": 0,
-          "todayUsd": null
-        },
-        "codex": {
-          "pts": 33,
-          "gbp": 15.3,
-          "pricedPts": 33,
-          "todayUsd": null
-        },
-        "grok": {
-          "pts": 28,
-          "gbp": 11.76,
-          "pricedPts": 28,
-          "todayUsd": null
-        },
         "opencode": {
           "pts": 0,
           "gbp": 0,
@@ -2679,47 +2301,36 @@
         "creditSubLabel": null,
         "creditUsd": null,
         "mode": "percent",
-        "name": "Grok",
-        "note": null,
-        "paceDelta": 4.2,
-        "plan": "grok",
-        "primaryWindow": "week",
-        "resetsText": "Tue 12:00",
+        "name": "OpenCode",
+        "note": "Prepaid credit estimate: $6.20 left",
+        "paceDelta": 20.0,
+        "plan": "opencode",
+        "primaryWindow": "month",
+        "resetsText": "Mon 23:01",
         "reviewer": {
           "known": true,
           "show": false,
           "tip": ""
         },
         "runnersLive": true,
-        "runnersText": "0 runners",
+        "runnersText": "1 DeepSeek 4.1 Flash medium",
         "skip": null,
         "tone": "hot",
-        "usedPct": 89.4,
-        "windows": []
-      },
-      {
-        "creditAsOf": null,
-        "creditReadAt": null,
-        "creditSubLabel": null,
-        "creditUsd": null,
-        "mode": "none",
-        "name": "OpenCode",
-        "note": null,
-        "paceDelta": null,
-        "plan": "opencode",
-        "primaryWindow": "week",
-        "resetsText": null,
-        "reviewer": {
-          "known": true,
-          "show": false,
-          "tip": ""
-        },
-        "runnersLive": true,
-        "runnersText": "No runners",
-        "skip": null,
-        "tone": "plain",
-        "usedPct": null,
-        "windows": []
+        "usedPct": 100,
+        "windows": [
+          {
+            "label": "month",
+            "usedPct": 100
+          },
+          {
+            "label": "week",
+            "usedPct": 0
+          },
+          {
+            "label": "5h",
+            "usedPct": 0
+          }
+        ]
       },
       {
         "creditAsOf": " · as of 2h ago",
@@ -2811,7 +2422,7 @@
           "tip": ""
         },
         "runnersLive": true,
-        "runnersText": "0 runners",
+        "runnersText": "2 gemini-4-neon high",
         "skip": null,
         "tone": "plain",
         "usedPct": null,

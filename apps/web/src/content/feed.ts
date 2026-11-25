@@ -15,27 +15,9 @@ export const PlanKey = Schema.Literals([
 
 export type PlanKeyValue = typeof PlanKey.Type;
 
-export const WindowKey = Schema.Literals([
-  "1h",
-  "3h",
-  "6h",
-  "12h",
-  "24h",
-  "7d",
-  "30d",
-]);
+export const WindowKey = Schema.Literals(["1h"]);
 
 export type WindowKeyValue = typeof WindowKey.Type;
-
-export const windowKeys: readonly WindowKeyValue[] = [
-  "1h",
-  "3h",
-  "6h",
-  "12h",
-  "24h",
-  "7d",
-  "30d",
-];
 
 const PrimaryWindowKey = Schema.Literals(["week", "month"]);
 
@@ -45,7 +27,7 @@ const Tone = Schema.Literals(["plain", "warm", "hot"]);
 
 export type ToneValue = typeof Tone.Type;
 
-const CreditSubLabel = Schema.Literals(["credit", "month full"]);
+const CreditSubLabel = Schema.Literals(["credit", "month full", "estimate"]);
 
 const KpiState = Schema.Literals(["ok", "bad"]);
 
@@ -114,12 +96,6 @@ const BurnByPlan = Schema.Struct({
 
 const BurnByWindow = Schema.Struct({
   "1h": Schema.optional(BurnByPlan),
-  "3h": Schema.optional(BurnByPlan),
-  "6h": Schema.optional(BurnByPlan),
-  "12h": Schema.optional(BurnByPlan),
-  "24h": Schema.optional(BurnByPlan),
-  "7d": Schema.optional(BurnByPlan),
-  "30d": Schema.optional(BurnByPlan),
 });
 
 export type BurnByWindowValue = typeof BurnByWindow.Type;

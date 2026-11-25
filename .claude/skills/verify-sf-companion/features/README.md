@@ -13,7 +13,7 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 - [Reports](reports.md) covers the reports index, one stored item, and its scope.
 - [Stored items](items.md) covers item serving: GET, HEAD, missing, and invalid slugs.
 - [Factory page](factory.md) covers entry, export time, navigation, layout, and the link to Usage.
-- [Usage page](usage.md) covers the menu entry, every plan card, every window button, changed burn, the fixed KPI reading, and the Windows disclosure.
+- [Usage page](usage.md) covers the menu entry, every plan card, fixed 1h burn with no window picker, and the Windows disclosure.
 - [KPI tiles](kpis.md) covers all seven tiles, their own windows, cues, and measurement details.
 - [Shipping chart](shipping.md) covers the 30-date chart, cell sources, and stated omissions.
 - [Empty and missing states](empty.md) covers a missing feed, a feed with no shipping block, a feed with no plan cards, the KPI unavailability notes, an empty hub, and the not-found page.
@@ -37,14 +37,14 @@ The map covers Home, Explorations, Reports, Items, Factory, Usage, KPI tiles, Sh
 
 ## Scale
 
-The journeys start at the size production runs at, not at a toy size, so a journey that passes here still has the list lengths, chart rows and note counts a user meets. Production counts were measured on 2026-11-19 by the orchestrator against the live site. The Fixture column is what `../fixture.json` and `../fixture-hub/` hold today. `scripts/check_fixture_scale.py` reads this table and fails when a fixture count falls below its production count, when the Fixture column no longer matches the fixture, or when a row is missing.
+The journeys start at the size production runs at, not at a toy size, so a journey that passes here still has the list lengths, chart rows and note counts a user meets. Production counts were measured on 2026-11-24 by the worker against the live site and exporter contract. The Fixture column is what `../fixture.json` and `../fixture-hub/` hold today. `scripts/check_fixture_scale.py` reads this table and fails when a fixture count falls below its production count, when the Fixture column no longer matches the fixture, or when a row is missing.
 
 | Measure            | Production | Fixture |
 | ------------------ | ---------- | ------- |
 | Hub reports        | 9          | 10      |
 | Hub explorations   | 1          | 10      |
-| Usage cards        | 7          | 10      |
-| Usage burn windows | 7          | 7       |
+| Usage cards        | 9          | 9       |
+| Usage burn windows | 1          | 1       |
 | KPI tiles          | 4          | 7       |
 | KPI notes          | 8          | 8       |
 | Shipping days      | 30         | 30      |

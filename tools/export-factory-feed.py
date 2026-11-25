@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
-"""Write the Factory feed JSON that the companion site reads.
-
-Usage comes from token-ladder, OpenCode credit history, and Vercel's credits API.
-Advisor helpers supply runner, reviewer, and burn readings without writing their state.
-Factory KPIs use independent read-only source collectors.
-"""
-
 import factory_kpis
 import factory_shipping
 
 import argparse
+from collections import Counter
 import html
 import json
 import math
@@ -31,17 +25,27 @@ if not os.environ.get("TOKEN_LADDER_STATUS"):
 TOKEN_LADDER_STATUS = Path(os.environ["TOKEN_LADDER_STATUS"])
 TOKEN_LADDER_LIMITS = Path(os.environ.get("TOKEN_LADDER_LIMITS") or TOKEN_LADDER_STATUS.with_name("lane-limits.json"))
 TOKEN_LADDER_CREDITS = Path(os.environ.get("TOKEN_LADDER_CREDITS") or TOKEN_LADDER_STATUS.with_name("lane-credits.json"))
-PICKER_WINDOWS = ("1h", "3h", "6h", "12h", "24h", "7d", "30d")
-PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel", "deepseek", "openrouter",
+TOKEN_LADDER_LAUNCHES = Path(os.environ.get("TOKEN_LADDER_LAUNCHES") or TOKEN_LADDER_STATUS.with_name("launches.jsonl"))
+PROC_ROOT = Path("/proc")
+OPENCODE_USAGE_API = "https://opencode.ai/zen/go/v1/usage"
+OPENCODE_AUTH_FILES = (
+    Path.home() / ".pi/agent/auth.json",
+    Path.home() / ".local/share/opencode/auth.json",
+)
+OPENCODE_MONTHLY_SECONDS = 30 * 24 * 3600
+OPENCODE_ANCHOR_MAX_AGE = 7 * 86400
+PICKER_WINDOWS = ("1h",)
+PLAN_ENUM = ("claude", "codex", "opencode", "vercel", "deepseek", "openrouter",
              "antigravity", "commandcode", "cursor")
-PLAN_NAMES = ("Claude", "Codex", "Grok", "OpenCode", "Vercel", "DeepSeek", "OpenRouter",
+PLAN_NAMES = ("Claude", "Codex", "OpenCode", "Vercel", "DeepSeek", "OpenRouter",
               "Antigravity", "CommandCode", "Cursor")
 PLAN_LANES = {"antigravity": ("antigravity", "google"), "commandcode": ("commandcode", "credit:commandcode")}
+LANE_TO_PLAN = {"google": "antigravity", "vercel-zai": "vercel"}
 COMMANDCODE_MONTHLY_CREDITS = 70.0
 WINDOW_ENUM = ("week", "month")
 MODE_ENUM = ("percent", "credit", "none")
 TONE_ENUM = ("plain", "warm", "hot")
-CREDIT_LABELS = ("credit", "month full")
+CREDIT_LABELS = ("credit", "month full", "estimate")
 STATES = ("ok", "bad")
 
 
@@ -59,6 +63,18 @@ def advisor():
 
 def iso_utc(seconds):
     return datetime.fromtimestamp(seconds, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def iso_timestamp(value):
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        stamp = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        return number(stamp.timestamp())
+    except (ValueError, TypeError, OverflowError):
+        return None
 
 
 def number(value):
@@ -90,7 +106,6 @@ def read_json(path):
 
 
 def skip_of(limits, plan, now):
-    """The plan's active lane-limit skip, in plan-pick's words (`bin/plan-pick` parse_limit and limit_note)."""
     for key in PLAN_LANES.get(plan, (plan,)):
         raw = limits.get(key)
         reason = None
@@ -113,7 +128,6 @@ def skip_of(limits, plan, now):
 
 
 def antigravity_note(pools):
-    """The Antigravity plan's quota state, from the google pool token-ladder records."""
     pool = pools.get("google") if isinstance(pools, dict) else None
     if not isinstance(pool, dict):
         return None
@@ -126,7 +140,6 @@ def antigravity_note(pools):
 
 
 def commandcode_reading(credits, now):
-    """Monthly credits used, pace and reset, from the credit reading plan-pick writes."""
     entry = credits.get("commandcode") if isinstance(credits, dict) else None
     if not isinstance(entry, dict):
         return None
@@ -139,6 +152,64 @@ def commandcode_reading(credits, now):
     return {"usedPct": used_pct, "paceDelta": used_pct - gone_pct, "resetsAt": end,
             "note": f"{remaining:g}/{COMMANDCODE_MONTHLY_CREDITS:g} monthly credits left "
                     f"(~${remaining * 100 / COMMANDCODE_MONTHLY_CREDITS:.2f} Flash usage)"}
+
+
+def fetch_json(url, key):
+    request = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {key}", "User-Agent": "sf-companion"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+
+def opencode_api_key():
+    env_key = os.environ.get("OPENCODE_API_KEY")
+    if isinstance(env_key, str) and env_key.strip():
+        return env_key.strip()
+    configured = os.environ.get("OPENCODE_AUTH_FILE")
+    candidates = (Path(configured),) if configured else OPENCODE_AUTH_FILES
+    for path in candidates:
+        entry = read_json(path).get("opencode-go")
+        key = entry.get("key") if isinstance(entry, dict) else None
+        if isinstance(key, str) and key.strip():
+            return key.strip()
+    return None
+
+
+def opencode_usage_api(now):
+    key = opencode_api_key()
+    if not key:
+        return None
+    try:
+        payload = fetch_json(OPENCODE_USAGE_API, key)
+    except (OSError, ValueError):
+        return None
+    usage = payload.get("usage") if isinstance(payload, dict) else None
+    if not isinstance(usage, dict):
+        return None
+    windows = []
+    monthly_pct = None
+    monthly_resets = None
+    for api_field, label in (("monthly", "month"), ("weekly", "week"), ("rolling", "5h")):
+        entry = usage.get(api_field)
+        if not isinstance(entry, dict):
+            continue
+        pct = number(entry.get("percent"))
+        if pct is None or not 0 <= pct <= 100:
+            continue
+        windows.append({"label": label, "usedPct": pct})
+        if api_field == "monthly":
+            monthly_pct = pct
+            monthly_resets = iso_timestamp(entry.get("resetsAt"))
+    if monthly_pct is None:
+        return None
+    delta = None
+    if monthly_resets is not None:
+        gone = 100 * (now - (monthly_resets - OPENCODE_MONTHLY_SECONDS)) / OPENCODE_MONTHLY_SECONDS
+        if 0 <= gone <= 100:
+            delta = monthly_pct - gone
+    return {"usedPct": monthly_pct, "paceDelta": delta, "resetsAt": monthly_resets, "windows": windows}
 
 
 def opencode_reading():
@@ -158,6 +229,17 @@ def opencode_reading():
     except (OSError, ValueError, AttributeError, OverflowError):
         pass
     return None
+
+
+def opencode_anchored_credit(credits, now):
+    entry = credits.get("opencode") if isinstance(credits, dict) else None
+    if not isinstance(entry, dict):
+        return None
+    usd = number(entry.get("usd"))
+    at = number(entry.get("at"))
+    if usd is None or usd < 0 or at is None or not 0 <= now - at <= OPENCODE_ANCHOR_MAX_AGE:
+        return None
+    return round(usd, 2), None, at, iso_utc(at)
 
 
 def vercel_reading(now):
@@ -184,29 +266,6 @@ def vercel_reading(now):
         return None
 
 
-def grok_reading(now):
-    """Grok Bot plan usage (Grok, Cursor and X merged into one weekly plan), recorded by cursor-usage-read."""
-    path = os.environ.get("GROK_STATE")
-    if not path:
-        return None
-    try:
-        state = json.loads(Path(path).read_text())
-        used = number(state.get("pct"))
-        resets = datetime.fromisoformat(state["resets_at"]).timestamp()
-        updated = datetime.fromisoformat(state["updated_at"]).timestamp()
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
-        return None
-    if used is None or not 0 <= used <= 100 or now - updated > 60 * 60:
-        return None
-    return used, resets
-
-
-def fetch_json(url, key):
-    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
-
-
 def deepseek_reading(now):
     key = os.environ.get("DEEPSEEK_API_KEY")
     if not key:
@@ -221,7 +280,6 @@ def deepseek_reading(now):
 
 
 def openrouter_reading(now):
-    """Credit left summed over every OpenRouter account whose management key is set."""
     keys = [os.environ.get(name) for name in ("OPENROUTER_MANAGEMENT_KEY", "OPENROUTER_MANAGEMENT_KEY_AGENTS")]
     keys = [key for key in keys if key]
     if not keys:
@@ -239,21 +297,171 @@ def openrouter_reading(now):
     return round(left, 2), None, now, iso_utc(now)
 
 
+def proc_state_alive(stat_path):
+    try:
+        text = stat_path.read_text(errors="replace")
+        tail = text.rsplit(")", 1)[1].split()
+        return bool(tail) and tail[0] not in ("Z", "X", "x")
+    except (OSError, IndexError):
+        return False
+
+
+def proc_pid_alive(pid, proc_root=None):
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return False
+    root = PROC_ROOT if proc_root is None else Path(proc_root)
+    if root.is_dir():
+        return proc_state_alive(root / str(pid) / "stat")
+    try:
+        os.kill(pid, 0)
+        return True
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+def is_plan_pick_run(argv):
+    if not argv or "--run" not in argv:
+        return False
+    exe = os.path.basename(argv[0])
+    if exe == "plan-pick":
+        return True
+    return exe.startswith("python") and len(argv) > 1 and os.path.basename(argv[1]) == "plan-pick"
+
+
+def live_plan_pick_cwds(proc_root=None):
+    root = PROC_ROOT if proc_root is None else Path(proc_root)
+    if not root.is_dir():
+        return None
+    cwds = []
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return None
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        argv = [part.decode("utf-8", errors="replace") for part in raw.split(b"\x00") if part]
+        if not is_plan_pick_run(argv):
+            continue
+        if not proc_state_alive(entry / "stat"):
+            continue
+        try:
+            cwd = os.path.realpath(os.readlink(entry / "cwd"))
+        except OSError:
+            continue
+        cwds.append(cwd)
+    return cwds
+
+
+def worker_model_label(ub, model):
+    return ub.model_name(model) if isinstance(model, str) and model.strip() else "?"
+
+
+def plan_pick_runner_groups(ub, launches_path=None, proc_root=None):
+    path = TOKEN_LADDER_LAUNCHES if launches_path is None else Path(launches_path)
+    if not path.is_file():
+        return None
+    starts = {}
+    finished = set()
+    legacy_by_cwd = {}
+    try:
+        with path.open(errors="replace") as fh:
+            for line in fh:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(row, dict):
+                    continue
+                lid = row.get("launch_id")
+                if row.get("event") == "finish":
+                    if lid:
+                        finished.add(lid)
+                elif lid:
+                    starts[lid] = row
+                elif isinstance(row.get("lane"), str) and row["lane"] != "server-hold":
+                    cwd = row.get("cwd")
+                    if isinstance(cwd, str) and cwd:
+                        legacy_by_cwd[os.path.realpath(cwd)] = row
+    except OSError:
+        return None
+    unfinished = [
+        row for lid, row in starts.items()
+        if lid not in finished and isinstance(row.get("lane"), str) and row["lane"] != "server-hold"
+    ]
+    unfinished.sort(key=lambda row: number(row.get("at")) or 0, reverse=True)
+    live_cwds = live_plan_pick_cwds(proc_root)
+    if live_cwds is None and any(not isinstance(row.get("pid"), int) for row in unfinished):
+        return None
+    cwd_slots = Counter(live_cwds or ())
+    active = []
+    for row in unfinished:
+        pid = row.get("pid")
+        if isinstance(pid, int) and not isinstance(pid, bool):
+            if proc_pid_alive(pid, proc_root):
+                active.append(row)
+            continue
+        cwd = row.get("cwd")
+        if isinstance(cwd, str) and cwd:
+            norm = os.path.realpath(cwd)
+            if cwd_slots[norm] > 0:
+                cwd_slots[norm] -= 1
+                active.append(row)
+    for norm, remaining in cwd_slots.items():
+        if remaining > 0 and norm in legacy_by_cwd:
+            active.extend([legacy_by_cwd[norm]] * remaining)
+    out = {}
+    for row in active:
+        plan = LANE_TO_PLAN.get(row["lane"], row["lane"])
+        if plan not in PLAN_ENUM:
+            continue
+        model_label = worker_model_label(ub, row.get("model"))
+        raw_effort = row.get("effort")
+        effort = raw_effort if isinstance(raw_effort, str) and raw_effort not in ("", "model-default") else ""
+        key = (model_label, effort)
+        out.setdefault(plan, {})[key] = out.get(plan, {}).get(key, 0) + 1
+    return out
+
+
+def merge_runner_groups(advisor_groups, plan_pick_groups):
+    if advisor_groups is None and plan_pick_groups is None:
+        return None
+    merged = {}
+    for source in (advisor_groups, plan_pick_groups):
+        if not isinstance(source, dict):
+            continue
+        for plan, counts in source.items():
+            if not isinstance(counts, dict):
+                continue
+            bucket = merged.setdefault(plan, {})
+            for key, count in counts.items():
+                bucket[key] = bucket.get(key, 0) + count
+    return merged
+
+
 def usage_part(ub, g, now):
     status = read_status()
     sampled_at = number(status.get("ts"))
     fresh = sampled_at is not None and now - sampled_at <= 30 * 60
+    opencode_api = opencode_usage_api(now)
     opencode_credit = opencode_reading()
     vercel_credit = vercel_reading(now)
-    grok = grok_reading(now)
     other_credit = {"deepseek": deepseek_reading(now), "openrouter": openrouter_reading(now)}
-    groups = ub.runner_groups()
+    groups = merge_runner_groups(ub.runner_groups(), plan_pick_runner_groups(ub))
     limits = read_json(TOKEN_LADDER_LIMITS)
     credits = read_json(TOKEN_LADDER_CREDITS)
+    opencode_estimate = opencode_anchored_credit(credits, now)
     pools = status.get("pools") if isinstance(status.get("pools"), dict) else {}
     cards = []
     for plan, label in zip(PLAN_ENUM, PLAN_NAMES):
-        credit = opencode_credit if plan == "opencode" else vercel_credit if plan == "vercel" else other_credit.get(plan)
+        credit = vercel_credit if plan == "vercel" else other_credit.get(plan)
+        credit_sub_label = "credit" if credit else None
         reading = status.get(plan) if plan in ("claude", "codex") and fresh else None
         reading = reading if isinstance(reading, dict) and not reading.get("error") else {}
         week = reading.get("week")
@@ -262,13 +470,26 @@ def usage_part(ub, g, now):
         used = used if used is not None and 0 <= used <= 100 else None
         delta = used - time_gone if used is not None and time_gone is not None else None
         resets = number(week.get("resets_at"))
-        if plan == "grok" and grok is not None:
-            used, resets = grok
-            # Weekly plan: pace is usage minus the share of the week already gone.
-            gone = 100 * (now - (resets - 7 * 24 * 3600)) / (7 * 24 * 3600)
-            delta = used - gone if 0 <= gone <= 100 else None
         resets_text = None
         note = antigravity_note(pools) if plan == "antigravity" else None
+        windows = []
+        if plan == "opencode":
+            if opencode_api is not None:
+                used = opencode_api["usedPct"]
+                delta = opencode_api["paceDelta"]
+                resets = opencode_api["resetsAt"]
+                windows = opencode_api["windows"]
+                if used >= 100 and opencode_estimate is not None:
+                    note = f"Prepaid credit estimate: ${opencode_estimate[0]:.2f} left"
+                elif used >= 100 and opencode_credit is not None:
+                    note = f"Prepaid credit: ${opencode_credit[0]:.2f} left"
+            elif opencode_credit is not None:
+                credit = opencode_credit
+                credit_sub_label = "credit"
+            elif opencode_estimate is not None:
+                credit = opencode_estimate
+                credit_sub_label = "estimate"
+                note = "Anchored credit estimate (lane-credits.json)"
         if plan == "commandcode":
             commandcode = commandcode_reading(credits, now)
             if commandcode is not None:
@@ -281,12 +502,12 @@ def usage_part(ub, g, now):
                 resets_text = ub.when(resets)
             except (OSError, ValueError, OverflowError):
                 pass
-        windows = []
-        for key, window_label in (("week", "week"), ("five_hour", "5h")):
-            window = reading.get(key)
-            value = number(window.get("used")) if isinstance(window, dict) else None
-            if value is not None and 0 <= value <= 100:
-                windows.append({"label": window_label, "usedPct": value})
+        if plan in ("claude", "codex"):
+            for key, window_label in (("week", "week"), ("five_hour", "5h")):
+                window = reading.get(key)
+                value = number(window.get("used")) if isinstance(window, dict) else None
+                if value is not None and 0 <= value <= 100:
+                    windows.append({"label": window_label, "usedPct": value})
         age = max(0, int((now - credit[2]) / 60)) if credit else None
         age_text = f"{age // 60}h ago" if age is not None and age >= 60 else f"{age}m ago"
         cards.append({
@@ -299,7 +520,7 @@ def usage_part(ub, g, now):
             "paceDelta": delta,
             "tone": ub.tone(delta).strip() or "plain",
             "creditUsd": credit[0] if credit else None,
-            "creditSubLabel": "credit" if credit else None,
+            "creditSubLabel": credit_sub_label,
             "creditReadAt": credit[3] if credit else None,
             "creditAsOf": f" · as of {age_text}" if age is not None else None,
             "windows": windows,
@@ -385,7 +606,8 @@ def validate(feed):
         ok(card.get("paceDelta") is None or is_num(card["paceDelta"]), f"{where}.paceDelta: needs a signed number or null")
         ok(card.get("tone") in TONE_ENUM, f"{where}.tone: needs plain, warm or hot")
         ok(card.get("creditUsd") is None or is_num(card["creditUsd"]), f"{where}.creditUsd: needs dollars or null")
-        ok(card.get("creditSubLabel") is None or card["creditSubLabel"] in CREDIT_LABELS, f"{where}.creditSubLabel: needs credit or month full")
+        ok(card.get("creditSubLabel") is None or card["creditSubLabel"] in CREDIT_LABELS,
+           f"{where}.creditSubLabel: needs credit, month full or estimate")
         ok(card.get("creditReadAt") is None or is_iso(card["creditReadAt"]), f"{where}.creditReadAt: needs an ISO 8601 UTC string or null")
         ok(card.get("creditAsOf") is None or (isinstance(card["creditAsOf"], str) and card["creditAsOf"].startswith(" · as of ")),
            f"{where}.creditAsOf: needs ' · as of HH:MM' or null")
@@ -415,12 +637,12 @@ def validate(feed):
             ok(card.get("creditUsd") is None, f"{where}: percent mode has no creditUsd")
         if card.get("mode") == "credit":
             ok(is_num(card.get("creditUsd")) and is_iso(card.get("creditReadAt")), f"{where}: credit mode needs creditUsd and creditReadAt")
-        if card.get("plan") not in ("claude", "codex") and not (card.get("plan") == "opencode" and card.get("mode") == "credit"):
-            ok(card.get("windows") == [], f"{where}.windows: empty outside Claude, Codex or credit-mode opencode")
+        if card.get("plan") not in ("claude", "codex", "opencode"):
+            ok(card.get("windows") == [], f"{where}.windows: empty outside Claude, Codex or OpenCode")
     burn = usage["burn"]
     ok(isinstance(burn, dict), "usage.burn: needs an object")
     for window, per_plan in (burn if isinstance(burn, dict) else {}).items():
-        ok(window in PICKER_WINDOWS, f"usage.burn.{window}: not a picker window")
+        ok(window in PICKER_WINDOWS, f"usage.burn.{window}: not a supported burn window")
         ok(isinstance(per_plan, dict), f"usage.burn.{window}: needs an object of plans")
         for plan, entry in (per_plan if isinstance(per_plan, dict) else {}).items():
             ok(plan in PLAN_ENUM, f"usage.burn.{window}.{plan}: not a plan")
