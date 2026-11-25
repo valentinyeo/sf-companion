@@ -2200,12 +2200,6 @@
           "pricedPts": null,
           "todayUsd": null
         },
-        "deepseek": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
         "openrouter": {
           "pts": null,
           "gbp": null,
@@ -2219,12 +2213,6 @@
           "todayUsd": null
         },
         "commandcode": {
-          "pts": null,
-          "gbp": null,
-          "pricedPts": null,
-          "todayUsd": null
-        },
-        "cursor": {
           "pts": null,
           "gbp": null,
           "pricedPts": null,
@@ -2264,7 +2252,8 @@
             "label": "Session",
             "usedPct": null
           }
-        ]
+        ],
+        "inactive": false
       },
       {
         "creditAsOf": null,
@@ -2293,7 +2282,8 @@
             "label": "Weekly",
             "usedPct": 100
           }
-        ]
+        ],
+        "inactive": false
       },
       {
         "creditAsOf": null,
@@ -2330,7 +2320,8 @@
             "label": "5h",
             "usedPct": 0
           }
-        ]
+        ],
+        "inactive": false
       },
       {
         "creditAsOf": " · as of 2h ago",
@@ -2354,31 +2345,8 @@
         "skip": null,
         "tone": "plain",
         "usedPct": null,
-        "windows": []
-      },
-      {
-        "creditAsOf": " · as of 28h ago",
-        "creditReadAt": "2026-11-14T00:41:00Z",
-        "creditSubLabel": "month full",
-        "creditUsd": 11.28,
-        "mode": "credit",
-        "name": "DeepSeek",
-        "note": null,
-        "paceDelta": null,
-        "plan": "deepseek",
-        "primaryWindow": "week",
-        "resetsText": null,
-        "reviewer": {
-          "known": true,
-          "show": false,
-          "tip": ""
-        },
-        "runnersLive": true,
-        "runnersText": "0 runners",
-        "skip": null,
-        "tone": "plain",
-        "usedPct": null,
-        "windows": []
+        "windows": [],
+        "inactive": false
       },
       {
         "creditAsOf": " · as of 3h ago",
@@ -2402,7 +2370,8 @@
         "skip": null,
         "tone": "plain",
         "usedPct": null,
-        "windows": []
+        "windows": [],
+        "inactive": false
       },
       {
         "creditAsOf": null,
@@ -2426,7 +2395,8 @@
         "skip": null,
         "tone": "plain",
         "usedPct": null,
-        "windows": []
+        "windows": [],
+        "inactive": false
       },
       {
         "creditAsOf": null,
@@ -2450,6 +2420,32 @@
         "skip": null,
         "tone": "plain",
         "usedPct": 5.1,
+        "windows": [],
+        "inactive": false
+      },
+      {
+        "creditAsOf": null,
+        "creditReadAt": null,
+        "creditSubLabel": null,
+        "creditUsd": null,
+        "inactive": true,
+        "mode": "none",
+        "name": "Grok",
+        "note": null,
+        "paceDelta": null,
+        "plan": "grok",
+        "primaryWindow": "week",
+        "resetsText": null,
+        "reviewer": {
+          "known": false,
+          "show": false,
+          "tip": ""
+        },
+        "runnersLive": true,
+        "runnersText": "0 runners",
+        "skip": null,
+        "tone": "plain",
+        "usedPct": null,
         "windows": []
       },
       {
@@ -2457,6 +2453,32 @@
         "creditReadAt": null,
         "creditSubLabel": null,
         "creditUsd": null,
+        "inactive": true,
+        "mode": "none",
+        "name": "DeepSeek",
+        "note": null,
+        "paceDelta": null,
+        "plan": "deepseek",
+        "primaryWindow": "week",
+        "resetsText": null,
+        "reviewer": {
+          "known": false,
+          "show": false,
+          "tip": ""
+        },
+        "runnersLive": true,
+        "runnersText": "0 runners",
+        "skip": null,
+        "tone": "plain",
+        "usedPct": null,
+        "windows": []
+      },
+      {
+        "creditAsOf": null,
+        "creditReadAt": null,
+        "creditSubLabel": null,
+        "creditUsd": null,
+        "inactive": true,
         "mode": "none",
         "name": "Cursor",
         "note": null,
@@ -2465,16 +2487,13 @@
         "primaryWindow": "week",
         "resetsText": null,
         "reviewer": {
-          "known": true,
+          "known": false,
           "show": false,
           "tip": ""
         },
         "runnersLive": true,
         "runnersText": "0 runners",
-        "skip": {
-          "reason": "manual skip (lane-limits)",
-          "untilText": "2036-11-20 20:22 UTC"
-        },
+        "skip": null,
         "tone": "plain",
         "usedPct": null,
         "windows": []

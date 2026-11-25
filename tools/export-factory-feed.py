@@ -35,10 +35,11 @@ OPENCODE_AUTH_FILES = (
 OPENCODE_MONTHLY_SECONDS = 30 * 24 * 3600
 OPENCODE_ANCHOR_MAX_AGE = 7 * 86400
 PICKER_WINDOWS = ("1h",)
-PLAN_ENUM = ("claude", "codex", "opencode", "vercel", "deepseek", "openrouter",
+PLAN_ENUM = ("claude", "codex", "grok", "opencode", "vercel", "deepseek", "openrouter",
              "antigravity", "commandcode", "cursor")
-PLAN_NAMES = ("Claude", "Codex", "OpenCode", "Vercel", "DeepSeek", "OpenRouter",
+PLAN_NAMES = ("Claude", "Codex", "Grok", "OpenCode", "Vercel", "DeepSeek", "OpenRouter",
               "Antigravity", "CommandCode", "Cursor")
+INACTIVE_PLANS = ("cursor", "grok", "deepseek")
 PLAN_LANES = {"antigravity": ("antigravity", "google"), "commandcode": ("commandcode", "credit:commandcode")}
 LANE_TO_PLAN = {"google": "antigravity", "vercel-zai": "vercel"}
 COMMANDCODE_MONTHLY_CREDITS = 70.0
@@ -266,19 +267,6 @@ def vercel_reading(now):
         return None
 
 
-def deepseek_reading(now):
-    key = os.environ.get("DEEPSEEK_API_KEY")
-    if not key:
-        return None
-    try:
-        infos = fetch_json("https://api.deepseek.com/user/balance", key).get("balance_infos") or []
-        usd = next(i for i in infos if isinstance(i, dict) and i.get("currency") == "USD")
-        credit = number(float(usd["total_balance"]))
-    except (OSError, urllib.error.URLError, ValueError, TypeError, AttributeError, KeyError, StopIteration):
-        return None
-    return (credit, None, now, iso_utc(now)) if credit is not None else None
-
-
 def openrouter_reading(now):
     keys = [os.environ.get(name) for name in ("OPENROUTER_MANAGEMENT_KEY", "OPENROUTER_MANAGEMENT_KEY_AGENTS")]
     keys = [key for key in keys if key]
@@ -452,7 +440,7 @@ def usage_part(ub, g, now):
     opencode_api = opencode_usage_api(now)
     opencode_credit = opencode_reading()
     vercel_credit = vercel_reading(now)
-    other_credit = {"deepseek": deepseek_reading(now), "openrouter": openrouter_reading(now)}
+    other_credit = {"openrouter": openrouter_reading(now)}
     groups = merge_runner_groups(ub.runner_groups(), plan_pick_runner_groups(ub))
     limits = read_json(TOKEN_LADDER_LIMITS)
     credits = read_json(TOKEN_LADDER_CREDITS)
@@ -460,6 +448,29 @@ def usage_part(ub, g, now):
     pools = status.get("pools") if isinstance(status.get("pools"), dict) else {}
     cards = []
     for plan, label in zip(PLAN_ENUM, PLAN_NAMES):
+        if plan in INACTIVE_PLANS:
+            cards.append({
+                "plan": plan,
+                "name": label,
+                "primaryWindow": ub.PRIMARY.get(plan, "week"),
+                "mode": "none",
+                "usedPct": None,
+                "resetsText": None,
+                "paceDelta": None,
+                "tone": "plain",
+                "creditUsd": None,
+                "creditSubLabel": None,
+                "creditReadAt": None,
+                "creditAsOf": None,
+                "windows": [],
+                "runnersText": "0 runners",
+                "runnersLive": groups is not None,
+                "reviewer": {"show": False, "known": False, "tip": ""},
+                "note": None,
+                "skip": None,
+                "inactive": True,
+            })
+            continue
         credit = vercel_credit if plan == "vercel" else other_credit.get(plan)
         credit_sub_label = "credit" if credit else None
         reading = status.get(plan) if plan in ("claude", "codex") and fresh else None
@@ -529,7 +540,9 @@ def usage_part(ub, g, now):
             "reviewer": review_of(ub, plan, label),
             "note": note,
             "skip": skip,
+            "inactive": False,
         })
+    cards.sort(key=lambda card: card["inactive"])
     burn = {}
     plans_by_window = g.get("windows") if isinstance(g, dict) else None
     for window in PICKER_WINDOWS:
@@ -539,6 +552,8 @@ def usage_part(ub, g, now):
         raw = entry.get("plans") or {}
         burn[window] = {}
         for card in cards:
+            if card["inactive"]:
+                continue
             v = raw.get(card["plan"]) or {}
             burn[window][card["plan"]] = {
                 "pts": number(v.get("pts")),
@@ -595,9 +610,16 @@ def validate(feed):
         where = f"usage.cards[{i}]"
         ok(set(card) == {"plan", "name", "primaryWindow", "mode", "usedPct", "resetsText", "paceDelta", "tone", "creditUsd",
                          "creditSubLabel", "creditReadAt", "creditAsOf", "windows", "runnersText", "runnersLive", "reviewer",
-                         "note", "skip"},
+                         "note", "skip", "inactive"},
            f"{where}: field set does not match the contract")
         ok(card.get("plan") in PLAN_ENUM, f"{where}.plan: needs one of {PLAN_ENUM}")
+        ok(isinstance(card.get("inactive"), bool), f"{where}.inactive: needs true or false")
+        if card.get("inactive"):
+            ok(card.get("plan") in INACTIVE_PLANS, f"{where}: {card.get('plan')} is not an inactive plan")
+            ok(card.get("mode") == "none" and card.get("usedPct") is None and card.get("resetsText") is None,
+               f"{where}: an inactive card has no reading")
+            ok(card.get("paceDelta") is None and card.get("tone") == "plain", f"{where}: an inactive card has no pace")
+            ok(card.get("creditUsd") is None and card.get("windows") == [], f"{where}: an inactive card has no credit or windows")
         ok(isinstance(card.get("name"), str) and card["name"], f"{where}.name: needs text")
         ok(card.get("primaryWindow") in WINDOW_ENUM, f"{where}.primaryWindow: needs week or month")
         ok(card.get("mode") in MODE_ENUM, f"{where}.mode: needs percent, credit or none")

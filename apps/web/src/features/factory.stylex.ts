@@ -61,6 +61,11 @@ export const factoryStyles = stylex.create({
     gap: reader.spaceTight,
     padding: reader.spaceSmall,
   },
+  cardInactive: {
+    borderColor: surface.wash,
+    color: surface.muted,
+    opacity: 0.7,
+  },
   cardName: {
     fontSize: reader.fontSize,
     marginBlock: 0,
@@ -90,6 +95,11 @@ export const factoryStyles = stylex.create({
   cueWarm: { color: state.warm },
   details: {
     fontSize: reader.fontSmall,
+  },
+  inactiveLabel: {
+    color: surface.muted,
+    fontSize: reader.fontTiny,
+    marginBlock: 0,
   },
   meta: {
     color: surface.muted,

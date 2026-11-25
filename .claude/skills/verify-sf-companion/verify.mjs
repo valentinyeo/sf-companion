@@ -495,13 +495,6 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await page
           .getByRole("heading", { name: "Usage", exact: true })
           .waitFor();
-        assert.equal(
-          await page
-            .getByRole("heading", { name: "Grok", exact: true })
-            .count(),
-          0,
-          `${id}: the outdated Grok card still rendered`
-        );
         const cards = [
           ["Claude Code", ["67%", "+13.2 vs pace · over pace"]],
           ["Codex", ["100%", "+21.5 vs pace · well over pace"]],
@@ -517,7 +510,6 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             "Vercel",
             ["$105.28 left", "credit · resets Tue 00:00 · as of 2h ago"],
           ],
-          ["DeepSeek", ["$11.28 left", "as of 28h ago"]],
           ["OpenRouter", ["$45.85 left"]],
           [
             "Antigravity",
@@ -535,13 +527,9 @@ async function drive(browser, state, width, colorScheme, baseURL) {
               "66.4095/70 monthly credits left (~$94.87 Flash usage)",
             ],
           ],
-          [
-            "Cursor",
-            [
-              "no reading",
-              "Skipped until 2036-11-20 20:22 UTC (manual skip (lane-limits))",
-            ],
-          ],
+          ["Cursor", ["inactive"]],
+          ["Grok", ["inactive"]],
+          ["DeepSeek", ["inactive"]],
         ];
         for (const [name, readings] of cards) {
           await widget(name)
@@ -551,6 +539,13 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             await widget(name).getByText(reading, { exact: true }).waitFor();
           }
         }
+        for (const name of ["Grok", "DeepSeek", "Cursor"]) {
+          assert.equal(
+            await widget(name).getByText("0 runners", { exact: true }).count(),
+            0,
+            `${id}: the inactive ${name} card showed a runner line`
+          );
+        }
         await widget("Claude Code")
           .getByText("+2% · £0.00 in 1h on runners", { exact: true })
           .waitFor();
@@ -559,7 +554,7 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           fullPage: true,
         });
         await record(
-          "usage: every active plan card shows its reading, resets, burn, runners and skip",
+          "usage: every plan card shows its reading, resets and burn, or reads inactive for retired plans",
           "usage-cards"
         );
       }

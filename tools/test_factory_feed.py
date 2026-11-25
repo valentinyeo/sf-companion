@@ -85,29 +85,38 @@ class FeedPlanCards(unittest.TestCase):
         cards = self.feed.usage_part(Advisor(), metric or {}, NOW)["cards"]
         return next(card for card in cards if card["plan"] == plan)
 
-    def test_every_lane_plan_gets_a_card_and_grok_is_dropped(self):
+    def test_every_lane_plan_gets_a_card_and_retired_plans_come_last(self):
         self.limits("{}")
         cards = self.feed.usage_part(Advisor(), {}, NOW)["cards"]
         plans = [card["plan"] for card in cards]
-        self.assertEqual(plans, list(self.feed.PLAN_ENUM))
-        self.assertNotIn("grok", plans)
-        self.assertEqual([card["name"] for card in cards][-3:], ["Antigravity", "CommandCode", "Cursor"])
+        self.assertEqual(plans, sorted(self.feed.PLAN_ENUM, key=lambda plan: plan in self.feed.INACTIVE_PLANS))
+        self.assertEqual([card["name"] for card in cards][-3:], ["Grok", "DeepSeek", "Cursor"])
+        self.assertEqual({card["plan"] for card in cards if card["inactive"]}, set(self.feed.INACTIVE_PLANS))
         for card in cards:
             self.assertIn("skip", card)
             self.assertIn("note", card)
 
-    def test_a_retired_lane_shows_its_skip_and_end_date(self):
+    def test_an_inactive_plan_shows_no_reading_and_ignores_lane_limits(self):
         self.limits('{"cursor": 2110825352.5}')
         cursor = self.card("cursor")
-        self.assertEqual(cursor["skip"], {"reason": "manual skip (lane-limits)",
-                                          "untilText": "2036-11-20 20:22 UTC"})
+        self.assertTrue(cursor["inactive"])
+        self.assertIsNone(cursor["skip"])
         self.assertEqual(cursor["mode"], "none")
         self.assertIsNone(cursor["usedPct"])
         self.assertIsNone(cursor["resetsText"])
+        self.assertIsNone(cursor["paceDelta"])
+        self.assertEqual(cursor["windows"], [])
+
+    def test_inactive_plans_make_no_api_calls(self):
+        self.limits("{}")
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "test-key"}, clear=False), \
+                patch.object(self.feed, "fetch_json", side_effect=AssertionError("unexpected API call")):
+            for plan in self.feed.INACTIVE_PLANS:
+                self.assertTrue(self.card(plan)["inactive"])
 
     def test_a_recorded_reason_wins_over_the_default_wording(self):
-        self.limits('{"cursor": {"until": 2110825352.5, "reason": "retired"}}')
-        self.assertEqual(self.card("cursor")["skip"]["reason"], "retired")
+        self.limits('{"opencode": {"until": 2110825352.5, "reason": "retired"}}')
+        self.assertEqual(self.card("opencode")["skip"]["reason"], "retired")
 
     def test_an_expired_skip_is_dropped(self):
         self.limits('{"opencode": 1795524000.0}')
