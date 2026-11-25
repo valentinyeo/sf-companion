@@ -16,6 +16,23 @@ import { factoryStyles } from "./factory.stylex.js";
 
 const BURN_WINDOW = "1h";
 
+const consoleUrl = (plan: UsageCardValue["plan"]): string | null =>
+  plan === "opencode"
+    ? "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go"
+    : null;
+
+const cardHeading = (
+  card: UsageCardValue,
+  h: HtmlBuilder<AppMessage>
+): Html => {
+  const url = consoleUrl(card.plan);
+
+  return h.h3(
+    [h.Class(classes(factoryStyles.cardName))],
+    [url === null ? card.name : h.a([h.Href(url)], [card.name])]
+  );
+};
+
 const trimmed = (value: number): string => {
   const fixed = value.toFixed(2);
 
@@ -176,7 +193,7 @@ const usageCard = (
       h.div(
         [h.Class(classes(factoryStyles.cardTop))],
         [
-          h.h3([h.Class(classes(factoryStyles.cardName))], [card.name]),
+          cardHeading(card, h),
           ...(reset === ""
             ? []
             : [h.p([h.Class(classes(factoryStyles.reset))], [reset])]),
