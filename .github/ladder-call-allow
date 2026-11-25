@@ -1,3 +1,4 @@
 tools/README.md:balance read, no model call:2027-11-24
 tools/export-factory-feed.py:balance read, no model call:2027-11-24
 tools/test_factory_feed.py:unit test fixtures only, writes lane-credits.json and never calls a model:2027-11-24
+tools/sf-companion-feed:runs the exporter and the alchemy deploy, no model call:2027-11-24
