@@ -128,7 +128,7 @@ class FeedPlanCards(unittest.TestCase):
         cards = self.feed.usage_part(Advisor(), {}, NOW)["cards"]
         self.assertEqual([card["plan"] for card in cards], list(self.feed.PLAN_ENUM))
         self.assertEqual([card["name"] for card in cards],
-                         ["Claude", "Codex", "OpenCode", "Vercel", "OpenRouter", "Antigravity", "CommandCode"])
+                         ["Claude", "Codex", "OpenCode", "Vercel Token Pass", "OpenRouter", "Antigravity", "CommandCode"])
         for card in cards:
             self.assertIn("skip", card)
             self.assertIn("note", card)

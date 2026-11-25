@@ -520,10 +520,12 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             ],
           ],
           [
-            "Vercel",
+            "Vercel Token Pass",
             [
-              "$105.28 left",
-              "credit · resets Tue 00:00 · as of 2h ago",
+              "81%",
+              "+14.2 vs pace · over pace",
+              "resets 5 Dec",
+              "$28.90 of $150 pass credit left",
               "idle",
             ],
           ],

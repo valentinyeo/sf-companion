@@ -55,7 +55,7 @@ AGY_WINDOWS = (
 PICKER_WINDOWS = ("1h",)
 PLAN_ENUM = ("claude", "codex", "opencode", "vercel", "openrouter",
              "antigravity", "commandcode")
-PLAN_NAMES = ("Claude", "Codex", "OpenCode", "Vercel", "OpenRouter",
+PLAN_NAMES = ("Claude", "Codex", "OpenCode", "Vercel Token Pass", "OpenRouter",
               "Antigravity", "CommandCode")
 ROSTER_BIN = Path(os.environ.get("ROSTER_BIN") or Path.home() / ".local/share/house-rules/fleet/roster-live")
 ROSTER_TIMEOUT_SECONDS = 10
@@ -64,6 +64,9 @@ ROSTER_PLANS = {"claude": "claude", "codex": "codex"}
 PLAN_LANES = {"antigravity": ("antigravity", "google"), "commandcode": ("commandcode", "credit:commandcode")}
 LANE_TO_PLAN = {"google": "antigravity", "vercel-zai": "vercel"}
 COMMANDCODE_MONTHLY_CREDITS = 70.0
+TOKEN_PASS_CREDIT_USD = 150.0
+TOKEN_PASS_CYCLE_SECONDS = 30 * 86400
+TOKEN_PASS_CREDITS_URL = "https://ai-gateway.vercel.sh/v1/credits"
 WINDOW_ENUM = ("week", "month")
 MODE_ENUM = ("percent", "credit", "none")
 TONE_ENUM = ("plain", "warm", "hot")
@@ -334,8 +337,8 @@ def vercel_reading(now):
     if not key:
         return None
     request = urllib.request.Request(
-        "https://ai-gateway.vercel.sh/v1/credits",
-        headers={"Authorization": f"Bearer {key}"},
+        TOKEN_PASS_CREDITS_URL,
+        headers={"Authorization": f"Bearer {key}", "User-Agent": "sf-companion"},
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
@@ -346,9 +349,16 @@ def vercel_reading(now):
         if isinstance(remaining, bool):
             return None
         credit = number(float(remaining))
-        if credit is None:
+        if credit is None or credit < 0:
             return None
-        return credit, None, now, iso_utc(now)
+        used_pct = max(0.0, min(100.0, (TOKEN_PASS_CREDIT_USD - credit) / TOKEN_PASS_CREDIT_USD * 100))
+        resets = iso_timestamp(token_pass.get("resets_at"))
+        pace = None
+        if resets is not None:
+            gone_pct = (now - (resets - TOKEN_PASS_CYCLE_SECONDS)) / TOKEN_PASS_CYCLE_SECONDS * 100
+            pace = used_pct - gone_pct if 0 <= gone_pct <= 100 else None
+        return {"usedPct": used_pct, "paceDelta": pace, "resetsAt": resets,
+                "note": f"${credit:.2f} of ${TOKEN_PASS_CREDIT_USD:.0f} pass credit left"}
     except (OSError, urllib.error.URLError, ValueError, TypeError, AttributeError):
         return None
 
@@ -555,7 +565,7 @@ def usage_part(ub, g, now):
     opencode_history = opencode_reading()
     opencode_credit = opencode_console_credit(now) or opencode_history
     antigravity = agy_reading()
-    vercel_credit = vercel_reading(now)
+    vercel = vercel_reading(now)
     other_credit = {"openrouter": openrouter_reading(now)}
     groups = merge_runner_groups(ub.runner_groups(), plan_pick_runner_groups(ub))
     chats = roster_chats()
@@ -565,7 +575,7 @@ def usage_part(ub, g, now):
     pools = status.get("pools") if isinstance(status.get("pools"), dict) else {}
     cards = []
     for plan, label in zip(PLAN_ENUM, PLAN_NAMES):
-        credit = vercel_credit if plan == "vercel" else other_credit.get(plan)
+        credit = other_credit.get(plan)
         credit_sub_label = "credit" if credit else None
         reading = status.get(plan) if plan in ("claude", "codex") and fresh else None
         reading = reading if isinstance(reading, dict) and not reading.get("error") else {}
@@ -606,10 +616,14 @@ def usage_part(ub, g, now):
                 used, delta = commandcode["usedPct"], commandcode["paceDelta"]
                 resets = commandcode["resetsAt"]
                 note = commandcode["note"]
+        if plan == "vercel" and vercel is not None:
+            used, delta = vercel["usedPct"], vercel["paceDelta"]
+            resets = vercel["resetsAt"]
+            note = vercel["note"]
         skip = skip_of(limits, plan, now)
         if used is not None and resets is not None:
             try:
-                resets_text = ub.when(resets)
+                resets_text = ub.when(resets, "month" if plan == "vercel" else "week")
             except (OSError, ValueError, OverflowError):
                 pass
         if plan in ("claude", "codex"):
@@ -627,7 +641,7 @@ def usage_part(ub, g, now):
         cards.append(((plan_chats or 0) + (runners or 0), {
             "plan": plan,
             "name": label,
-            "primaryWindow": "month" if plan == "commandcode" else ub.PRIMARY.get(plan, "week"),
+            "primaryWindow": "month" if plan in ("commandcode", "vercel") else ub.PRIMARY.get(plan, "week"),
             "mode": "credit" if credit else "percent" if used is not None else "none",
             "usedPct": used,
             "resetsText": resets_text,
