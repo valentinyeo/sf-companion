@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 import re
@@ -47,8 +48,9 @@ class Advisor:
     def tone(self, delta):
         return "" if delta is None or delta <= 0 else " hot" if delta > 10 else " warm"
 
-    def when(self, at):
-        return datetime.fromtimestamp(at, timezone.utc).strftime("%a %H:%M")
+    def when(self, at, kind="week"):
+        stamp = datetime.fromtimestamp(at, timezone.utc)
+        return stamp.strftime("%a %H:%M") if kind != "month" else f"{stamp.day} {stamp:%b}"
 
 
 def load_exporter(status_path):
@@ -220,6 +222,40 @@ class FeedPlanCards(unittest.TestCase):
         commandcode = self.card("commandcode")
         self.assertEqual(commandcode["mode"], "none")
         self.assertIsNone(commandcode["usedPct"])
+
+    def test_vercel_shows_the_token_pass_percent_not_the_gateway_balance(self):
+        self.limits("{}")
+        payload = json.dumps({
+            "balance": "19.9740337796",
+            "token_pass": {"remaining": "30", "resets_at": "2026-12-05T08:00:00.000Z"},
+            "total_used": "661.1272349684",
+        })
+        seen = []
+
+        class Response:
+            def __enter__(self):
+                return io.StringIO(payload)
+
+            def __exit__(self, *args):
+                return False
+
+        def fake_urlopen(request, timeout=None):
+            seen.append(request.full_url)
+            return Response()
+
+        with patch.dict(os.environ, {"AI_GATEWAY_API_KEY": "test-key"}, clear=False), \
+                patch.object(self.feed.urllib.request, "urlopen", side_effect=fake_urlopen):
+            vercel = self.card("vercel")
+        self.assertEqual(seen, ["https://ai-gateway.vercel.sh/v1/credits"])
+        self.assertEqual(vercel["name"], "Vercel Token Pass")
+        self.assertEqual(vercel["mode"], "percent")
+        self.assertAlmostEqual(vercel["usedPct"], 80.0, places=2)
+        self.assertGreater(vercel["paceDelta"], 0)
+        self.assertEqual(vercel["primaryWindow"], "month")
+        self.assertEqual(vercel["resetsText"], "5 Dec")
+        self.assertEqual(vercel["note"], "$30.00 of $150 pass credit left")
+        self.assertIsNone(vercel["creditUsd"])
+        self.assertIsNone(vercel["skip"])
 
     def test_antigravity_reads_its_limits_from_the_agy_cli(self):
         self.limits("{}")
