@@ -179,6 +179,7 @@ const updatedText = (generatedAt: string, nowMs: number): string | null =>
         Math.max(0, nowMs - DateTime.toEpochMillis(generated)) /
           MILLIS_PER_MINUTE
       );
+
       const clock = DateTime.formatLocal(generated, {
         hour: "2-digit",
         hourCycle: "h23",

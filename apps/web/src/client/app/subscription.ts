@@ -1,4 +1,4 @@
-import { Clock, Schema, Stream } from "effect";
+import { Clock, Predicate, Schema, Stream } from "effect";
 import { Subscription } from "foldkit";
 
 import { Message } from "./message.js";
@@ -18,7 +18,7 @@ export const subscriptions = Subscription.make<AppModel, AppMessage>()(
       { onUsagePage: Schema.Boolean },
       {
         modelToDependencies: (model) => ({
-          onUsagePage: model.route._tag === "Usage",
+          onUsagePage: Predicate.isTagged("Usage")(model.route),
         }),
         dependenciesToStream: ({ onUsagePage }) =>
           onUsagePage ? clockStream : Stream.empty,

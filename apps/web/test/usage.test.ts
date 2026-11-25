@@ -142,7 +142,7 @@ describe("usage page", () => {
           expectElement(text("2 runners")).toExist(),
           expectElement(text("idle")).toExist(),
           expectElement(text("inactive")).not.toExist(),
-          expectElement(text(/^Updated /)).not.toExist(),
+          expectElement(text(/^Updated /u)).not.toExist(),
           expectElement(text("Weekly 67%")).toExist(),
           expectElement(text("29 / day · 87 / week")).not.toExist()
         );
@@ -236,9 +236,11 @@ describe("usage page", () => {
   it.effect("shows one data age line and updates it when the clock ticks", () =>
     Effect.gen(function* showAge() {
       const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
+
       const generated = DateTime.toEpochMillis(
         DateTime.makeUnsafe(usageFeed.generatedAt)
       );
+
       const at = (minutes: number) => Option.some(generated + minutes * 60_000);
 
       scene(
@@ -250,11 +252,11 @@ describe("usage page", () => {
           ),
           nowMs: at(5),
         }),
-        expectElement(text(/^Updated \d{2}:\d{2} \(5 min ago\)$/)).toExist(),
+        expectElement(text(/^Updated \d{2}:\d{2} \(5 min ago\)$/u)).toExist(),
         Subscription.emit(
           Message.TickedClock({ nowMs: generated + 35 * 60_000 })
         ),
-        expectElement(text(/^Updated \d{2}:\d{2} \(35 min ago\)$/)).toExist()
+        expectElement(text(/^Updated \d{2}:\d{2} \(35 min ago\)$/u)).toExist()
       );
     })
   );
