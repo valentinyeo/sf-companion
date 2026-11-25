@@ -44,6 +44,7 @@ const journeyRoutes = {
   "usage-details": "Usage",
   "usage-empty": "Usage",
   "usage-entry": "Usage",
+  "usage-updated": "Usage",
 };
 const absentJourneys = new Map(
   Object.entries(journeyRoutes)
@@ -68,6 +69,7 @@ const seededFactoryJourneys = [
   "factory-layout",
   "factory-timestamp",
   "usage-entry",
+  "usage-updated",
   "usage-cards",
   "usage-burn",
   "usage-details",
@@ -137,6 +139,16 @@ const actionlessJourneys = new Set(["access-anonymous"]);
 const expectedNotFound = "/no-such-page";
 let expectingMissingPage = false;
 const exportTime = "Numbers from 2026-11-15 00:41 UTC";
+const feedGeneratedAt = "2026-11-15T00:41:07Z";
+const usageLinks = [
+  ["Claude Code", "https://claude.ai/new#settings/usage"],
+  ["Codex", "https://chatgpt.com/settings/usage?tab=overview"],
+  ["Antigravity", "https://antigravity.google/"],
+  ["OpenCode", "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go"],
+  ["Vercel", "https://vercel.com/hypertaskai/~/ai-gateway/token-pass"],
+  ["OpenRouter", "https://openrouter.ai/settings/credits"],
+  ["CommandCode", "https://commandcode.ai/"],
+];
 const shippingCostWindow = "2026-11-15 00:00 UTC to 2026-11-16 00:00 UTC";
 const shippingUnavailable =
   "Daily shipping data unavailable. This feed predates the daily collector.";
@@ -482,6 +494,31 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           "usage-entry"
         );
       }
+      if (wants("usage-updated")) {
+        await page.goto("/usage", { waitUntil: "networkidle" });
+        const ageLine = page.getByText(/^Updated \d{2}:\d{2} \(\d+ min ago\)$/);
+        await ageLine.waitFor();
+        const driven = /^(?:Updated \d{2}:\d{2} \((\d+) min ago\))$/.exec(
+          await ageLine.textContent()
+        );
+        assert.ok(
+          driven !== null,
+          `${id}: the data age line did not print Updated HH:MM (N min ago)`
+        );
+        const elapsed = await page.evaluate(
+          (generatedAt) =>
+            Math.floor((Date.now() - Date.parse(generatedAt)) / 60000),
+          feedGeneratedAt
+        );
+        assert.ok(
+          Math.abs(Number(driven[1]) - elapsed) <= 1,
+          `${id}: the data age line said ${driven[1]} min ago, but the feed is ${elapsed} minutes old`
+        );
+        await record(
+          "usage: one data age line under the title prints the feed time in the viewer's local time and the minutes since it",
+          "usage-updated"
+        );
+      }
       if (wants("factory-timestamp")) {
         await page.goto("/factory", { waitUntil: "networkidle" });
         await page.getByText(exportTime, { exact: true }).waitFor();
@@ -545,6 +582,28 @@ async function drive(browser, state, width, colorScheme, baseURL) {
           for (const reading of readings) {
             await widget(name).getByText(reading, { exact: true }).waitFor();
           }
+        }
+        for (const [name, href] of usageLinks) {
+          const headingLink = widget(name).getByRole("link", {
+            name,
+            exact: true,
+          });
+          await headingLink.waitFor();
+          assert.equal(
+            await headingLink.getAttribute("href"),
+            href,
+            `${id}: the ${name} card heading does not link to ${href}`
+          );
+          assert.equal(
+            await headingLink.getAttribute("target"),
+            "_blank",
+            `${id}: the ${name} card heading link does not open a new tab`
+          );
+          assert.equal(
+            await headingLink.getAttribute("rel"),
+            "noopener",
+            `${id}: the ${name} card heading link does not carry rel noopener`
+          );
         }
         const headings = await page
           .getByRole("heading", { level: 3 })

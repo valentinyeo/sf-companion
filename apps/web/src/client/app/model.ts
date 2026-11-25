@@ -1,5 +1,4 @@
-import { Schema } from "effect";
-import type { Option } from "effect";
+import { Option, Schema } from "effect";
 
 import { FactoryFeed, WindowKey } from "../../content/feed.js";
 import type { FactoryFeedValue } from "../../content/feed.js";
@@ -17,6 +16,7 @@ export const Model = Schema.Struct({
   feed: Schema.Option(FactoryFeed),
   items: Schema.Array(Item),
   kpiWindow: WindowKey,
+  nowMs: Schema.Option(Schema.Number),
   route: SiteRoute,
 });
 
@@ -29,5 +29,6 @@ export const initialModel = (
   feed,
   items: [...flags.items],
   kpiWindow: "1h",
+  nowMs: Option.none(),
   route: flags.route,
 });

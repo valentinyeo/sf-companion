@@ -1,13 +1,15 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Exit, Option } from "effect";
+import { DateTime, Effect, Exit, Option } from "effect";
 import {
   expect as expectElement,
   given,
   role,
   scene,
+  Subscription,
   text,
 } from "foldkit/scene";
 
+import { Message } from "../src/client/app/message.js";
 import { initialModel } from "../src/client/app/model.js";
 import { update } from "../src/client/app/update.js";
 import { decodeFeed } from "../src/content/feed.js";
@@ -140,10 +142,121 @@ describe("usage page", () => {
           expectElement(text("2 runners")).toExist(),
           expectElement(text("idle")).toExist(),
           expectElement(text("inactive")).not.toExist(),
+          expectElement(text(/^Updated /)).not.toExist(),
           expectElement(text("Weekly 67%")).toExist(),
           expectElement(text("29 / day · 87 / week")).not.toExist()
         );
       })
+  );
+
+  it.effect("links each card heading to that plan's own usage page", () =>
+    Effect.gen(function* linkHeadings() {
+      const linked = [
+        ["claude", "Claude Code", "https://claude.ai/new#settings/usage"],
+        ["codex", "Codex", "https://chatgpt.com/settings/usage?tab=overview"],
+        [
+          "vercel",
+          "Vercel",
+          "https://vercel.com/hypertaskai/~/ai-gateway/token-pass",
+        ],
+        [
+          "opencode",
+          "OpenCode",
+          "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go",
+        ],
+        ["antigravity", "Antigravity", "https://antigravity.google/"],
+        ["commandcode", "CommandCode", "https://commandcode.ai/"],
+        ["openrouter", "OpenRouter", "https://openrouter.ai/settings/credits"],
+      ] as const;
+
+      const feed = yield* decodeFeed(
+        fixturePath,
+        JSON.stringify({
+          ...usageFeed,
+          usage: {
+            ...usageFeed.usage,
+            cards: linked.map(([plan, name]) => ({
+              ...usageFeed.usage.cards[0],
+              name,
+              plan,
+            })),
+          },
+        })
+      );
+
+      scene(
+        { update, view },
+        given(
+          initialModel(
+            { items: [], route: SiteRoute.Usage() },
+            Option.some(feed)
+          )
+        ),
+        expectElement(role("heading", { name: "Claude Code" })).toExist(),
+        expectElement(role("link", { name: "Claude Code" })).toHaveAttr(
+          "href",
+          "https://claude.ai/new#settings/usage"
+        ),
+        expectElement(role("link", { name: "Claude Code" })).toHaveAttr(
+          "target",
+          "_blank"
+        ),
+        expectElement(role("link", { name: "Claude Code" })).toHaveAttr(
+          "rel",
+          "noopener"
+        ),
+        expectElement(role("link", { name: "Codex" })).toHaveAttr(
+          "href",
+          "https://chatgpt.com/settings/usage?tab=overview"
+        ),
+        expectElement(role("link", { name: "Vercel" })).toHaveAttr(
+          "href",
+          "https://vercel.com/hypertaskai/~/ai-gateway/token-pass"
+        ),
+        expectElement(role("link", { name: "OpenCode" })).toHaveAttr(
+          "href",
+          "https://opencode.ai/console/wrk_01KF5VZPS53BNVE2RR9QAYJSB4/go"
+        ),
+        expectElement(role("link", { name: "Antigravity" })).toHaveAttr(
+          "href",
+          "https://antigravity.google/"
+        ),
+        expectElement(role("link", { name: "CommandCode" })).toHaveAttr(
+          "href",
+          "https://commandcode.ai/"
+        ),
+        expectElement(role("link", { name: "OpenRouter" })).toHaveAttr(
+          "href",
+          "https://openrouter.ai/settings/credits"
+        )
+      );
+    })
+  );
+
+  it.effect("shows one data age line and updates it when the clock ticks", () =>
+    Effect.gen(function* showAge() {
+      const feed = yield* decodeFeed(fixturePath, JSON.stringify(usageFeed));
+      const generated = DateTime.toEpochMillis(
+        DateTime.makeUnsafe(usageFeed.generatedAt)
+      );
+      const at = (minutes: number) => Option.some(generated + minutes * 60_000);
+
+      scene(
+        { update, view },
+        given({
+          ...initialModel(
+            { items: [], route: SiteRoute.Usage() },
+            Option.some(feed)
+          ),
+          nowMs: at(5),
+        }),
+        expectElement(text(/^Updated \d{2}:\d{2} \(5 min ago\)$/)).toExist(),
+        Subscription.emit(
+          Message.TickedClock({ nowMs: generated + 35 * 60_000 })
+        ),
+        expectElement(text(/^Updated \d{2}:\d{2} \(35 min ago\)$/)).toExist()
+      );
+    })
   );
 
   it.effect("rejects a card for a retired plan", () =>
