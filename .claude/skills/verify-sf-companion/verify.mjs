@@ -411,6 +411,19 @@ async function drive(browser, state, width, colorScheme, baseURL) {
     page
       .locator("section")
       .filter({ has: page.getByRole("heading", { name, exact: true }) });
+  async function awaitCount(locator, expected) {
+    const deadline = Date.now() + 5000;
+    let count = await locator.count();
+    while (count !== expected && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      count = await locator.count();
+    }
+    assert.equal(
+      count,
+      expected,
+      `${id}: expected ${expected} matches, saw ${count}`
+    );
+  }
   async function record(action, journey = null) {
     const dimensions = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
@@ -964,14 +977,8 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await tickets
           .getByRole("rowheader", { name: "VSTA-328 (inferred)", exact: true })
           .waitFor();
-        assert.equal(
-          await tickets.getByText("MUBO-45", { exact: false }).count(),
-          0
-        );
-        assert.equal(
-          await tickets.getByText("HTPR-9", { exact: false }).count(),
-          0
-        );
+        await awaitCount(tickets.getByText("MUBO-45", { exact: false }), 0);
+        await awaitCount(tickets.getByText("HTPR-9", { exact: false }), 0);
         await page
           .getByRole("button", { name: "All chats", exact: true })
           .click();
@@ -989,35 +996,18 @@ async function drive(browser, state, width, colorScheme, baseURL) {
       }
       if (wants("burn-ranges")) {
         await page.goto("/usage/burn", { waitUntil: "networkidle" });
+        const codexChat = page.getByRole("button", {
+          name: "Show tickets for Codex older chat",
+          exact: true,
+        });
         await page.getByRole("button", { name: "24h", exact: true }).click();
-        assert.equal(
-          await page
-            .getByRole("button", {
-              name: "Show tickets for Codex older chat",
-              exact: true,
-            })
-            .count(),
-          0
-        );
+        await awaitCount(codexChat, 0);
         await page.getByRole("button", { name: "7d", exact: true }).click();
-        await page
-          .getByRole("button", {
-            name: "Show tickets for Codex older chat",
-            exact: true,
-          })
-          .waitFor();
+        await codexChat.waitFor();
         await page
           .getByRole("button", { name: "This plan week", exact: true })
           .click();
-        assert.equal(
-          await page
-            .getByRole("button", {
-              name: "Show tickets for Codex older chat",
-              exact: true,
-            })
-            .count(),
-          0
-        );
+        await awaitCount(codexChat, 0);
         await page
           .getByText(
             "antigravity: reset time unavailable; excluded from this plan week.",
@@ -1081,13 +1071,11 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await providerTable
           .getByRole("cell", { name: "$0.12", exact: true })
           .waitFor();
-        assert.equal(
-          await page
-            .getByRole("button", {
-              name: "Show tickets for Provider total, not a chat",
-              exact: true,
-            })
-            .count(),
+        await awaitCount(
+          page.getByRole("button", {
+            name: "Show tickets for Provider total, not a chat",
+            exact: true,
+          }),
           0
         );
         await page
@@ -1106,10 +1094,8 @@ async function drive(browser, state, width, colorScheme, baseURL) {
         await table
           .getByText("Includes requests without token counts", { exact: true })
           .waitFor();
-        assert.equal(
-          await table
-            .getByRole("cell", { name: "Unknown", exact: true })
-            .count(),
+        await awaitCount(
+          table.getByRole("cell", { name: "Unknown", exact: true }),
           2
         );
         await record(
