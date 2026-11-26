@@ -6,6 +6,7 @@ import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 from bisect import bisect_left, bisect_right
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -21,6 +22,9 @@ import time
 HOUR = 3600
 WEEK = 7 * 86400
 VERSION = 5
+PARALLEL_MINIMUM_FILES = 64
+MAX_WORKERS = 8
+RELEASE_EVERY = 16 * 1024 * 1024
 TICKET = re.compile(r"\b[A-Z][A-Z0-9]{1,11}-[1-9][0-9]{0,8}\b")
 MULTIBOT = re.compile(r"\bMULTIBOT_SESSION\s*[=:]\s*[\"']?([A-Za-z0-9_.:-]{1,80})")
 PRIVATE = re.compile(r"[\w.+-]+@[\w.-]+|\b\d{1,3}(?:\.\d{1,3}){3}\b|(?:sk-|ghp_|gho_|eyJ)[A-Za-z0-9_./+=-]+|[A-Za-z0-9_+/=-]{32,}")
@@ -63,17 +67,32 @@ def label(value, fallback="unknown"):
     return " ".join(text.split())[:80] or fallback
 
 
+def release_cached_pages(handle, consumed=None):
+    try:
+        os.posix_fadvise(handle.fileno(), 0, 0 if consumed is None else consumed, os.POSIX_FADV_DONTNEED)
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
 def records(path, issues):
+    released = 0
     try:
         with path.open(encoding="utf-8", errors="replace") as handle:
-            for line in handle:
-                try:
-                    row = json.loads(line)
-                except ValueError:
-                    issues["invalid JSONL rows"] += 1
-                    continue
-                if isinstance(row, dict):
-                    yield row
+            try:
+                for line in handle:
+                    consumed = handle.buffer.tell()
+                    if consumed - released >= RELEASE_EVERY:
+                        release_cached_pages(handle, consumed)
+                        released = consumed
+                    try:
+                        row = json.loads(line)
+                    except ValueError:
+                        issues["invalid JSONL rows"] += 1
+                        continue
+                    if isinstance(row, dict):
+                        yield row
+            finally:
+                release_cached_pages(handle)
     except OSError:
         issues["unreadable files"] += 1
 
@@ -387,11 +406,69 @@ def chat_names(home):
     return names
 
 
-def local_report(home, now, cache_dir=None):
+def usable_workers():
+    try:
+        available = len(os.sched_getaffinity(0))
+    except AttributeError:
+        available = os.cpu_count() or 1
+    return max(1, min(available, MAX_WORKERS))
+
+
+def file_signature(stat, price_version):
+    return [VERSION, stat.st_size, stat.st_mtime_ns, price_version]
+
+
+def file_report(path, provider, prices, price_version, cache_dir):
+    try:
+        stat = path.stat()
+    except OSError:
+        return [], None, {"unreadable files": 1}
+    cache_path = cache_dir / (digest(str(path)) + ".json")
+    cached = load(cache_path)
+    signature = file_signature(stat, price_version)
+    if cached.get("signature") == signature and isinstance(cached.get("rows"), list):
+        return cached["rows"], cached.get("session"), cached.get("issues") or {}
+    file_issues = Counter()
+    if provider == "antigravity":
+        rows, session = antigravity(path, file_issues), None
+    else:
+        rows, session = transcript(path, provider, prices, file_issues)
+    try:
+        atomic_json(cache_path, {"signature": signature, "rows": rows, "session": session, "issues": dict(file_issues)})
+    except OSError:
+        file_issues["cache writes failed"] += 1
+    return rows, session, dict(file_issues)
+
+
+WORKER_STATE = {}
+
+
+def start_worker(prices, price_version, cache_dir):
+    WORKER_STATE.update(prices=prices, price_version=price_version, cache_dir=Path(cache_dir))
+
+
+def file_report_task(task):
+    path, provider = task
+    return file_report(Path(path), provider, WORKER_STATE["prices"], WORKER_STATE["price_version"], WORKER_STATE["cache_dir"])
+
+
+def read_files(tasks, prices, price_version, cache_dir, workers):
+    if workers <= 1 or len(tasks) < PARALLEL_MINIMUM_FILES:
+        return [file_report(Path(path), provider, prices, price_version, cache_dir) for path, provider in tasks]
+    try:
+        with ProcessPoolExecutor(max_workers=workers, initializer=start_worker,
+                                 initargs=(prices, price_version, str(cache_dir))) as pool:
+            return list(pool.map(file_report_task, tasks, chunksize=8))
+    except (OSError, RuntimeError):
+        return [file_report(Path(path), provider, prices, price_version, cache_dir) for path, provider in tasks]
+
+
+def local_report(home, now, cache_dir=None, processes=None):
     issues = Counter()
     prices = list_prices(home)
     price_version = digest(json.dumps(prices, sort_keys=True))
     cache_dir = cache_dir or home / ".local/state/sf-companion/burn-cache"
+    pool_size = usable_workers() if processes is None else processes
     groups = (("claude", home / ".claude/projects", "**/*.jsonl"),
               ("codex", home / ".codex/sessions", "**/*.jsonl"),
               ("pi", home / ".pi/agent/sessions", "**/*.jsonl"),
@@ -400,34 +477,11 @@ def local_report(home, now, cache_dir=None):
     names = chat_names(home)
     sources = []
     for provider, root, pattern in groups:
-        found = 0
-        for path in sorted(root.glob(pattern)):
-            if not path.is_file():
-                continue
-            found += 1
-            try:
-                stat = path.stat()
-            except OSError:
-                issues["unreadable files"] += 1
-                continue
-            cache_path = cache_dir / (digest(str(path)) + ".json")
-            cached = load(cache_path)
-            signature = [VERSION, stat.st_size, stat.st_mtime_ns, price_version]
-            if cached.get("signature") == signature:
-                rows = cached.get("rows", [])
-                session = cached.get("session")
-                issues.update(cached.get("issues", {}))
-            else:
-                file_issues = Counter()
-                if provider == "antigravity":
-                    rows, session = antigravity(path, file_issues), None
-                else:
-                    rows, session = transcript(path, provider, prices, file_issues)
-                try:
-                    atomic_json(cache_path, {"signature": signature, "rows": rows, "session": session, "issues": dict(file_issues)})
-                except OSError:
-                    issues["cache writes failed"] += 1
-                issues.update(file_issues)
+        paths = [path for path in sorted(root.glob(pattern)) if path.is_file()]
+        found = len(paths)
+        tasks = [(str(path), provider) for path in paths]
+        for rows, _session, file_issues in read_files(tasks, prices, price_version, cache_dir, pool_size):
+            issues.update(file_issues)
             for row in rows:
                 raw_chat = row["chat"]
                 row["chat"] = names.get(row["chatId"], names.get(raw_chat, row.get("project", raw_chat) if raw_chat.startswith("live-") else raw_chat))
