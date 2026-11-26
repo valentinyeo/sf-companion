@@ -156,22 +156,50 @@ describe("burn report", () => {
       })
   );
 
-  it.effect("keeps request-only usage and unpriced cost unknown", () =>
-    Effect.gen(function* unknownBurnCosts() {
-      const report = yield* decodeReport(fixture.usage.report);
+  it.effect(
+    "keeps fully unpriced usage unknown and costs the priced share of a mixed group",
+    () =>
+      Effect.gen(function* unknownBurnCosts() {
+        const report = yield* decodeReport(fixture.usage.report);
 
-      const groups = rankBurn(
-        report.rows.filter((item) => item.plan === "antigravity"),
-        "plan"
-      );
+        const groups = rankBurn(
+          report.rows.filter((item) => item.plan === "antigravity"),
+          "plan"
+        );
 
-      expect(groups.at(0)?.tokensKnown).toBe(false);
-      expect(groups.at(0)?.listCostUsd).toBeNull();
-      expect(groups.at(0)?.requests).toBe(3);
-      expect(
-        rankBurn([{ ...row, listCostUsd: 1 }, row], "plan").at(0)?.listCostUsd
-      ).toBeNull();
-    })
+        expect(groups.at(0)?.tokensKnown).toBe(false);
+        expect(groups.at(0)?.listCostUsd).toBeNull();
+        expect(groups.at(0)?.requests).toBe(3);
+        expect(groups.at(0)?.unpricedRequests).toBe(3);
+
+        const mixed = rankBurn(
+          [{ ...row, listCostUsd: 1 }, { ...row, requests: 3 }],
+          "plan"
+        ).at(0);
+
+        expect(mixed?.listCostUsd).toBe(1);
+        expect(mixed?.unpricedRequests).toBe(3);
+        expect(mixed?.weight).toBe(1);
+      })
+  );
+
+  it.effect(
+    "shows the known cost of a mixed Claude account beside its unpriced requests",
+    () =>
+      Effect.gen(function* mixedAccountCost() {
+        const feed = yield* decodeFeed("fixture", JSON.stringify(fixture));
+        scene(
+          { update, view },
+          given(
+            initialModel(
+              { items: [], route: SiteRoute.Burn() },
+              Option.some(feed)
+            )
+          ),
+          expectElement(role("cell", { name: "$3.75" })).toExist(),
+          expectElement(text("4 of 34 requests unpriced")).toExist()
+        );
+      })
   );
 
   it.effect(

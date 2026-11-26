@@ -1062,6 +1062,18 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             exact: true,
           })
           .click();
+        const claudePlans = page.getByRole("table").filter({
+          has: page.getByRole("button", {
+            name: "Show chats for claude / claude fixture account",
+            exact: true,
+          }),
+        });
+        await claudePlans
+          .getByRole("cell", { name: "$3.75", exact: true })
+          .waitFor();
+        await claudePlans
+          .getByText("4 of 34 requests unpriced", { exact: true })
+          .waitFor();
         const providerTable = page.getByRole("table").filter({
           has: page.getByRole("rowheader", {
             name: "opencode / OpenCode fixture usage key",
