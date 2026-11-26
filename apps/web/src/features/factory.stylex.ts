@@ -13,6 +13,15 @@ export const factoryStyles = stylex.create({
     marginBlockStart: reader.spaceTight,
     width: "100%",
   },
+  burnCell: {
+    maxWidth: "none",
+    minWidth: "0",
+    paddingInline: "0.5rem",
+  },
+  burnTable: {
+    minWidth: "56rem",
+    tableLayout: "auto",
+  },
   chartBody: { display: "table-row-group" },
   chartCell: {
     display: "table-cell",

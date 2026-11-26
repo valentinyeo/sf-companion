@@ -56,9 +56,17 @@ const sectionLinks = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
   h.li([], [h.a([h.Href(chatsRouter())], ["Chats"])]),
 ];
 
-const siteHeader = (h: HtmlBuilder<AppMessage>): Html =>
+const layoutName = (wide: boolean): string => (wide ? "wide" : "bounded");
+
+const layoutStyle = (wide: boolean): stylex.StyleXStyles =>
+  wide ? readerStyles.wide : readerStyles.bounded;
+
+const siteHeader = (wide: boolean, h: HtmlBuilder<AppMessage>): Html =>
   h.header(
-    [h.Class(className(readerStyles.bounded, readerStyles.header))],
+    [
+      h.DataAttribute("layout", layoutName(wide)),
+      h.Class(className(layoutStyle(wide), readerStyles.header)),
+    ],
     [
       h.nav(
         [h.AriaLabel("Primary navigation"), h.Class("site-nav")],
@@ -73,9 +81,12 @@ const siteHeader = (h: HtmlBuilder<AppMessage>): Html =>
     ]
   );
 
-const siteFooter = (h: HtmlBuilder<AppMessage>): Html =>
+const siteFooter = (wide: boolean, h: HtmlBuilder<AppMessage>): Html =>
   h.footer(
-    [h.Class(className(readerStyles.bounded))],
+    [
+      h.DataAttribute("layout", layoutName(wide)),
+      h.Class(className(layoutStyle(wide))),
+    ],
     [h.hr([]), h.p([], ["Built with Foldkit, Effect, Alchemy, and StyleX."])]
   );
 
@@ -242,13 +253,24 @@ const bodyOf = (
     Usage: () => usageView(model, h),
   });
 
-export const view = (
-  model: AppModel,
-  h: HtmlBuilder<AppMessage>
-): Document => ({
-  body: h.div(
-    [h.Class(className(readerStyles.shell))],
-    [siteHeader(h), h.main([], bodyOf(model.route, model, h)), siteFooter(h)]
-  ),
-  title: titleOf(model.route),
-});
+export const view = (model: AppModel, h: HtmlBuilder<AppMessage>): Document => {
+  const wide = SiteRoute.guards.Burn(model.route);
+
+  return {
+    body: h.div(
+      [h.Class(className(readerStyles.shell))],
+      [
+        siteHeader(wide, h),
+        h.main(
+          [
+            h.DataAttribute("layout", layoutName(wide)),
+            h.Class(className(layoutStyle(wide))),
+          ],
+          bodyOf(model.route, model, h)
+        ),
+        siteFooter(wide, h),
+      ]
+    ),
+    title: titleOf(model.route),
+  };
+};
