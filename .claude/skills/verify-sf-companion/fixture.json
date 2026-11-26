@@ -2513,6 +2513,23 @@
           "listCostUsd": 1.25
         },
         {
+          "hour": "2026-11-14T22:00:00Z",
+          "plan": "claude",
+          "account": "claude fixture account",
+          "chat": "Unpriced Fable chat",
+          "chatId": "unpriced-chat",
+          "ticket": "unassigned",
+          "attribution": "unknown",
+          "model": "claude-fable-5-2",
+          "input": 12000,
+          "output": 2700000,
+          "cacheRead": 400000,
+          "cacheWrite": 2000,
+          "requests": 4,
+          "tokensKnown": true,
+          "listCostUsd": null
+        },
+        {
           "hour": "2026-11-14T23:00:00Z",
           "plan": "antigravity",
           "account": "antigravity fixture account",

@@ -128,19 +128,29 @@ export const rankBurn = (
   }
 
   return [...groups.values()]
-    .map((group) => ({
-      ...group,
-      cacheRead: group.rows.reduce((sum, row) => sum + row.cacheRead, 0),
-      cacheWrite: group.rows.reduce((sum, row) => sum + row.cacheWrite, 0),
-      input: group.rows.reduce((sum, row) => sum + row.input, 0),
-      output: group.rows.reduce((sum, row) => sum + row.output, 0),
-      requests: group.rows.reduce((sum, row) => sum + row.requests, 0),
-      tokensKnown: group.rows.every((row) => row.tokensKnown),
-      listCostUsd: group.rows.every((row) => row.listCostUsd !== null)
+    .map((group) => {
+      const listCostUsd = group.rows.some((row) => row.listCostUsd !== null)
         ? group.rows.reduce((sum, row) => sum + (row.listCostUsd ?? 0), 0)
-        : null,
-      weight: group.rows.reduce((sum, row) => sum + (row.listCostUsd ?? 0), 0),
-    }))
+        : null;
+
+      const unpricedRequests = group.rows.reduce(
+        (sum, row) => sum + (row.listCostUsd === null ? row.requests : 0),
+        0
+      );
+
+      return {
+        ...group,
+        cacheRead: group.rows.reduce((sum, row) => sum + row.cacheRead, 0),
+        cacheWrite: group.rows.reduce((sum, row) => sum + row.cacheWrite, 0),
+        input: group.rows.reduce((sum, row) => sum + row.input, 0),
+        output: group.rows.reduce((sum, row) => sum + row.output, 0),
+        requests: group.rows.reduce((sum, row) => sum + row.requests, 0),
+        tokensKnown: group.rows.every((row) => row.tokensKnown),
+        listCostUsd,
+        unpricedRequests,
+        weight: listCostUsd ?? 0,
+      };
+    })
     .toSorted(
       (left, right) =>
         right.weight - left.weight ||
