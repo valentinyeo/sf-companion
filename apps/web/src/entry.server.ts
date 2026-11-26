@@ -23,6 +23,7 @@ import {
 } from "./content/share.js";
 import { view } from "./features/page.js";
 import {
+  burnRouter,
   factoryRouter,
   parseRoute,
   SiteRoute,
@@ -32,7 +33,7 @@ import type { SiteRouteValue } from "./features/route.js";
 
 export { renderDocument } from "foldkit/experimental/server";
 
-export const prerenderPaths = [factoryRouter(), usageRouter()];
+export const prerenderPaths = [factoryRouter(), usageRouter(), burnRouter()];
 
 const SECTIONS: readonly SectionValue[] = ["explorations", "reports"];
 
@@ -109,6 +110,7 @@ const itemsFor = (
   route: SiteRouteValue
 ): Effect.Effect<readonly ItemValue[], HubFailure> =>
   SiteRoute.match(route, {
+    Burn: () => Effect.succeed([]),
     Chats: () => Effect.succeed([]),
     Entry: () => Effect.succeed([]),
     Factory: () => Effect.succeed([]),

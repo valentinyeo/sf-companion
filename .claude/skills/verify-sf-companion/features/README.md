@@ -1,4 +1,4 @@
-Coverage: 17 of 17 features across 13 files.
+Coverage: 18 of 18 features across 14 files.
 
 # Companion verification map
 
@@ -14,6 +14,7 @@ Run `../run.sh` from this directory, or `.claude/skills/verify-sf-companion/run.
 - [Stored items](items.md) covers item serving: GET, HEAD, missing, and invalid slugs.
 - [Factory page](factory.md) covers entry, export time, navigation, layout, and the link to Usage.
 - [Usage page](usage.md) covers the menu entry, every plan card, each card heading's link to its plan's own usage page, the page's data age line, fixed 1h burn with no window picker, and the Windows disclosure.
+- [Burn report](burn.md) covers hourly plan/account, chat and ticket rankings, ranges, inferred tickets and unknown usage.
 - [Chats page](chats.md) covers the menu entry, one table per server with its live chat count, every row's harness, model and effort, the data age line, a server that is not connected yet, and the empty state.
 - [KPI tiles](kpis.md) covers all seven tiles, their own windows, cues, and measurement details.
 - [Shipping chart](shipping.md) covers the 30-date chart, cell sources, and stated omissions.

@@ -2423,6 +2423,178 @@
         "usedPct": 5.1,
         "windows": []
       }
-    ]
+    ],
+    "report": {
+      "generatedAt": "2026-11-15T00:41:07Z",
+      "rows": [
+        {
+          "hour": "2026-11-02T12:00:00Z",
+          "plan": "claude",
+          "account": "claude fixture account",
+          "chat": "Historical chat",
+          "chatId": "old-chat",
+          "ticket": "unassigned",
+          "attribution": "unknown",
+          "model": "fixture-model",
+          "input": 2000,
+          "output": 100,
+          "cacheRead": 100000,
+          "cacheWrite": 1000,
+          "requests": 10,
+          "tokensKnown": true,
+          "listCostUsd": 1.25
+        },
+        {
+          "hour": "2026-11-09T00:00:00Z",
+          "plan": "codex",
+          "account": "codex fixture account",
+          "chat": "Codex older chat",
+          "chatId": "codex-chat",
+          "ticket": "HTPR-9",
+          "attribution": "inferred",
+          "model": "fixture-model",
+          "input": 30000,
+          "output": 1000,
+          "cacheRead": 100000,
+          "cacheWrite": 1000,
+          "requests": 10,
+          "tokensKnown": true,
+          "listCostUsd": 1.25
+        },
+        {
+          "hour": "2026-11-12T00:00:00Z",
+          "plan": "claude",
+          "account": "claude fixture account",
+          "chat": "Burn heavy chat",
+          "chatId": "heavy-chat",
+          "ticket": "VSTA-328",
+          "attribution": "inferred",
+          "model": "fixture-model",
+          "input": 40000,
+          "output": 5000,
+          "cacheRead": 100000,
+          "cacheWrite": 1000,
+          "requests": 10,
+          "tokensKnown": true,
+          "listCostUsd": 1.25
+        },
+        {
+          "hour": "2026-11-14T21:00:00Z",
+          "plan": "claude",
+          "account": "claude fixture account",
+          "chat": "Burn small chat",
+          "chatId": "small-chat",
+          "ticket": "MUBO-45",
+          "attribution": "inferred",
+          "model": "fixture-model",
+          "input": 10000,
+          "output": 2000,
+          "cacheRead": 100000,
+          "cacheWrite": 1000,
+          "requests": 10,
+          "tokensKnown": true,
+          "listCostUsd": 1.25
+        },
+        {
+          "hour": "2026-11-14T22:00:00Z",
+          "plan": "claude",
+          "account": "claude fixture account",
+          "chat": "Burn heavy chat",
+          "chatId": "heavy-chat",
+          "ticket": "VSTA-329",
+          "attribution": "recorded",
+          "model": "fixture-model",
+          "input": 100000,
+          "output": 20000,
+          "cacheRead": 100000,
+          "cacheWrite": 1000,
+          "requests": 10,
+          "tokensKnown": true,
+          "listCostUsd": 1.25
+        },
+        {
+          "hour": "2026-11-14T23:00:00Z",
+          "plan": "antigravity",
+          "account": "antigravity fixture account",
+          "chat": "Request-only chat",
+          "chatId": "agy-chat",
+          "ticket": "unassigned",
+          "attribution": "unknown",
+          "model": "unknown",
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "requests": 3,
+          "tokensKnown": false,
+          "listCostUsd": null
+        },
+        {
+          "hour": "2026-11-14T23:00:00Z",
+          "plan": "opencode",
+          "account": "opencode · Pi provider key/account",
+          "chatId": "pi-fixture",
+          "chat": "Pi fixture chat",
+          "model": "fixture-model",
+          "ticket": "VSTA-329",
+          "attribution": "inferred",
+          "input": 10,
+          "output": 2,
+          "cacheRead": 3000,
+          "cacheWrite": 0,
+          "requests": 1,
+          "tokensKnown": true,
+          "listCostUsd": 0.001
+        }
+      ],
+      "plans": [
+        {
+          "plan": "claude",
+          "weekStartsAt": "2026-11-11T00:41:07Z",
+          "weekResetsAt": "2026-11-18T00:41:07Z"
+        },
+        {
+          "plan": "codex",
+          "weekStartsAt": "2026-11-11T00:41:07Z",
+          "weekResetsAt": "2026-11-18T00:41:07Z"
+        },
+        {
+          "plan": "antigravity",
+          "weekStartsAt": null,
+          "weekResetsAt": null
+        }
+      ],
+      "notes": [
+        "Synthetic numeric fixture; no transcript text or credentials.",
+        "This server only.",
+        "Antigravity counts requests only; token usage unavailable.",
+        "openrouter: usage API unavailable (HTTP 403); last successful read: never.",
+        "vercel: usage API unavailable (HTTP 403); last successful read: never.",
+        "Paid-key API totals are separate from transcript/worker totals, never added together. They can include other servers."
+      ],
+      "keyUsage": [
+        {
+          "row": {
+            "hour": "2026-11-14T00:00:00Z",
+            "plan": "opencode",
+            "account": "OpenCode fixture usage key",
+            "chatId": "api-fixture",
+            "chat": "Provider total, not a chat",
+            "model": "fixture-model",
+            "ticket": "unassigned",
+            "attribution": "unknown",
+            "input": 100,
+            "output": 20,
+            "cacheRead": 300,
+            "cacheWrite": 5,
+            "requests": 4,
+            "tokensKnown": true,
+            "listCostUsd": 0.25
+          },
+          "periodEndsAt": "2026-11-15T00:00:00Z",
+          "billedCostUsd": 0.12
+        }
+      ]
+    }
   }
 }

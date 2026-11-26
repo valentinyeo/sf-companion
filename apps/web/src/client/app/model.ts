@@ -1,5 +1,6 @@
 import { Option, Schema } from "effect";
 
+import { BurnSelection } from "../../content/burn.js";
 import { ChatsSnapshot } from "../../content/chats.js";
 import { FactoryFeed, WindowKey } from "../../content/feed.js";
 import type { FactoryFeedValue } from "../../content/feed.js";
@@ -16,6 +17,7 @@ export const Flags = Schema.Struct({
 export type PageFlags = typeof Flags.Type;
 
 export const Model = Schema.Struct({
+  burn: BurnSelection,
   chats: Schema.Option(ChatsSnapshot),
   feed: Schema.Option(FactoryFeed),
   items: Schema.Array(Item),
@@ -30,6 +32,7 @@ export const initialModel = (
   flags: PageFlags,
   feed: Option.Option<FactoryFeedValue>
 ): AppModel => ({
+  burn: { chatId: "", end: "", plan: "", range: "7d", start: "" },
   chats: Option.fromNullishOr(flags.chats),
   feed,
   items: [...flags.items],

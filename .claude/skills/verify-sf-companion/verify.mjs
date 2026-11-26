@@ -39,6 +39,9 @@ const declaredRoutes =
         )
       );
 const journeyRoutes = {
+  "burn-drilldown": "Burn",
+  "burn-ranges": "Burn",
+  "burn-missing": "Burn",
   "chats-age": "Chats",
   "chats-empty": "Chats",
   "chats-entry": "Chats",
@@ -70,6 +73,9 @@ const usagePage = declaredRoutes === null || declaredRoutes.has("Usage");
 const shareToken = "verify-share-token";
 process.env.SF_SHARE_TOKEN = shareToken;
 const seededFactoryJourneys = [
+  "burn-drilldown",
+  "burn-ranges",
+  "burn-missing",
   "chats-entry",
   "chats-rows",
   "chats-age",
@@ -927,6 +933,189 @@ async function drive(browser, state, width, colorScheme, baseURL) {
             "kpi-windows"
           );
         }
+      }
+      if (wants("burn-drilldown")) {
+        await page.goto("/usage", { waitUntil: "networkidle" });
+        await page
+          .getByRole("link", { name: "Where did the tokens go?" })
+          .click();
+        await page
+          .getByRole("heading", {
+            name: "Where did the tokens go?",
+            exact: true,
+          })
+          .waitFor();
+        await page
+          .getByRole("button", {
+            name: "Show chats for claude / claude fixture account",
+            exact: true,
+          })
+          .click();
+        await page
+          .getByRole("button", {
+            name: "Show tickets for Burn heavy chat",
+            exact: true,
+          })
+          .click();
+        const tickets = page.getByRole("table").last();
+        await tickets
+          .getByRole("rowheader", { name: "VSTA-329 (recorded)", exact: true })
+          .waitFor();
+        await tickets
+          .getByRole("rowheader", { name: "VSTA-328 (inferred)", exact: true })
+          .waitFor();
+        assert.equal(
+          await tickets.getByText("MUBO-45", { exact: false }).count(),
+          0
+        );
+        assert.equal(
+          await tickets.getByText("HTPR-9", { exact: false }).count(),
+          0
+        );
+        await page
+          .getByRole("button", { name: "All chats", exact: true })
+          .click();
+        await tickets
+          .getByRole("rowheader", { name: "MUBO-45 (inferred)", exact: true })
+          .waitFor();
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth > innerWidth
+        );
+        assert.equal(overflow, false, `${id}: burn page overflows viewport`);
+        await record(
+          "usage: follow burn link, select Claude account, drill into heavy chat, then clear chat filter",
+          "burn-drilldown"
+        );
+      }
+      if (wants("burn-ranges")) {
+        await page.goto("/usage/burn", { waitUntil: "networkidle" });
+        await page.getByRole("button", { name: "24h", exact: true }).click();
+        assert.equal(
+          await page
+            .getByRole("button", {
+              name: "Show tickets for Codex older chat",
+              exact: true,
+            })
+            .count(),
+          0
+        );
+        await page.getByRole("button", { name: "7d", exact: true }).click();
+        await page
+          .getByRole("button", {
+            name: "Show tickets for Codex older chat",
+            exact: true,
+          })
+          .waitFor();
+        await page
+          .getByRole("button", { name: "This plan week", exact: true })
+          .click();
+        assert.equal(
+          await page
+            .getByRole("button", {
+              name: "Show tickets for Codex older chat",
+              exact: true,
+            })
+            .count(),
+          0
+        );
+        await page
+          .getByText(
+            "antigravity: reset time unavailable; excluded from this plan week.",
+            { exact: true }
+          )
+          .waitFor();
+        await page.getByRole("button", { name: "Custom", exact: true }).click();
+        await page.getByLabel("From (UTC)", { exact: true }).fill("2000-01-01");
+        await page
+          .getByLabel("Through (UTC)", { exact: true })
+          .fill("2099-01-01");
+        await page
+          .getByRole("button", {
+            name: "Show tickets for Historical chat",
+            exact: true,
+          })
+          .waitFor();
+        await page
+          .getByRole("button", {
+            name: "Show tickets for Request-only chat",
+            exact: true,
+          })
+          .waitFor();
+        await page.getByLabel("From (UTC)", { exact: true }).fill("2099-02-01");
+        await page
+          .getByRole("status")
+          .getByText(
+            "Choose a start and end date, with the end on or after the start.",
+            { exact: true }
+          )
+          .waitFor();
+        await record(
+          "burn: compare 24h, 7d, plan-specific reset week, full-history custom dates, and an invalid range",
+          "burn-ranges"
+        );
+      }
+      if (wants("burn-missing")) {
+        await page.goto("/usage/burn", { waitUntil: "networkidle" });
+        await page.getByText("Coverage and limits", { exact: true }).click();
+        await page
+          .getByText("This server only.", { exact: true })
+          .waitFor({ state: "visible" });
+        await page
+          .getByText(
+            "Antigravity counts requests only; token usage unavailable.",
+            { exact: true }
+          )
+          .waitFor({ state: "visible" });
+        await page
+          .getByRole("button", {
+            name: "Show tickets for Request-only chat",
+            exact: true,
+          })
+          .click();
+        const providerTable = page.getByRole("table").filter({
+          has: page.getByRole("rowheader", {
+            name: "opencode / OpenCode fixture usage key",
+            exact: true,
+          }),
+        });
+        await providerTable
+          .getByRole("cell", { name: "$0.12", exact: true })
+          .waitFor();
+        assert.equal(
+          await page
+            .getByRole("button", {
+              name: "Show tickets for Provider total, not a chat",
+              exact: true,
+            })
+            .count(),
+          0
+        );
+        await page
+          .getByText(
+            "openrouter: usage API unavailable (HTTP 403); last successful read: never.",
+            { exact: true }
+          )
+          .waitFor();
+        await page
+          .getByRole("button", {
+            name: "Show tickets for Pi fixture chat",
+            exact: true,
+          })
+          .waitFor();
+        const table = page.getByRole("table").last();
+        await table
+          .getByText("Includes requests without token counts", { exact: true })
+          .waitFor();
+        assert.equal(
+          await table
+            .getByRole("cell", { name: "Unknown", exact: true })
+            .count(),
+          2
+        );
+        await record(
+          "burn: inspect server coverage and request-only tokens and costs without fabricated zeros",
+          "burn-missing"
+        );
       }
       if (wants("usage-details")) {
         await page.goto("/usage", { waitUntil: "networkidle" });

@@ -6,6 +6,7 @@ import type { AppMessage } from "../client/app/message.js";
 import type { AppModel } from "../client/app/model.js";
 import { itemsIn, titleFromSlug } from "../content/item.js";
 import type { ItemValue, SectionValue } from "../content/item.js";
+import { burnView } from "./burn.js";
 import { chatsView } from "./chats.js";
 import { factoryView } from "./factory.js";
 import { hubStyles } from "./hub.stylex.js";
@@ -215,6 +216,7 @@ const missingView = (h: HtmlBuilder<AppMessage>): readonly Html[] => [
 
 const titleOf = (route: SiteRouteValue): string =>
   SiteRoute.match(route, {
+    Burn: () => "Token burn",
     Chats: () => "Chats",
     Entry: ({ slug }) => titleFromSlug(slug),
     Factory: () => "Factory",
@@ -230,6 +232,7 @@ const bodyOf = (
   h: HtmlBuilder<AppMessage>
 ): readonly Html[] =>
   SiteRoute.match(route, {
+    Burn: () => burnView(model, h),
     Chats: () => chatsView(model, h),
     Entry: () => missingView(h),
     Factory: () => factoryView(model, h),

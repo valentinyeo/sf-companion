@@ -12,6 +12,7 @@ export const SiteRoute = Route.defineRouteUnion({
   List: { section: Section },
   NotFound: { path: Schema.String },
   Usage: {},
+  Burn: {},
 });
 
 export type SiteRouteValue = typeof SiteRoute.Type;
@@ -37,6 +38,12 @@ export const usageRouter = pipe(
   Route.mapTo(SiteRoute.Usage)
 );
 
+export const burnRouter = pipe(
+  Route.literal("usage"),
+  Route.slash(Route.literal("burn")),
+  Route.mapTo(SiteRoute.Burn)
+);
+
 export const entryRouter = pipe(
   sectionSegment,
   Route.slash(Route.string("slug")),
@@ -48,6 +55,7 @@ export const parseRoute = Route.parseUrlWithFallback(
     homeRouter,
     chatsRouter,
     factoryRouter,
+    burnRouter,
     usageRouter,
     listRouter,
     entryRouter
