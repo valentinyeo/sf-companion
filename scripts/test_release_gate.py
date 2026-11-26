@@ -2,6 +2,7 @@ import contextlib
 import inspect
 import io
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -104,6 +105,18 @@ def artifact(
     return buffer.getvalue()
 
 
+def git(repo, *arguments):
+    return subprocess.run(
+        ["git", "-C", str(repo), *arguments],
+        capture_output=True,
+        check=True,
+        env={
+            key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+        },
+        text=True,
+    )
+
+
 def commit(repo, message):
     for arguments in (
         ("add", "."),
@@ -117,19 +130,8 @@ def commit(repo, message):
             message,
         ),
     ):
-        subprocess.run(
-            ["git", "-C", str(repo), *arguments],
-            capture_output=True,
-            check=True,
-            text=True,
-        )
-    done = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "HEAD"],
-        capture_output=True,
-        check=True,
-        text=True,
-    )
-    return done.stdout.strip()
+        git(repo, *arguments)
+    return git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
 def proof_args(directory, journeys):
@@ -218,6 +220,22 @@ class AppCodeTest(unittest.TestCase):
         ]
         kept = gate.merged_in_range(pull_requests, {"merge2", "head4"})
         self.assertEqual([entry["number"] for entry in kept], [2, 4])
+
+
+class GitIndexIsolationTest(unittest.TestCase):
+    def test_a_temp_commit_leaves_the_callers_git_index_alone(self):
+        with tempfile.TemporaryDirectory() as directory:
+            caller_index = Path(directory) / "caller-index"
+            caller_index.write_text("the caller's index\n")
+            repo = Path(directory) / "repo"
+            repo.mkdir()
+            with unittest.mock.patch.dict(
+                os.environ, {"GIT_INDEX_FILE": str(caller_index)}
+            ):
+                git(repo, "init", "-b", "main")
+                Path(repo, "file.txt").write_text("one\n")
+                commit(repo, "first")
+            self.assertEqual(caller_index.read_text(), "the caller's index\n")
 
 
 class PassTest(FixtureCase):
@@ -525,12 +543,7 @@ class ArtifactTest(unittest.TestCase):
 
 def map_repo(directory):
     repo = Path(directory)
-    subprocess.run(
-        ["git", "init", "-b", "main", str(repo)],
-        capture_output=True,
-        check=True,
-        text=True,
-    )
+    git(repo, "init", "-b", "main")
     features = repo / "features"
     features.mkdir()
     Path(features, "home.md").write_text(
@@ -688,12 +701,7 @@ class MergeCommitMapTest(unittest.TestCase):
     def test_a_commit_without_the_map_is_an_error(self):
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
-            subprocess.run(
-                ["git", "init", "-b", "main", str(repo)],
-                capture_output=True,
-                check=True,
-                text=True,
-            )
+            git(repo, "init", "-b", "main")
             Path(repo, "README.md").write_text("no map here\n")
             head = commit(repo, "no map")
             with self.assertRaises(gate.GateError):

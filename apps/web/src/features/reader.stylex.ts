@@ -9,6 +9,12 @@ export const readerStyles = stylex.create({
     width: "calc(100% - 2rem)",
   },
   header: { marginBlockEnd: reader.spaceSmall },
+  wide: {
+    display: "block",
+    marginInline: "auto",
+    maxWidth: "none",
+    width: "calc(100% - 2rem)",
+  },
   shell: {
     display: "contents",
     fontFamily: reader.fontFamily,

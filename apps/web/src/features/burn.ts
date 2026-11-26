@@ -62,7 +62,10 @@ const ranking = (
   const total = groups.reduce((sum, group) => sum + group.weight, 0);
 
   const cell = (value: string): Html =>
-    h.td([h.Class(classes(factoryStyles.chartCell))], [value]);
+    h.td(
+      [h.Class(classes(factoryStyles.chartCell, factoryStyles.burnCell))],
+      [value]
+    );
 
   return h.section(
     [h.Class(classes(factoryStyles.section))],
@@ -75,7 +78,11 @@ const ranking = (
               [h.Class(classes(factoryStyles.chartScroll))],
               [
                 h.table(
-                  [h.Class(classes(factoryStyles.chartTable))],
+                  [
+                    h.Class(
+                      classes(factoryStyles.chartTable, factoryStyles.burnTable)
+                    ),
+                  ],
                   [
                     h.caption(
                       [],
@@ -101,7 +108,12 @@ const ranking = (
                             h.th(
                               [
                                 h.Scope("col"),
-                                h.Class(classes(factoryStyles.chartCell)),
+                                h.Class(
+                                  classes(
+                                    factoryStyles.chartCell,
+                                    factoryStyles.burnCell
+                                  )
+                                ),
                               ],
                               [name]
                             )
@@ -118,7 +130,12 @@ const ranking = (
                             h.th(
                               [
                                 h.Scope("row"),
-                                h.Class(classes(factoryStyles.chartCell)),
+                                h.Class(
+                                  classes(
+                                    factoryStyles.chartCell,
+                                    factoryStyles.burnCell
+                                  )
+                                ),
                               ],
                               [
                                 ...(level === "ticket"
@@ -230,7 +247,10 @@ const paidKeys = (
     );
 
   const cell = (value: string): Html =>
-    h.td([h.Class(classes(factoryStyles.chartCell))], [value]);
+    h.td(
+      [h.Class(classes(factoryStyles.chartCell, factoryStyles.burnCell))],
+      [value]
+    );
 
   return h.section(
     [h.Class(classes(factoryStyles.section))],
@@ -249,7 +269,11 @@ const paidKeys = (
               [h.Class(classes(factoryStyles.chartScroll))],
               [
                 h.table(
-                  [h.Class(classes(factoryStyles.chartTable))],
+                  [
+                    h.Class(
+                      classes(factoryStyles.chartTable, factoryStyles.burnTable)
+                    ),
+                  ],
                   [
                     h.caption(
                       [],
@@ -275,7 +299,12 @@ const paidKeys = (
                             h.th(
                               [
                                 h.Scope("col"),
-                                h.Class(classes(factoryStyles.chartCell)),
+                                h.Class(
+                                  classes(
+                                    factoryStyles.chartCell,
+                                    factoryStyles.burnCell
+                                  )
+                                ),
                               ],
                               [name]
                             )
@@ -292,7 +321,12 @@ const paidKeys = (
                             h.th(
                               [
                                 h.Scope("row"),
-                                h.Class(classes(factoryStyles.chartCell)),
+                                h.Class(
+                                  classes(
+                                    factoryStyles.chartCell,
+                                    factoryStyles.burnCell
+                                  )
+                                ),
                               ],
                               [group.name, ...unpricedNote(group, h)]
                             ),

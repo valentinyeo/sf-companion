@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Option, Schema } from "effect";
+import { renderToString } from "foldkit/experimental/server";
 import {
   click,
   expect as expectElement,
@@ -10,13 +11,14 @@ import {
 } from "foldkit/scene";
 
 import fixture from "../../../.claude/skills/verify-sf-companion/fixture.json";
-import { initialModel } from "../src/client/app/model.js";
+import { Flags, initialModel } from "../src/client/app/model.js";
 import { update } from "../src/client/app/update.js";
 import { BurnReport, rankBurn, selectedBurnRows } from "../src/content/burn.js";
 import type { BurnRowValue, BurnSelectionValue } from "../src/content/burn.js";
 import { decodeFeed } from "../src/content/feed.js";
 import { view } from "../src/features/page.js";
 import { SiteRoute } from "../src/features/route.js";
+import type { SiteRouteValue } from "../src/features/route.js";
 
 const selection: BurnSelectionValue = {
   chatId: "",
@@ -49,6 +51,22 @@ const row: BurnRowValue = {
 const Count = Schema.Int.check(
   Schema.isBetween({ minimum: 0, maximum: 1_000_000 })
 );
+
+const renderedHtml = (route: SiteRouteValue) =>
+  renderToString(
+    {
+      Flags,
+      init: (flags) => ({ model: initialModel(flags, Option.none()) }),
+      view,
+    },
+    { flags: { items: [], route }, isHydratable: false }
+  ).pipe(Effect.map((rendered) => rendered.html));
+
+const tag = (html: string, name: string): string =>
+  new RegExp(`<${name}[^>]*>`, "u").exec(html)?.[0] ?? "";
+
+const classOf = (html: string, name: string): string =>
+  /class="(?<classes>[^"]*)"/u.exec(tag(html, name))?.groups?.classes ?? "";
 
 describe("burn report", () => {
   it.effect(
@@ -288,6 +306,31 @@ describe("burn report", () => {
             )
           ).toHaveLength(0);
         }
+      })
+  );
+
+  it.effect(
+    "widens the burn page and its chrome while other routes keep the reading measure",
+    () =>
+      Effect.gen(function* burnFullWidthLayout() {
+        const burn = yield* renderedHtml(SiteRoute.Burn());
+        const usage = yield* renderedHtml(SiteRoute.Usage());
+        const home = yield* renderedHtml(SiteRoute.Home());
+
+        expect(tag(burn, "main")).toContain('data-layout="wide"');
+        expect(tag(burn, "header")).toContain('data-layout="wide"');
+        expect(tag(burn, "footer")).toContain('data-layout="wide"');
+        expect(tag(usage, "main")).toContain('data-layout="bounded"');
+        expect(tag(home, "main")).toContain('data-layout="bounded"');
+        expect(tag(usage, "header")).toContain('data-layout="bounded"');
+        expect(tag(home, "footer")).toContain('data-layout="bounded"');
+        expect(classOf(burn, "main")).toBeTruthy();
+        expect(classOf(burn, "header")).toBeTruthy();
+        expect(classOf(burn, "footer")).toBeTruthy();
+        expect(classOf(usage, "main")).not.toBe(classOf(burn, "main"));
+        expect(classOf(home, "main")).not.toBe(classOf(burn, "main"));
+        expect(classOf(usage, "header")).not.toBe(classOf(burn, "header"));
+        expect(classOf(home, "footer")).not.toBe(classOf(burn, "footer"));
       })
   );
 
