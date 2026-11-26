@@ -18,6 +18,11 @@ INLINE_VALUE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
 QUOTING = re.compile(r"[\"'\\]")
 FORK_REFUSAL = re.compile(r"head\.repo\.full_name\s*!=\s*github\.repository[\s\S]*?exit 1")
 FEATURE_MAP = re.compile(r"name:\s*Feature map matches source[\s\S]*?feature_coverage\.py")
+ATTEMPT = re.compile(r"\bpi\s+--provider\b")
+CONTINUATION = re.compile(r"\\\n\s*")
+ATTEMPT_TIMEOUT = re.compile(
+    r"\btimeout\b[^\n]*?(?<![\w=:])(?:\d+[smh]|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[smh])\"?\s+pi\s+--provider\b"
+)
 
 
 def inline_triggers(value):
@@ -90,6 +95,12 @@ def check_verifier_job(source):
     if "hashFiles(" in block:
         errors.append(
             f"`{VERIFIER_JOB}` keys its base proof on `hashFiles(`, which hashes the head checkout where a shared helper may have changed. The key then hides the one fact that decides whether a saved proof is safe to serve, and another pull request reading the key cannot tell which helper built the proof. Fix: key the proof on the base commit and the journey digest, and skip the reuse whenever a shared helper changed."
+        )
+    for line in CONTINUATION.sub(" ", block).split("\n"):
+        if ATTEMPT.search(line) is None or ATTEMPT_TIMEOUT.search(line) is not None:
+            continue
+        errors.append(
+            f"`{VERIFIER_JOB}` runs a verifier attempt with no timeout of its own: `{line.strip()}`. A lane that stalls then spends the whole step budget, the later lanes never start, and the run posts no verdict at all. Fix: run every attempt as `timeout --signal=TERM --kill-after=30s \"${{per_attempt}}m\" pi --provider ...`, with the step budget divided by the lane count and a floor."
         )
     return errors
 

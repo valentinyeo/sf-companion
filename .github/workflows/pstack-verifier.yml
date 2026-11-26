@@ -15,12 +15,14 @@ concurrency:
 jobs:
   pstack-verifier:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       PR_BODY: ${{ github.event.pull_request.body }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       RECORDS: ${{ github.workspace }}/records
+      VERIFIER_STEP_BUDGET_MINUTES: "13"
+      VERIFIER_PER_ATTEMPT_FLOOR_MINUTES: "4"
     steps:
       - name: Refuse a fork pull request
         if: github.event.pull_request.head.repo.full_name != github.repository
@@ -147,7 +149,7 @@ jobs:
         id: verifier
         if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
         continue-on-error: true
-        timeout-minutes: 12
+        timeout-minutes: 15
         working-directory: change
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -204,28 +206,53 @@ jobs:
             fi
             jq --argjson lane "$3" '. + {lane: $lane}' "$RECORDS/verdict-$2.json" > "$RECORDS/verdict.json"
           }
-          for attempt in 1 2; do
-            lane=$(( attempt < ${#families[@]} ? attempt : ${#families[@]} ))
-            index=$(( lane - 1 ))
+          lanes=${#families[@]}
+          per_attempt=$(( VERIFIER_STEP_BUDGET_MINUTES / lanes ))
+          if (( per_attempt < VERIFIER_PER_ATTEMPT_FLOOR_MINUTES )); then
+            per_attempt=$VERIFIER_PER_ATTEMPT_FLOOR_MINUTES
+          fi
+          echo "$lanes lane(s), ${per_attempt}m each inside the ${VERIFIER_STEP_BUDGET_MINUTES}m step budget."
+          timed_out=()
+          missing=()
+          for (( attempt = 1; attempt <= lanes; attempt++ )); do
+            index=$(( attempt - 1 ))
             provider=${providers[$index]}
             model=${models[$index]}
             secret=${secrets[$index]}
             if [[ -z "${!secret:-}" ]]; then
               echo "No $secret secret for $provider." >&2
+              missing+=("$provider")
               continue
             fi
             prompt=${PROMPT/__LANE__/"${families[$index]} $model"}
-            echo "Attempt $attempt: ${families[$index]} $model via $provider"
-            pi --provider "$provider" --model "$model" --thinking low \
+            echo "Attempt $attempt: ${families[$index]} $model via $provider, ${per_attempt}m budget"
+            status=0
+            timeout --signal=TERM --kill-after=30s "${per_attempt}m" \
+              pi --provider "$provider" --model "$model" --thinking low \
               --no-extensions --no-mcp --no-skills --no-context-files \
               --no-prompt-templates --no-themes --tools read,bash \
               --no-session --mode json -p "$prompt" \
-              > "$RECORDS/verifier-$attempt.jsonl" 2> "$RECORDS/verifier-$attempt.stderr" || true
-            record_verdict "$RECORDS/verifier-$attempt.jsonl" "$attempt" "$lane"
+              > "$RECORDS/verifier-$attempt.jsonl" 2> "$RECORDS/verifier-$attempt.stderr" || status=$?
+            if (( status == 124 || status == 137 )); then
+              echo "Attempt $attempt spent its whole ${per_attempt}m budget, so $provider counts as a failed lane." >&2
+              timed_out+=("$provider $model")
+            fi
+            record_verdict "$RECORDS/verifier-$attempt.jsonl" "$attempt" "$attempt"
             if [[ -n "$(jq -r '.verdict // ""' "$RECORDS/verdict.json")" ]]; then
               break
             fi
           done
+          if [[ -z "$(jq -r '.verdict // ""' "$RECORDS/verdict.json")" ]]; then
+            if (( ${#timed_out[@]} == 0 )); then
+              reason="No verifier lane ran. Fix: check the provider secrets the lanes need."
+            elif (( ${#timed_out[@]} == lanes )); then
+              reason="Every verifier lane timed out inside its ${per_attempt}m budget: ${timed_out[*]}. No lane returned a verdict. Fix: raise VERIFIER_STEP_BUDGET_MINUTES with the step's timeout-minutes, or check the provider behind the lane."
+            else
+              reason="The verifier lanes returned no verdict. Timed out: ${timed_out[*]}. Missing secrets: ${missing[*]:-none}. Fix: read the lane trace in the run records."
+            fi
+            jq --arg reason "$reason" '.reason = $reason' "$RECORDS/verdict.json" > "$RECORDS/.verdict.json"
+            mv "$RECORDS/.verdict.json" "$RECORDS/verdict.json"
+          fi
           jq -r '.verdict // "none", .reason // ""' "$RECORDS/verdict.json"
       - name: Keep the change checkout clean
         id: clean

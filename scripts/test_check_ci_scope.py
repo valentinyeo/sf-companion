@@ -41,6 +41,14 @@ jobs:
         run: python3 scripts/base_proof_cache.py restore --digest "${{ steps.scope.outputs.digest }}"
       - name: Run the head journeys
         run: .claude/skills/verify-sf-companion/run.sh --journeys=$JOURNEYS
+      - name: Independent verification
+        timeout-minutes: 15
+        env:
+          VERIFIER_STEP_BUDGET_MINUTES: "13"
+          VERIFIER_PER_ATTEMPT_FLOOR_MINUTES: "4"
+        run: |
+          timeout --signal=TERM --kill-after=30s "${per_attempt}m" \\
+            pi --provider "$provider" --model "$model" --mode json -p "$prompt"
 """
 
 NIGHTLY = """name: Nightly journeys
@@ -193,6 +201,36 @@ class ScopeTest(unittest.TestCase):
         errors = scope.check(self.root)
         self.assertEqual(len(errors), 2)
         self.assertIn("pstack-verifier", " ".join(errors))
+
+    def test_a_verifier_attempt_without_a_timeout_is_rejected(self):
+        self.clean()
+        self.write(
+            "pstack-verifier.yml",
+            VERIFIER.replace(
+                '          timeout --signal=TERM --kill-after=30s "${per_attempt}m" \\\n'
+                '            pi --provider "$provider" --model "$model" --mode json -p "$prompt"\n',
+                '          pi --provider "$provider" --model "$model" --mode json -p "$prompt"\n',
+            ),
+        )
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("no timeout of its own", errors[0])
+        self.assertIn("timeout --signal=TERM", errors[0])
+
+    def test_a_bare_kill_after_duration_does_not_count_as_the_attempt_timeout(self):
+        self.clean()
+        self.write(
+            "pstack-verifier.yml",
+            VERIFIER.replace(
+                'timeout --signal=TERM --kill-after=30s "${per_attempt}m" \\\n'
+                '            pi --provider',
+                'timeout --signal=TERM --kill-after=30s \\\n'
+                '            pi --provider',
+            ),
+        )
+        errors = scope.check(self.root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("no timeout of its own", errors[0])
 
     def test_a_base_proof_key_that_hashes_the_head_checkout_is_rejected(self):
         self.clean()
