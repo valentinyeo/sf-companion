@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import factory_burn
 import factory_kpis
 import factory_shipping
 
@@ -720,10 +721,12 @@ def validate(feed):
     ok(set(feed) == {"generatedAt", "usage", "kpis"}, "feed: needs exactly generatedAt, usage, kpis")
     ok(is_iso(feed.get("generatedAt")), "generatedAt: needs an ISO 8601 UTC string")
     usage, kpis = feed.get("usage"), feed.get("kpis")
-    ok(isinstance(usage, dict) and set(usage) == {"cards", "burn"}, "usage: needs exactly cards and burn")
+    ok(isinstance(usage, dict) and set(usage) in ({"cards", "burn"}, {"cards", "burn", "report"}), "usage: needs exactly cards and burn")
     ok(isinstance(kpis, dict) and set(kpis) == {"tiles", "notes", "shipping"}, "kpis: needs exactly tiles, notes and shipping")
     if bad:
         return bad
+    if "report" in usage:
+        bad.extend(factory_burn.validate(usage["report"]))
     cards = usage["cards"]
     ok(isinstance(cards, list), "usage.cards: needs an array")
     for i, card in enumerate(cards if isinstance(cards, list) else []):
@@ -840,6 +843,7 @@ def main(argv=None):
         print(f"GitHub call budget refused the read. Kept the previous feed at {args.out} unchanged; the next run retries. "
               f"Fix: let the rolling hour clear, or cut calls with {factory_kpis.CACHE_ENV} kept on disk.", file=sys.stderr)
         return 3
+    feed["usage"]["report"] = factory_burn.collect(now)
     problems = validate(feed)
     if problems:
         for problem in problems:

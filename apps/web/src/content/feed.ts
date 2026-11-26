@@ -1,5 +1,7 @@
 import { Effect, Schema } from "effect";
 
+import { BurnReport } from "./burn.js";
+
 export const PlanKey = Schema.Literals([
   "claude",
   "codex",
@@ -180,6 +182,7 @@ export const FactoryFeed = Schema.Struct({
     tiles: Schema.Array(KpiTile),
   }),
   usage: Schema.Struct({
+    report: Schema.optional(BurnReport),
     burn: BurnByWindow,
     cards: Schema.Array(UsageCard),
   }),

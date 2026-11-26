@@ -229,7 +229,7 @@ jobs:
           jq -r '.verdict // "none", .reason // ""' "$RECORDS/verdict.json"
       - name: Keep the change checkout clean
         id: clean
-        if: github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
+        if: always() && github.event.pull_request.head.repo.full_name == github.repository && steps.scope.outputs.status == 'ok'
         run: git -C change diff --exit-code
       - name: Upload the proofs
         if: always()

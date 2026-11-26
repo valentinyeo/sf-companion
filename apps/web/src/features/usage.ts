@@ -13,6 +13,7 @@ import type {
 } from "../content/feed.js";
 import { classes, cue } from "./cue.js";
 import { factoryStyles } from "./factory.stylex.js";
+import { burnRouter } from "./route.js";
 
 const BURN_WINDOW = "1h";
 
@@ -284,12 +285,17 @@ export const usageView = (
   h: HtmlBuilder<AppMessage>
 ): readonly Html[] =>
   Option.match(model.feed, {
-    onNone: () => [h.h1([], ["Usage"]), h.p([], ["No usage numbers yet."])],
+    onNone: () => [
+      h.h1([], ["Usage"]),
+      h.p([], ["No usage numbers yet."]),
+      h.p([], [h.a([h.Href(burnRouter())], ["Where did the tokens go?"])]),
+    ],
     onSome: (feed) => {
       const age = updatedLine(feed.generatedAt, model.nowMs, h);
 
       return [
         h.h1([], ["Usage"]),
+        h.p([], [h.a([h.Href(burnRouter())], ["Where did the tokens go?"])]),
         ...(age === null ? [] : [age]),
         h.section(
           [h.Class(classes(factoryStyles.section))],
