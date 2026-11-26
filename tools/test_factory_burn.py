@@ -141,6 +141,40 @@ class BurnReportTests(unittest.TestCase):
             handle.write(json.dumps(claude(NOW - 60, "b", {"input_tokens": 20, "output_tokens": 2})) + "\n")
         self.assertEqual(sum(row["input"] for row in self.report()["rows"]), 30)
 
+    def fixture_history(self):
+        write_rows(self.home / ".claude/projects/project/session.jsonl", [
+            claude(NOW - 7200, "claude-1", {"input_tokens": 10, "output_tokens": 4, "cache_read_input_tokens": 20}, "VSTA-7"),
+            claude(NOW - 3600, "claude-2", {"input_tokens": 5, "output_tokens": 2})])
+        write_rows(self.home / ".codex/sessions/2026/11/session.jsonl", [
+            {"type": "session_meta", "payload": {"id": "codex-session", "cwd": "/work/codex-project"}},
+            {"timestamp": burn.iso(NOW - 3600), "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {
+                "input_tokens": 100, "cached_input_tokens": 30, "output_tokens": 10}}}}])
+        write_rows(self.home / ".pi/agent/sessions/project/session.jsonl", [
+            {"type": "session", "id": "pi-session", "cwd": "/work/pi-project"},
+            {"type": "message", "id": "reply", "timestamp": burn.iso(NOW - 3600), "message": {
+                "role": "assistant", "provider": "opencode-go", "model": "fixture-model",
+                "content": [{"type": "text", "text": "VSTA-329"}],
+                "usage": {"input": 10, "output": 2, "cacheRead": 100, "cacheWrite": 3}}}])
+        write_rows(self.home / ".gemini/antigravity-cli/history.jsonl", [
+            {"timestamp": burn.iso(NOW - 120), "display": "prompt", "conversationId": "agy", "workspace": "/work/agy-project"}])
+
+    def test_a_warm_run_gives_the_same_report_as_a_cold_run(self):
+        self.fixture_history()
+        cache = self.home / "cold-and-warm"
+        cold = burn.local_report(self.home, NOW, cache_dir=cache)
+        with patch.object(burn, "transcript", side_effect=AssertionError("cache miss")), \
+                patch.object(burn, "antigravity", side_effect=AssertionError("cache miss")):
+            warm = burn.local_report(self.home, NOW, cache_dir=cache)
+        self.assertEqual(warm, cold)
+        self.assertEqual(len({row["plan"] for row in cold["rows"]}), 4)
+
+    def test_parallel_reads_give_the_same_report_as_a_sequential_run(self):
+        self.fixture_history()
+        sequential = burn.local_report(self.home, NOW, cache_dir=self.home / "sequential", processes=1)
+        with patch.object(burn, "PARALLEL_MINIMUM_FILES", 0):
+            parallel = burn.local_report(self.home, NOW, cache_dir=self.home / "parallel", processes=2)
+        self.assertEqual(parallel, sequential)
+
     def test_aggregation_preserves_counts_and_unknown_costs_over_generated_rows(self):
         rng = random.Random(329)
         for _ in range(50):
