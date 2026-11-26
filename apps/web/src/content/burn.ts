@@ -132,6 +132,7 @@ export const rankBurn = (
       const listCostUsd = group.rows.some((row) => row.listCostUsd !== null)
         ? group.rows.reduce((sum, row) => sum + (row.listCostUsd ?? 0), 0)
         : null;
+
       const unpricedRequests = group.rows.reduce(
         (sum, row) => sum + (row.listCostUsd === null ? row.requests : 0),
         0

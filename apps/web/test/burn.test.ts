@@ -173,7 +173,10 @@ describe("burn report", () => {
         expect(groups.at(0)?.unpricedRequests).toBe(3);
 
         const mixed = rankBurn(
-          [{ ...row, listCostUsd: 1 }, { ...row, requests: 3 }],
+          [
+            { ...row, listCostUsd: 1 },
+            { ...row, requests: 3 },
+          ],
           "plan"
         ).at(0);
 
