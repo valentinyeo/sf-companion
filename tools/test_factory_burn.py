@@ -210,6 +210,19 @@ class BurnReportTests(unittest.TestCase):
         self.assertAlmostEqual(burn.cost_of(large, "catalog-model", prices), (40 + 60 + 80 + 25) / 1e6)
         self.assertEqual(prices["fixture-model"]["in"], 2)
 
+    def test_official_fable_price_prices_catalog_lagging_rows_while_unpriced_models_stay_unknown(self):
+        every_token = {"input_tokens": 1_000_000, "output_tokens": 1_000_000,
+                       "cache_read_input_tokens": 1_000_000, "cache_creation_input_tokens": 1_000_000}
+        write_rows(self.path, [
+            {"type": "assistant", "timestamp": burn.iso(NOW - 3600), "uuid": identity,
+             "message": {"id": identity, "model": model, "usage": usage, "content": []}}
+            for identity, model, usage in (("fable", "claude-fable-5-2", every_token),
+                                           ("flash", "deepseek-flash", {"input_tokens": 10, "output_tokens": 2}))])
+        costs = {row["model"]: row["listCostUsd"] for row in self.report()["rows"]}
+        self.assertAlmostEqual(costs["claude-fable-5-2"], 8 + 40 + 0.2 + 10)
+        self.assertIsNone(costs["deepseek-flash"])
+        self.assertEqual(burn.list_prices(self.home)["claude-fable-5-2"], burn.OFFICIAL_PRICES["claude-fable-5-2"])
+
     def test_opencode_provider_export_keeps_only_daily_counters_and_hashed_account_labels(self):
         text = ("day,user_type,user_id,user_name,provider,model,requests,input_tokens,output_tokens,cache_read_tokens,cache_write_5m_tokens,cache_write_1h_tokens,cost_usd\n"
                 "2026-11-25,service_account,private-account,private-name,opencode-go,fixture-model,2,10,3,1000,5,0,0.125\n")

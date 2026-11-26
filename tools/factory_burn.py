@@ -26,6 +26,9 @@ MULTIBOT = re.compile(r"\bMULTIBOT_SESSION\s*[=:]\s*[\"']?([A-Za-z0-9_.:-]{1,80}
 PRIVATE = re.compile(r"[\w.+-]+@[\w.-]+|\b\d{1,3}(?:\.\d{1,3}){3}\b|(?:sk-|ghp_|gho_|eyJ)[A-Za-z0-9_./+=-]+|[A-Za-z0-9_+/=-]{32,}")
 COUNTS = ("input", "output", "cacheRead", "cacheWrite", "requests")
 PLANS = ("claude", "codex", "antigravity", "grok", "opencode", "vercel", "deepseek", "openrouter", "commandcode", "cursor")
+OFFICIAL_PRICES = {
+    "claude-fable-5-2": {"in": 8, "out": 40, "cached": 0.2, "cache_write": 10, "tiers": []},
+}
 
 
 def numeric(value):
@@ -114,7 +117,7 @@ def token_values(usage, provider):
 
 
 def list_prices(home):
-    prices = {}
+    prices = {model: dict(price) for model, price in OFFICIAL_PRICES.items()}
     catalog = home / ".npm-global/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/providers/data"
     for provider in ("anthropic", "openai", "openai-codex"):
         for models in load(catalog / (provider + ".json")).values():

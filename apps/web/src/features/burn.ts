@@ -20,6 +20,21 @@ const RANGES = [
 const numberText = (value: number): string =>
   new Intl.NumberFormat("en", { maximumFractionDigits: 0 }).format(value);
 
+const unpricedNote = (
+  group: ReturnType<typeof rankBurn>[number],
+  h: HtmlBuilder<AppMessage>
+): readonly Html[] =>
+  group.unpricedRequests > 0 && group.listCostUsd !== null
+    ? [
+        h.p(
+          [],
+          [
+            `${numberText(group.unpricedRequests)} of ${numberText(group.requests)} requests unpriced`,
+          ]
+        ),
+      ]
+    : [];
+
 const picker = (
   selection: BurnSelectionValue,
   h: HtmlBuilder<AppMessage>
@@ -65,7 +80,7 @@ const ranking = (
                     h.caption(
                       [],
                       [
-                        "Ranked by known list-equivalent cost, not raw tokens. Share is of priced usage only; unpriced rows follow.",
+                        "Ranked by known list-equivalent cost, not raw tokens. Share is of priced usage only; a note names the requests still unpriced.",
                       ]
                     ),
                     h.thead(
@@ -138,6 +153,7 @@ const ranking = (
                                         ]
                                       ),
                                     ]),
+                                ...unpricedNote(group, h),
                               ]
                             ),
                             cell(
@@ -278,7 +294,7 @@ const paidKeys = (
                                 h.Scope("row"),
                                 h.Class(classes(factoryStyles.chartCell)),
                               ],
-                              [group.name]
+                              [group.name, ...unpricedNote(group, h)]
                             ),
                             cell(numberText(group.requests)),
                             ...[
