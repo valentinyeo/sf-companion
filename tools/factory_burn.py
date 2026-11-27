@@ -590,7 +590,7 @@ def opencode_export(text, prices):
 def read_paid_source(source, home, now, prices):
     if source == "opencode":
         done = subprocess.run([str(home / ".local/bin/yeo-key"), "--env", "OpenCode Check usage", "--",
-            "python3", str(home / "projects/token-ladder/bin/plan-pick"), "--opencode-usage-export"],
+            str(home / ".local/bin/plan-pick"), "--opencode-usage-export"],
             capture_output=True, text=True, timeout=90)
         if done.returncode:
             raise ValueError("OpenCode usage export unavailable")

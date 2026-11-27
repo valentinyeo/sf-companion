@@ -302,6 +302,17 @@ class BurnReportTests(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertTrue(all(row["row"]["account"] == "Vercel AI Gateway Token Pass key" for row in rows))
 
+    def test_opencode_export_runs_the_installed_plan_pick_helper(self):
+        completed = SimpleNamespace(returncode=0, stdout=
+            "day,user_id,model,requests,input_tokens,output_tokens,cache_read_tokens,"
+            "cache_write_5m_tokens,cache_write_1h_tokens,cost_usd\n")
+        with patch.object(burn.subprocess, "run", return_value=completed) as run:
+            rows, _ = burn.read_paid_source("opencode", self.home, NOW, {})
+        self.assertEqual(rows, [])
+        run.assert_called_once_with([str(self.home / ".local/bin/yeo-key"), "--env", "OpenCode Check usage", "--",
+            str(self.home / ".local/bin/plan-pick"), "--opencode-usage-export"],
+            capture_output=True, text=True, timeout=90)
+
     def test_bad_rows_are_reported_without_copying_source_content(self):
         self.path.parent.mkdir(parents=True)
         self.path.write_text('{"secret":invalid}\n')
